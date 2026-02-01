@@ -1,19 +1,20 @@
 import argparse
 
 from oneehr.config.load import load_experiment_config
-from oneehr.core.index import make_patient_index
+from oneehr.data.patient_index import make_patient_index
 from oneehr.data.io import load_event_table
 from oneehr.featurize.tabular import make_patient_tabular, make_time_tabular
 from oneehr.models.xgb import predict_xgboost, train_xgboost
 from oneehr.preprocess import bin_events
 from oneehr.task.align import normalize_patient_labels, normalize_time_labels
 from oneehr.task.label_fn import run_label_fn
-from oneehr.training.gru_trainer import train_gru_patient
 from oneehr.eval.metrics import binary_metrics, regression_metrics
-from oneehr.training.sequence import build_patient_sequences, pad_sequences
-from oneehr.training.splits import make_splits
+from oneehr.data.sequence import build_patient_sequences, pad_sequences
+from oneehr.data.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
-from oneehr.reporting.tables import summarize_metrics, to_paper_wide_table
+from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
+from oneehr.modeling.trainer import fit_sequence_model
+from oneehr.models.gru import GRUModel
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -145,8 +146,15 @@ def _run_train(cfg_path: str) -> None:
         X_va, L_va, y_va = X_seq[val_m], lens_t[val_m], torch.from_numpy(y_arr[val_m])
         X_te, L_te, y_te = X_seq[test_m], lens_t[test_m], torch.from_numpy(y_arr[test_m])
 
-        _art, val_preds = train_gru_patient(
-            feature_columns=feat_cols,
+        model = GRUModel(
+            input_dim=X_tr.shape[-1],
+            hidden_dim=cfg.model.gru.hidden_dim,
+            out_dim=1,
+            num_layers=cfg.model.gru.num_layers,
+            dropout=cfg.model.gru.dropout,
+        )
+        fit = fit_sequence_model(
+            model=model,
             X_train=X_tr,
             len_train=L_tr,
             y_train=y_tr,
@@ -156,8 +164,8 @@ def _run_train(cfg_path: str) -> None:
             task=cfg.task,
             cfg=cfg.model.gru,
         )
-        y_score = val_preds.y_pred
-        y_test = val_preds.y_true
+        y_score = fit.y_pred
+        y_test = fit.y_true
         test_patient_ids = pids_arr[test_m]
         test_key = None
     else:
@@ -271,8 +279,15 @@ def _run_benchmark(cfg_path: str) -> None:
             X_tr, L_tr, y_tr = X_seq[train_m], lens_t[train_m], torch.from_numpy(y_arr[train_m])
             X_va, L_va, y_va = X_seq[val_m], lens_t[val_m], torch.from_numpy(y_arr[val_m])
             X_te, L_te, y_te = X_seq[test_m], lens_t[test_m], torch.from_numpy(y_arr[test_m])
-            _art, te_preds = train_gru_patient(
-                feature_columns=feat_cols,
+            model = GRUModel(
+                input_dim=X_tr.shape[-1],
+                hidden_dim=cfg.model.gru.hidden_dim,
+                out_dim=1,
+                num_layers=cfg.model.gru.num_layers,
+                dropout=cfg.model.gru.dropout,
+            )
+            fit = fit_sequence_model(
+                model=model,
                 X_train=X_tr,
                 len_train=L_tr,
                 y_train=y_tr,
@@ -282,8 +297,8 @@ def _run_benchmark(cfg_path: str) -> None:
                 task=cfg.task,
                 cfg=cfg.model.gru,
             )
-            y_score = te_preds.y_pred
-            y_test = te_preds.y_true
+            y_score = fit.y_pred
+            y_test = fit.y_true
             test_patient_ids = pids_arr[test_m]
             test_key = None
         else:

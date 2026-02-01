@@ -23,6 +23,17 @@ uv pip install -e .
 
 OneEHR is being built from scratch (do not attempt to keep compatibility with legacy PyEHR).
 
+## Architecture (pipeline)
+
+OneEHR modules should follow the workflow:
+
+1. Data Pre-processing
+2. Modeling
+3. Evaluation
+4. Analysis (future)
+
+Future modules may include interpretability, uncertainty, confidence, etc.
+
 ### Data
 
 - Input is doctor-friendly: start with **a single CSV/Excel table**.
@@ -40,6 +51,11 @@ OneEHR is being built from scratch (do not attempt to keep compatibility with le
   - **N-N** (`time`): one prediction per time step.
 - N-N labels can be generated via rules in a user-provided `label_fn`.
 
+## Repository context
+
+- Put project-specific task descriptions and requirements under `.context/`.
+- Put longer-form architecture and design notes under `docs/`.
+
 ### Splits
 
 - Must prevent leakage via **patient-level group split**.
@@ -53,4 +69,3 @@ OneEHR is being built from scratch (do not attempt to keep compatibility with le
 - CLI command name: `oneehr`.
 - CLI should be driven primarily by **TOML configuration**.
 - MVP focus: make models trainable and benchmarkable; **no interpretability** for now.
-

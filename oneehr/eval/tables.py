@@ -4,21 +4,6 @@ import numpy as np
 import pandas as pd
 
 
-def _ci95_mean(values: pd.Series) -> tuple[float, float]:
-    """Normal-approx 95% CI for the mean: mean ± 1.96 * (std / sqrt(n))."""
-
-    v = values.dropna().astype(float)
-    n = int(v.shape[0])
-    if n == 0:
-        return float("nan"), float("nan")
-    mean = float(v.mean())
-    if n == 1:
-        return mean, mean
-    std = float(v.std(ddof=1))
-    half = 1.96 * std / (n**0.5)
-    return mean - half, mean + half
-
-
 def _bootstrap_ci95_mean(values: pd.Series, n_boot: int = 2000, seed: int = 42) -> tuple[float, float]:
     v = values.dropna().astype(float).to_numpy()
     n = int(v.shape[0])
@@ -34,7 +19,7 @@ def _bootstrap_ci95_mean(values: pd.Series, n_boot: int = 2000, seed: int = 42) 
 
 
 def summarize_metrics(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
-    """Create a compact long table with mean/std/95% CI over splits."""
+    """Create a long table with mean/std/bootstrap 95% CI over splits."""
 
     if "split" not in metrics_per_split.columns:
         raise ValueError("metrics_per_split must contain 'split'")
@@ -58,11 +43,7 @@ def summarize_metrics(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
 
 
 def to_paper_wide_table(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
-    """Return a single-row wide table more like paper tables.
-
-    Output columns look like:
-      auroc_mean, auroc_ci95_low, auroc_ci95_high, auprc_mean, ...
-    """
+    """Return a single-row wide table more like paper tables."""
 
     long = summarize_metrics(metrics_per_split)
     cells = {}
@@ -73,3 +54,4 @@ def to_paper_wide_table(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
         cells[f"{m}_ci95_high"] = r["ci95_high"]
         cells[f"{m}_n"] = r["n"]
     return pd.DataFrame([cells])
+
