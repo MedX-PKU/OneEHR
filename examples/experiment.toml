@@ -38,8 +38,12 @@ name = "gru"
 enabled = true
 metric = "val_auroc"
 mode = "max"
-# Minimal example (only affects xgboost currently via `oneehr hpo`):
-# grid = [ ["model.xgboost.max_depth", [3, 5, 7]], ["model.xgboost.learning_rate", [0.05, 0.1]] ]
+
+# Example DL HPO (grid over trainer hyperparameters). Benchmark selects best per split.
+grid = [
+  ["trainer.lr", [1e-3, 3e-4]],
+  ["trainer.batch_size", [16, 32]],
+]
 
 [trainer]
 device = "auto"

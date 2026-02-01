@@ -1,0 +1,4 @@
+split,skipped,auroc,auprc,hpo_best
+fold0,0,0.0,0.5,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
+fold1,0,,1.0,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
+fold2,0,,0.0,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
