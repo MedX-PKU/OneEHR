@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 
@@ -18,6 +19,20 @@ def _ci95_mean(values: pd.Series) -> tuple[float, float]:
     return mean - half, mean + half
 
 
+def _bootstrap_ci95_mean(values: pd.Series, n_boot: int = 2000, seed: int = 42) -> tuple[float, float]:
+    v = values.dropna().astype(float).to_numpy()
+    n = int(v.shape[0])
+    if n == 0:
+        return float("nan"), float("nan")
+    if n == 1:
+        return float(v[0]), float(v[0])
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, n, size=(n_boot, n))
+    means = v[idx].mean(axis=1)
+    low, high = np.quantile(means, [0.025, 0.975])
+    return float(low), float(high)
+
+
 def summarize_metrics(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
     """Create a compact long table with mean/std/95% CI over splits."""
 
@@ -28,7 +43,7 @@ def summarize_metrics(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for col in metric_cols:
         s = metrics_per_split[col].astype(float)
-        ci_low, ci_high = _ci95_mean(s)
+        ci_low, ci_high = _bootstrap_ci95_mean(s)
         rows.append(
             {
                 "metric": col,

@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 import torch
 from torch import nn
 
 from oneehr.config.schema import GRUConfig, TaskConfig
-from oneehr.models.gru import GRUArtifacts, GRUModel
+
+
+class SequenceModel(Protocol):
+    def __call__(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor: ...
 
 
 @dataclass(frozen=True)
-class GRUPreds:
+class FitResult:
+    state_dict: dict
     y_true: np.ndarray
     y_pred: np.ndarray
 
@@ -24,8 +29,8 @@ def _make_loss(task: TaskConfig):
     raise ValueError(f"Unsupported task.kind={task.kind!r}")
 
 
-def train_gru_patient(
-    feature_columns: list[str],
+def fit_sequence_model(
+    model: nn.Module,
     X_train: torch.Tensor,
     len_train: torch.Tensor,
     y_train: torch.Tensor,
@@ -35,15 +40,14 @@ def train_gru_patient(
     task: TaskConfig,
     cfg: GRUConfig,
     device: str = "cpu",
-) -> tuple[GRUArtifacts, GRUPreds]:
-    model = GRUModel(
-        input_dim=X_train.shape[-1],
-        hidden_dim=cfg.hidden_dim,
-        out_dim=1,
-        num_layers=cfg.num_layers,
-        dropout=cfg.dropout,
-    ).to(device)
+) -> FitResult:
+    """Generic trainer for sequence models with (x, lengths) signature.
 
+    For now we reuse GRUConfig as a minimal training config (lr, batch_size, epochs, patience).
+    Later we can introduce a separate TrainerConfig.
+    """
+
+    model = model.to(device)
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     loss_fn = _make_loss(task)
 
@@ -95,7 +99,6 @@ def train_gru_patient(
         y_pred = 1.0 / (1.0 + np.exp(-logits))
     else:
         y_pred = logits
-    art = GRUArtifacts(feature_columns=feature_columns, state_dict=model.state_dict())
-    preds = GRUPreds(y_true=y_val.detach().cpu().numpy(), y_pred=y_pred)
-    return art, preds
+
+    return FitResult(state_dict=model.state_dict(), y_true=y_val.detach().cpu().numpy(), y_pred=y_pred)
 

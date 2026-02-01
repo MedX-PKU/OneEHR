@@ -9,7 +9,7 @@ from oneehr.preprocess import bin_events
 from oneehr.task.align import normalize_patient_labels, normalize_time_labels
 from oneehr.task.label_fn import run_label_fn
 from oneehr.training.gru_trainer import train_gru_patient
-from oneehr.metrics import binary_metrics, regression_metrics
+from oneehr.eval.metrics import binary_metrics, regression_metrics
 from oneehr.training.sequence import build_patient_sequences, pad_sequences
 from oneehr.training.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
