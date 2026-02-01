@@ -49,6 +49,42 @@ class SplitConfig:
 
 
 @dataclass(frozen=True)
+class TrainerConfig:
+    device: str = "auto"  # auto | cpu | cuda
+    precision: str = "fp32"  # fp32 | bf16
+    seed: int = 42
+    max_epochs: int = 30
+    batch_size: int = 64
+    lr: float = 1e-3
+    weight_decay: float = 0.0
+    grad_clip_norm: float | None = None
+
+    # Distributed (single-node, multi-GPU)
+    ddp: bool = False
+    ddp_backend: str = "nccl"  # nccl | gloo
+    num_workers: int = 0
+
+    # Early stopping + checkpoint selection
+    early_stopping: bool = True
+    early_stopping_patience: int = 5
+    monitor: str = "val_loss"  # val_loss | val_auc | val_rmse | ...
+    monitor_mode: str = "min"  # min | max
+
+    # Customization hooks
+    loss_fn: str | None = None  # python callable ref: path/to.py:loss_fn
+
+
+@dataclass(frozen=True)
+class HPOConfig:
+    enabled: bool = False
+    # Minimal grid search (no new dependency) driven by config overrides.
+    # Example: [ ["model.xgboost.max_depth", [4, 6, 8]], ["trainer.lr", [1e-3, 3e-4]] ]
+    grid: list[tuple[str, list]] = field(default_factory=list)
+    metric: str = "val_loss"
+    mode: str = "min"  # min | max
+
+
+@dataclass(frozen=True)
 class XGBoostConfig:
     max_depth: int = 6
     n_estimators: int = 500
@@ -64,10 +100,6 @@ class GRUConfig:
     hidden_dim: int = 128
     num_layers: int = 1
     dropout: float = 0.0
-    lr: float = 1e-3
-    batch_size: int = 64
-    max_epochs: int = 30
-    patience: int = 5
 
 
 @dataclass(frozen=True)
@@ -77,10 +109,6 @@ class RNNConfig:
     dropout: float = 0.0
     bidirectional: bool = False
     nonlinearity: str = "tanh"  # tanh | relu
-    lr: float = 1e-3
-    batch_size: int = 64
-    max_epochs: int = 30
-    patience: int = 5
 
 
 @dataclass(frozen=True)
@@ -91,10 +119,6 @@ class TransformerConfig:
     dim_feedforward: int = 256
     dropout: float = 0.1
     pooling: str = "last"  # last | mean
-    lr: float = 1e-3
-    batch_size: int = 64
-    max_epochs: int = 30
-    patience: int = 5
 
 
 @dataclass(frozen=True)
@@ -121,4 +145,6 @@ class ExperimentConfig:
     split: SplitConfig
     model: ModelConfig
     labels: LabelsConfig = field(default_factory=LabelsConfig)
+    trainer: TrainerConfig = field(default_factory=TrainerConfig)
+    hpo: HPOConfig = field(default_factory=HPOConfig)
     output: OutputConfig = field(default_factory=OutputConfig)

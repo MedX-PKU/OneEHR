@@ -16,7 +16,7 @@ from oneehr.data.sequence import build_patient_sequences
 from oneehr.data.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
 from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
-from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
+from oneehr.modeling.trainer import ddp_should_spawn, fit_sequence_model, fit_sequence_model_time
 
 
 def _train_sequence_patient_level(
@@ -55,13 +55,23 @@ def _train_sequence_patient_level(
         X_train=X_tr,
         len_train=L_tr,
         y_train=y_tr,
-        X_val=X_te,  # evaluate on test for now
-        len_val=L_te,
-        y_val=y_te,
+        X_val=X_va,
+        len_val=L_va,
+        y_val=y_va,
         task=task,
-        cfg=cfg,
+        trainer=cfg,
     )
-    return fit.y_pred, fit.y_true, pids_arr[test_m]
+
+    # final evaluation on test
+    model.load_state_dict(fit.state_dict)
+    model.eval()
+    with torch.no_grad():
+        logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+    if task.kind == "binary":
+        y_score = 1.0 / (1.0 + np.exp(-logits))
+    else:
+        y_score = logits
+    return y_score, y_te.detach().cpu().numpy(), pids_arr[test_m]
 
 
 def _train_sequence_time_level(
@@ -120,17 +130,25 @@ def _train_sequence_time_level(
         len_train=L_tr,
         y_train=Y_tr,
         mask_train=M_tr,
-        X_val=X_te,
-        len_val=L_te,
-        y_val=Y_te,
-        mask_val=M_te,
+        X_val=X_va,
+        len_val=L_va,
+        y_val=Y_va,
+        mask_val=M_va,
         task=task,
-        cfg=cfg,
+        trainer=cfg,
     )
 
-    y_score = fit.y_pred
-    y_true = fit.y_true
-    mask = fit.mask
+    # final evaluation on test
+    model.load_state_dict(fit.state_dict)
+    model.eval()
+    with torch.no_grad():
+        logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+    if task.kind == "binary":
+        y_score = 1.0 / (1.0 + np.exp(-logits))
+    else:
+        y_score = logits
+    y_true = Y_te.detach().cpu().numpy()
+    mask = M_te.detach().cpu().numpy()
     if mask is not None:
         flat = mask.reshape(-1).astype(bool)
         y_score = y_score.reshape(-1)[flat]
@@ -206,6 +224,11 @@ def _run_train(cfg_path: str) -> None:
         if torch is None:
             raise SystemExit(
                 "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
+            )
+
+        if ddp_should_spawn(cfg.trainer):
+            raise SystemExit(
+                "trainer.ddp is enabled. Use `oneehr benchmark` to run DDP training per split."
             )
 
     if cfg.task.prediction_mode == "patient":
@@ -289,7 +312,7 @@ def _run_train(cfg_path: str) -> None:
                     binned=binned,
                     y=y,
                     split=split0,
-                    cfg=cfg.model.gru,
+                    cfg=cfg.trainer,
                     task=cfg.task,
                 )
             else:
@@ -305,7 +328,7 @@ def _run_train(cfg_path: str) -> None:
                     binned=binned,
                     labels_df=labels_df,
                     split=split0,
-                    cfg=cfg.model.gru,
+                    cfg=cfg.trainer,
                     task=cfg.task,
                 )
                 test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
@@ -329,7 +352,7 @@ def _run_train(cfg_path: str) -> None:
                     binned=binned,
                     y=y,
                     split=split0,
-                    cfg=cfg.model.rnn,
+                    cfg=cfg.trainer,
                     task=cfg.task,
                 )
             else:
@@ -347,7 +370,7 @@ def _run_train(cfg_path: str) -> None:
                     binned=binned,
                     labels_df=labels_df,
                     split=split0,
-                    cfg=cfg.model.rnn,
+                    cfg=cfg.trainer,
                     task=cfg.task,
                 )
                 test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
@@ -372,7 +395,7 @@ def _run_train(cfg_path: str) -> None:
                     binned=binned,
                     y=y,
                     split=split0,
-                    cfg=cfg.model.transformer,
+                    cfg=cfg.trainer,
                     task=cfg.task,
                 )
             else:
@@ -390,7 +413,7 @@ def _run_train(cfg_path: str) -> None:
                     binned=binned,
                     labels_df=labels_df,
                     split=split0,
-                    cfg=cfg.model.transformer,
+                    cfg=cfg.trainer,
                     task=cfg.task,
                 )
                 test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)

@@ -34,6 +34,20 @@ val_size = 0.2
 [model]
 name = "xgboost"
 
+[trainer]
+device = "auto"
+seed = 42
+max_epochs = 30
+batch_size = 64
+lr = 1e-3
+weight_decay = 0.0
+early_stopping = true
+early_stopping_patience = 5
+monitor = "val_loss"
+monitor_mode = "min"
+# Optional: custom loss factory. Signature: loss_fn(task: TaskConfig) -> torch.nn.Module
+# loss_fn = "examples/custom_loss.py:make_loss"
+
 [output]
 root = "outputs"
 run_name = "example"

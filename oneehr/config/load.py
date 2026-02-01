@@ -8,12 +8,14 @@ import tomllib
 from oneehr.config.schema import (
     DatasetConfig,
     ExperimentConfig,
+    HPOConfig,
     LabelsConfig,
     ModelConfig,
     OutputConfig,
     PreprocessConfig,
     SplitConfig,
     TaskConfig,
+    TrainerConfig,
     GRUConfig,
     RNNConfig,
     TransformerConfig,
@@ -38,6 +40,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     model_raw = _require(raw, "model")
     output_raw = raw.get("output", {})
     labels_raw = raw.get("labels", {})
+    trainer_raw = raw.get("trainer", {})
+    hpo_raw = raw.get("hpo", {})
 
     dataset = DatasetConfig(
         path=Path(_require(dataset_raw, "path")),
@@ -97,10 +101,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             hidden_dim=int(gru_raw.get("hidden_dim", 128)),
             num_layers=int(gru_raw.get("num_layers", 1)),
             dropout=float(gru_raw.get("dropout", 0.0)),
-            lr=float(gru_raw.get("lr", 1e-3)),
-            batch_size=int(gru_raw.get("batch_size", 64)),
-            max_epochs=int(gru_raw.get("max_epochs", 30)),
-            patience=int(gru_raw.get("patience", 5)),
         ),
         rnn=RNNConfig(
             hidden_dim=int(rnn_raw.get("hidden_dim", 128)),
@@ -108,10 +108,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             dropout=float(rnn_raw.get("dropout", 0.0)),
             bidirectional=bool(rnn_raw.get("bidirectional", False)),
             nonlinearity=str(rnn_raw.get("nonlinearity", "tanh")),
-            lr=float(rnn_raw.get("lr", 1e-3)),
-            batch_size=int(rnn_raw.get("batch_size", 64)),
-            max_epochs=int(rnn_raw.get("max_epochs", 30)),
-            patience=int(rnn_raw.get("patience", 5)),
         ),
         transformer=TransformerConfig(
             d_model=int(tf_raw.get("d_model", 128)),
@@ -120,10 +116,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             dim_feedforward=int(tf_raw.get("dim_feedforward", 256)),
             dropout=float(tf_raw.get("dropout", 0.1)),
             pooling=str(tf_raw.get("pooling", "last")),
-            lr=float(tf_raw.get("lr", 1e-3)),
-            batch_size=int(tf_raw.get("batch_size", 64)),
-            max_epochs=int(tf_raw.get("max_epochs", 30)),
-            patience=int(tf_raw.get("patience", 5)),
         ),
     )
 
@@ -133,6 +125,37 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         save_preds=bool(output_raw.get("save_preds", True)),
     )
 
+    trainer = TrainerConfig(
+        device=str(trainer_raw.get("device", "auto")),
+        precision=str(trainer_raw.get("precision", "fp32")),
+        seed=int(trainer_raw.get("seed", 42)),
+        max_epochs=int(trainer_raw.get("max_epochs", 30)),
+        batch_size=int(trainer_raw.get("batch_size", 64)),
+        lr=float(trainer_raw.get("lr", 1e-3)),
+        weight_decay=float(trainer_raw.get("weight_decay", 0.0)),
+        grad_clip_norm=trainer_raw.get("grad_clip_norm"),
+        ddp=bool(trainer_raw.get("ddp", False)),
+        ddp_backend=str(trainer_raw.get("ddp_backend", "nccl")),
+        num_workers=int(trainer_raw.get("num_workers", 0)),
+        early_stopping=bool(trainer_raw.get("early_stopping", True)),
+        early_stopping_patience=int(trainer_raw.get("early_stopping_patience", 5)),
+        monitor=str(trainer_raw.get("monitor", "val_loss")),
+        monitor_mode=str(trainer_raw.get("monitor_mode", "min")),
+        loss_fn=trainer_raw.get("loss_fn") or None,
+    )
+
+    grid_items = []
+    for item in hpo_raw.get("grid", []) or []:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise ValueError("hpo.grid items must be [key, values]")
+        grid_items.append((str(item[0]), list(item[1])))
+    hpo = HPOConfig(
+        enabled=bool(hpo_raw.get("enabled", False)),
+        grid=grid_items,
+        metric=str(hpo_raw.get("metric", "val_loss")),
+        mode=str(hpo_raw.get("mode", "min")),
+    )
+
     return ExperimentConfig(
         dataset=dataset,
         preprocess=preprocess,
@@ -140,5 +163,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         labels=labels,
         split=split,
         model=model,
+        trainer=trainer,
+        hpo=hpo,
         output=output,
     )
