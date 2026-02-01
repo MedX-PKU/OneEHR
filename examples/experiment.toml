@@ -52,6 +52,10 @@ early_stopping = true
 early_stopping_patience = 5
 monitor = "val_loss"
 monitor_mode = "min"
+
+# Multi-GPU (single-node) training for DL models
+# ddp = true
+# ddp_backend = "nccl"
 # Optional: custom loss factory. Signature: loss_fn(task: TaskConfig) -> torch.nn.Module
 # loss_fn = "examples/custom_loss.py:make_loss"
 
