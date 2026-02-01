@@ -4,14 +4,33 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import numpy as np
-import torch
-from torch import nn
 
-from oneehr.config.schema import GRUConfig, TaskConfig
+from oneehr.utils.imports import optional_import
+
+
+def _torch():
+    torch = optional_import("torch")
+    if torch is None:
+        raise ModuleNotFoundError("torch")
+    return torch
+
+
+torch = None
+nn = None
+
+
+def _require_torch():
+    global torch, nn
+    if torch is not None and nn is not None:
+        return
+    torch = _torch()
+    nn = torch.nn
+
+from oneehr.config.schema import GRUConfig, RNNConfig, TaskConfig, TransformerConfig
 
 
 class SequenceModel(Protocol):
-    def __call__(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor: ...
+    def __call__(self, x, lengths): ...
 
 
 @dataclass(frozen=True)
@@ -22,6 +41,7 @@ class FitResult:
 
 
 def _make_loss(task: TaskConfig):
+    _require_torch()
     if task.kind == "binary":
         return nn.BCEWithLogitsLoss(reduction="none")
     if task.kind == "regression":
@@ -30,23 +50,24 @@ def _make_loss(task: TaskConfig):
 
 
 def fit_sequence_model(
-    model: nn.Module,
-    X_train: torch.Tensor,
-    len_train: torch.Tensor,
-    y_train: torch.Tensor,
-    X_val: torch.Tensor,
-    len_val: torch.Tensor,
-    y_val: torch.Tensor,
+    model,
+    X_train,
+    len_train,
+    y_train,
+    X_val,
+    len_val,
+    y_val,
     task: TaskConfig,
-    cfg: GRUConfig,
+    cfg: GRUConfig | RNNConfig | TransformerConfig,
     device: str = "cpu",
 ) -> FitResult:
     """Generic trainer for sequence models with (x, lengths) signature.
 
-    For now we reuse GRUConfig as a minimal training config (lr, batch_size, epochs, patience).
-    Later we can introduce a separate TrainerConfig.
+    For now we reuse the model config as a minimal training config (lr, batch_size, epochs, patience).
+    Later we can introduce a dedicated TrainerConfig.
     """
 
+    _require_torch()
     model = model.to(device)
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     loss_fn = _make_loss(task)
@@ -101,4 +122,3 @@ def fit_sequence_model(
         y_pred = logits
 
     return FitResult(state_dict=model.state_dict(), y_true=y_val.detach().cpu().numpy(), y_pred=y_pred)
-

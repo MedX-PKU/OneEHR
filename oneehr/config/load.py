@@ -15,6 +15,8 @@ from oneehr.config.schema import (
     SplitConfig,
     TaskConfig,
     GRUConfig,
+    RNNConfig,
+    TransformerConfig,
     XGBoostConfig,
 )
 
@@ -78,6 +80,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     xgb_raw = model_raw.get("xgboost", {})
     gru_raw = model_raw.get("gru", {})
+    rnn_raw = model_raw.get("rnn", {})
+    tf_raw = model_raw.get("transformer", {})
     model = ModelConfig(
         name=_require(model_raw, "name"),
         xgboost=XGBoostConfig(
@@ -97,6 +101,29 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             batch_size=int(gru_raw.get("batch_size", 64)),
             max_epochs=int(gru_raw.get("max_epochs", 30)),
             patience=int(gru_raw.get("patience", 5)),
+        ),
+        rnn=RNNConfig(
+            hidden_dim=int(rnn_raw.get("hidden_dim", 128)),
+            num_layers=int(rnn_raw.get("num_layers", 1)),
+            dropout=float(rnn_raw.get("dropout", 0.0)),
+            bidirectional=bool(rnn_raw.get("bidirectional", False)),
+            nonlinearity=str(rnn_raw.get("nonlinearity", "tanh")),
+            lr=float(rnn_raw.get("lr", 1e-3)),
+            batch_size=int(rnn_raw.get("batch_size", 64)),
+            max_epochs=int(rnn_raw.get("max_epochs", 30)),
+            patience=int(rnn_raw.get("patience", 5)),
+        ),
+        transformer=TransformerConfig(
+            d_model=int(tf_raw.get("d_model", 128)),
+            nhead=int(tf_raw.get("nhead", 4)),
+            num_layers=int(tf_raw.get("num_layers", 2)),
+            dim_feedforward=int(tf_raw.get("dim_feedforward", 256)),
+            dropout=float(tf_raw.get("dropout", 0.1)),
+            pooling=str(tf_raw.get("pooling", "last")),
+            lr=float(tf_raw.get("lr", 1e-3)),
+            batch_size=int(tf_raw.get("batch_size", 64)),
+            max_epochs=int(tf_raw.get("max_epochs", 30)),
+            patience=int(tf_raw.get("patience", 5)),
         ),
     )
 

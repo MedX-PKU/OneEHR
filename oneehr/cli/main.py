@@ -1,5 +1,9 @@
 import argparse
 
+import numpy as np
+
+from oneehr.utils.imports import optional_import
+
 from oneehr.config.load import load_experiment_config
 from oneehr.data.patient_index import make_patient_index
 from oneehr.data.io import load_event_table
@@ -8,12 +12,56 @@ from oneehr.models.xgb import predict_xgboost, train_xgboost
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.eval.metrics import binary_metrics, regression_metrics
-from oneehr.data.sequence import build_patient_sequences, pad_sequences
+from oneehr.data.sequence import build_patient_sequences
 from oneehr.data.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
 from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
 from oneehr.modeling.trainer import fit_sequence_model
-from oneehr.models.gru import GRUModel
+
+
+def _train_sequence_patient_level(
+    model,
+    binned,
+    y,
+    split,
+    cfg,
+    task,
+):
+    torch = optional_import("torch")
+    if torch is None:
+        raise SystemExit("Missing optional dependency: torch. Install it first (e.g. `uv add torch`).")
+
+    from oneehr.data.sequence import pad_sequences
+
+    feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+    pids, seqs, lens = build_patient_sequences(binned, feat_cols)
+    X_seq = pad_sequences(seqs, lens)
+    lens_t = torch.from_numpy(lens)
+
+    y_map = dict(zip(y.index.astype(str).tolist(), y.to_numpy().tolist()))
+    y_arr = np.array([y_map.get(pid) for pid in pids], dtype=np.float32)
+    pids_arr = np.array(pids, dtype=str)
+
+    train_m = np.isin(pids_arr, split.train_patients)
+    val_m = np.isin(pids_arr, split.val_patients)
+    test_m = np.isin(pids_arr, split.test_patients)
+
+    X_tr, L_tr, y_tr = X_seq[train_m], lens_t[train_m], torch.from_numpy(y_arr[train_m])
+    X_va, L_va, y_va = X_seq[val_m], lens_t[val_m], torch.from_numpy(y_arr[val_m])
+    X_te, L_te, y_te = X_seq[test_m], lens_t[test_m], torch.from_numpy(y_arr[test_m])
+
+    fit = fit_sequence_model(
+        model=model,
+        X_train=X_tr,
+        len_train=L_tr,
+        y_train=y_tr,
+        X_val=X_te,  # evaluate on test for now
+        len_val=L_te,
+        y_val=y_te,
+        task=task,
+        cfg=cfg,
+    )
+    return fit.y_pred, fit.y_true, pids_arr[test_m]
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -72,6 +120,13 @@ def _run_train(cfg_path: str) -> None:
 
     split0 = splits[0]
 
+    if cfg.model.name in {"gru", "rnn", "transformer"}:
+        torch = optional_import("torch")
+        if torch is None:
+            raise SystemExit(
+                "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
+            )
+
     if cfg.task.prediction_mode == "patient":
         if labels_df is not None:
             lab = labels_df.set_index("patient_id")["label"]
@@ -120,56 +175,82 @@ def _run_train(cfg_path: str) -> None:
     else:
         raise SystemExit(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
 
-    if cfg.model.name != "xgboost":
-        if cfg.model.name != "gru":
-            raise SystemExit(f"Unsupported model.name={cfg.model.name!r}")
-        if cfg.task.prediction_mode != "patient":
-            raise SystemExit("MVP: GRU currently supports prediction_mode='patient' only")
-
-        feature_cols = list(X_train.columns)
-        # Rebuild sequences from binned table (patient-level) using same features.
-        feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
-        pids, seqs, lens = build_patient_sequences(binned, feat_cols)
-        X_seq = pad_sequences(seqs, lens)
-        lens_t = torch.from_numpy(lens)
-        y_map = dict(zip(y.index.astype(str).tolist(), y.to_numpy().tolist()))
-        y_arr = np.array([y_map.get(pid) for pid in pids], dtype=np.float32)
-
-        # Align to split0.
-        pids_arr = np.array(pids, dtype=str)
-        train_m = np.isin(pids_arr, split0.train_patients)
-        val_m = np.isin(pids_arr, split0.val_patients)
-        test_m = np.isin(pids_arr, split0.test_patients)
-
-        X_tr, L_tr, y_tr = X_seq[train_m], lens_t[train_m], torch.from_numpy(y_arr[train_m])
-        X_va, L_va, y_va = X_seq[val_m], lens_t[val_m], torch.from_numpy(y_arr[val_m])
-        X_te, L_te, y_te = X_seq[test_m], lens_t[test_m], torch.from_numpy(y_arr[test_m])
-
-        model = GRUModel(
-            input_dim=X_tr.shape[-1],
-            hidden_dim=cfg.model.gru.hidden_dim,
-            out_dim=1,
-            num_layers=cfg.model.gru.num_layers,
-            dropout=cfg.model.gru.dropout,
-        )
-        fit = fit_sequence_model(
-            model=model,
-            X_train=X_tr,
-            len_train=L_tr,
-            y_train=y_tr,
-            X_val=X_te,  # evaluate on test for now
-            len_val=L_te,
-            y_val=y_te,
-            task=cfg.task,
-            cfg=cfg.model.gru,
-        )
-        y_score = fit.y_pred
-        y_test = fit.y_true
-        test_patient_ids = pids_arr[test_m]
-        test_key = None
-    else:
+    if cfg.model.name == "xgboost":
         art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
         y_score = predict_xgboost(art, X_test, cfg.task)
+    else:
+        if cfg.task.prediction_mode != "patient":
+            raise SystemExit(
+                "MVP: deep sequence models currently support prediction_mode='patient' only"
+            )
+
+        input_dim = len(
+            [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+        )
+
+        if cfg.model.name == "gru":
+            from oneehr.models.gru import GRUModel
+
+            model = GRUModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.gru.hidden_dim,
+                out_dim=1,
+                num_layers=cfg.model.gru.num_layers,
+                dropout=cfg.model.gru.dropout,
+            )
+            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                model=model,
+                binned=binned,
+                y=y,
+                split=split0,
+                cfg=cfg.model.gru,
+                task=cfg.task,
+            )
+        elif cfg.model.name == "rnn":
+            from oneehr.models.rnn import RNNModel
+
+            model = RNNModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.rnn.hidden_dim,
+                out_dim=1,
+                num_layers=cfg.model.rnn.num_layers,
+                dropout=cfg.model.rnn.dropout,
+                bidirectional=cfg.model.rnn.bidirectional,
+                nonlinearity=cfg.model.rnn.nonlinearity,
+            )
+            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                model=model,
+                binned=binned,
+                y=y,
+                split=split0,
+                cfg=cfg.model.rnn,
+                task=cfg.task,
+            )
+        elif cfg.model.name == "transformer":
+            from oneehr.models.transformer import TransformerModel
+
+            model = TransformerModel(
+                input_dim=input_dim,
+                d_model=cfg.model.transformer.d_model,
+                out_dim=1,
+                nhead=cfg.model.transformer.nhead,
+                num_layers=cfg.model.transformer.num_layers,
+                dim_feedforward=cfg.model.transformer.dim_feedforward,
+                dropout=cfg.model.transformer.dropout,
+                pooling=cfg.model.transformer.pooling,
+            )
+            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                model=model,
+                binned=binned,
+                y=y,
+                split=split0,
+                cfg=cfg.model.transformer,
+                task=cfg.task,
+            )
+        else:
+            raise SystemExit(f"Unsupported model.name={cfg.model.name!r}")
+
+        test_key = None
 
     if cfg.task.kind == "binary":
         metrics = binary_metrics(y_test.astype(float), y_score.astype(float)).metrics
@@ -231,6 +312,13 @@ def _run_benchmark(cfg_path: str) -> None:
 
     import pandas as pd
 
+    if cfg.model.name in {"gru", "rnn", "transformer"}:
+        torch = optional_import("torch")
+        if torch is None:
+            raise SystemExit(
+                "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
+            )
+
     rows = []
     out_root = cfg.output.root / cfg.output.run_name
     ensure_dir(out_root)
@@ -262,43 +350,73 @@ def _run_benchmark(cfg_path: str) -> None:
         if cfg.model.name == "xgboost":
             art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
             y_score = predict_xgboost(art, X_test, cfg.task)
-        elif cfg.model.name == "gru":
+        elif cfg.model.name in {"gru", "rnn", "transformer"}:
             if cfg.task.prediction_mode != "patient":
-                raise SystemExit("MVP: GRU benchmark supports prediction_mode='patient' only")
-            feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
-            pids, seqs, lens = build_patient_sequences(binned, feat_cols)
-            X_seq = pad_sequences(seqs, lens)
-            lens_t = torch.from_numpy(lens)
-            y_map = dict(zip(y.index.astype(str).tolist(), y.to_numpy().tolist()))
-            y_arr = np.array([y_map.get(pid) for pid in pids], dtype=np.float32)
-            pids_arr = np.array(pids, dtype=str)
-            train_m = np.isin(pids_arr, sp.train_patients)
-            val_m = np.isin(pids_arr, sp.val_patients)
-            test_m = np.isin(pids_arr, sp.test_patients)
-            X_tr, L_tr, y_tr = X_seq[train_m], lens_t[train_m], torch.from_numpy(y_arr[train_m])
-            X_va, L_va, y_va = X_seq[val_m], lens_t[val_m], torch.from_numpy(y_arr[val_m])
-            X_te, L_te, y_te = X_seq[test_m], lens_t[test_m], torch.from_numpy(y_arr[test_m])
-            model = GRUModel(
-                input_dim=X_tr.shape[-1],
-                hidden_dim=cfg.model.gru.hidden_dim,
-                out_dim=1,
-                num_layers=cfg.model.gru.num_layers,
-                dropout=cfg.model.gru.dropout,
-            )
-            fit = fit_sequence_model(
-                model=model,
-                X_train=X_tr,
-                len_train=L_tr,
-                y_train=y_tr,
-                X_val=X_te,
-                len_val=L_te,
-                y_val=y_te,
-                task=cfg.task,
-                cfg=cfg.model.gru,
-            )
-            y_score = fit.y_pred
-            y_test = fit.y_true
-            test_patient_ids = pids_arr[test_m]
+                raise SystemExit(
+                    "MVP: deep sequence models benchmark supports prediction_mode='patient' only"
+                )
+
+            input_dim = len([c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")])
+
+            if cfg.model.name == "gru":
+                from oneehr.models.gru import GRUModel
+
+                model = GRUModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.gru.hidden_dim,
+                    out_dim=1,
+                    num_layers=cfg.model.gru.num_layers,
+                    dropout=cfg.model.gru.dropout,
+                )
+                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                    model=model,
+                    binned=binned,
+                    y=y,
+                    split=sp,
+                    cfg=cfg.model.gru,
+                    task=cfg.task,
+                )
+            elif cfg.model.name == "rnn":
+                from oneehr.models.rnn import RNNModel
+
+                model = RNNModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.rnn.hidden_dim,
+                    out_dim=1,
+                    num_layers=cfg.model.rnn.num_layers,
+                    dropout=cfg.model.rnn.dropout,
+                    bidirectional=cfg.model.rnn.bidirectional,
+                    nonlinearity=cfg.model.rnn.nonlinearity,
+                )
+                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                    model=model,
+                    binned=binned,
+                    y=y,
+                    split=sp,
+                    cfg=cfg.model.rnn,
+                    task=cfg.task,
+                )
+            else:
+                from oneehr.models.transformer import TransformerModel
+
+                model = TransformerModel(
+                    input_dim=input_dim,
+                    d_model=cfg.model.transformer.d_model,
+                    out_dim=1,
+                    nhead=cfg.model.transformer.nhead,
+                    num_layers=cfg.model.transformer.num_layers,
+                    dim_feedforward=cfg.model.transformer.dim_feedforward,
+                    dropout=cfg.model.transformer.dropout,
+                    pooling=cfg.model.transformer.pooling,
+                )
+                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                    model=model,
+                    binned=binned,
+                    y=y,
+                    split=sp,
+                    cfg=cfg.model.transformer,
+                    task=cfg.task,
+                )
             test_key = None
         else:
             raise SystemExit(f"Unsupported model.name={cfg.model.name!r}")

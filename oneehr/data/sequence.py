@@ -4,15 +4,23 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-import torch
+
+from oneehr.utils.imports import optional_import
+
+
+def _torch():
+    torch = optional_import("torch")
+    if torch is None:
+        raise ModuleNotFoundError("torch")
+    return torch
 
 
 @dataclass(frozen=True)
 class SequenceBatch:
-    x: torch.Tensor  # (B, T, D)
-    lengths: torch.Tensor  # (B,)
-    y: torch.Tensor  # (B,) or (B, T)
-    mask: torch.Tensor | None  # same shape as y
+    x: object  # torch.Tensor (B, T, D)
+    lengths: object  # torch.Tensor (B,)
+    y: object  # torch.Tensor (B,) or (B, T)
+    mask: object | None  # torch.Tensor | None
 
 
 def build_patient_sequences(binned: pd.DataFrame, feature_columns: list[str]):
@@ -32,7 +40,8 @@ def build_patient_sequences(binned: pd.DataFrame, feature_columns: list[str]):
     return patient_ids, seqs, lengths
 
 
-def pad_sequences(seqs: list[np.ndarray], lengths: np.ndarray) -> torch.Tensor:
+def pad_sequences(seqs: list[np.ndarray], lengths: np.ndarray):
+    torch = _torch()
     max_len = int(lengths.max()) if len(lengths) else 0
     if max_len == 0:
         return torch.empty((0, 0, 0), dtype=torch.float32)
@@ -41,4 +50,3 @@ def pad_sequences(seqs: list[np.ndarray], lengths: np.ndarray) -> torch.Tensor:
     for i, s in enumerate(seqs):
         out[i, : s.shape[0], :] = s
     return torch.from_numpy(out)
-

@@ -71,10 +71,39 @@ class GRUConfig:
 
 
 @dataclass(frozen=True)
+class RNNConfig:
+    hidden_dim: int = 128
+    num_layers: int = 1
+    dropout: float = 0.0
+    bidirectional: bool = False
+    nonlinearity: str = "tanh"  # tanh | relu
+    lr: float = 1e-3
+    batch_size: int = 64
+    max_epochs: int = 30
+    patience: int = 5
+
+
+@dataclass(frozen=True)
+class TransformerConfig:
+    d_model: int = 128
+    nhead: int = 4
+    num_layers: int = 2
+    dim_feedforward: int = 256
+    dropout: float = 0.1
+    pooling: str = "last"  # last | mean
+    lr: float = 1e-3
+    batch_size: int = 64
+    max_epochs: int = 30
+    patience: int = 5
+
+
+@dataclass(frozen=True)
 class ModelConfig:
-    name: str  # xgboost | gru
+    name: str  # xgboost | gru | rnn | transformer
     xgboost: XGBoostConfig = field(default_factory=XGBoostConfig)
     gru: GRUConfig = field(default_factory=GRUConfig)
+    rnn: RNNConfig = field(default_factory=RNNConfig)
+    transformer: TransformerConfig = field(default_factory=TransformerConfig)
 
 
 @dataclass(frozen=True)
@@ -89,7 +118,7 @@ class ExperimentConfig:
     dataset: DatasetConfig
     preprocess: PreprocessConfig
     task: TaskConfig
-    labels: LabelsConfig = field(default_factory=LabelsConfig)
     split: SplitConfig
     model: ModelConfig
+    labels: LabelsConfig = field(default_factory=LabelsConfig)
     output: OutputConfig = field(default_factory=OutputConfig)

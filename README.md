@@ -8,13 +8,18 @@ This repository is being rebuilt from scratch.
 
 ## CLI
 
-After installing (editable recommended) with uv:
+Environment setup with uv:
 
 ```bash
 uv venv .venv --python 3.12
-uv pip install -e .
-uv pip install -e ".[ml]"
-oneehr --help
+uv sync
+```
+
+Add dependencies as needed:
+
+```bash
+uv add torch
+uv add xgboost scikit-learn
 ```
 
 ## Quickstart (MVP: XGBoost)
@@ -35,6 +40,13 @@ For a quick GRU baseline, set in TOML:
 ```toml
 [model]
 name = "gru"
+```
+
+## RNN / Transformer
+
+```toml
+[model]
+name = "rnn" # or "transformer"
 ```
 
 ### Labels (optional)

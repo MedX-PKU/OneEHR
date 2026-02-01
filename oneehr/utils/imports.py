@@ -5,6 +5,15 @@ from pathlib import Path
 from types import ModuleType
 
 
+def optional_import(name: str):
+    try:
+        return __import__(name)
+    except ModuleNotFoundError as e:
+        if e.name != name:
+            raise
+        return None
+
+
 def load_module_from_path(path: str | Path, module_name: str) -> ModuleType:
     path = Path(path)
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -28,4 +37,3 @@ def load_callable(ref: str):
     if not callable(fn):
         raise TypeError(f"{ref!r} is not callable")
     return fn
-
