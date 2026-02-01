@@ -1,4 +1,4 @@
-split,skipped,auroc,auprc,hpo_best
-fold0,0,0.0,0.5,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
-fold1,0,,1.0,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
-fold2,0,,0.0,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
+split,skipped,auroc,auprc,hpo_metric,hpo_mode,hpo_best_score,hpo_best
+fold0,0,0.0,0.5,val_auroc,max,1.507345199584961,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
+fold1,0,,1.0,val_auroc,max,1.1739184856414795,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"
+fold2,0,,0.0,val_auroc,max,1.5299628973007202,"{'trainer.lr': 0.001, 'trainer.batch_size': 16}"

@@ -17,7 +17,7 @@ from oneehr.data.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
 from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
 from oneehr.hpo.grid import apply_overrides, iter_grid
-from oneehr.hpo.runner import select_best_overrides
+from oneehr.hpo.runner import select_best_with_trials
 from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 
 
@@ -521,6 +521,10 @@ def _run_benchmark(cfg_path: str) -> None:
             X_train, y_train = X.loc[train_mask2], y.loc[train_mask2].to_numpy()
             X_val, y_val = X.loc[val_mask2], y.loc[val_mask2].to_numpy()
 
+            # If users configured HPO metric incompatible with current trial type,
+            # fall back to the trainer monitor for DL trials.
+            hpo_metric = cfg.hpo.metric
+
             if cfg.model.name == "xgboost":
                 if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
                     return None
@@ -528,11 +532,11 @@ def _run_benchmark(cfg_path: str) -> None:
                 y_val_score = predict_xgboost(art, X_val, cfg.task)
                 if cfg.task.kind == "binary":
                     vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
-                    if cfg.hpo.metric in {"val_auroc", "auroc"}:
+                    if hpo_metric in {"val_auroc", "auroc"}:
                         return float(vm["auroc"]), vm
                     return float(vm["auprc"]), vm
                 vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
-                if cfg.hpo.metric in {"val_rmse", "rmse"}:
+                if hpo_metric in {"val_rmse", "rmse"}:
                     return float(vm["rmse"]), vm
                 return float(vm["mae"]), vm
 
@@ -611,8 +615,9 @@ def _run_benchmark(cfg_path: str) -> None:
                     trainer=cfg.trainer,
                 )
                 last = fit.history[-1] if fit.history else {}
-                score = float(last.get(cfg.trainer.monitor, last.get("val_loss", 0.0)))
-                return score, {cfg.trainer.monitor: score}
+                monitor = cfg.trainer.monitor
+                score = float(last.get(monitor, last.get("val_loss", 0.0)))
+                return score, {monitor: score}
 
             if cfg.task.prediction_mode == "time":
                 if labels_df is None:
@@ -697,13 +702,45 @@ def _run_benchmark(cfg_path: str) -> None:
                     trainer=cfg.trainer,
                 )
                 last = fit.history[-1] if fit.history else {}
-                score = float(last.get(cfg.trainer.monitor, last.get("val_loss", 0.0)))
-                return score, {cfg.trainer.monitor: score}
+                monitor = cfg.trainer.monitor
+                score = float(last.get(monitor, last.get("val_loss", 0.0)))
+                return score, {monitor: score}
 
             return None
 
-        best = select_best_overrides(cfg0, _eval_trial)
-        best_overrides = best.overrides if best is not None else {}
+        hpo_res = select_best_with_trials(cfg0, _eval_trial)
+        best_overrides = hpo_res.best.overrides if hpo_res.best is not None else {}
+
+        # Persist trial results per split.
+        trial_rows = []
+        for tr in hpo_res.trials:
+            trial_rows.append(
+                {
+                    "split": sp.name,
+                    "hpo_metric": cfg0.hpo.metric,
+                    "hpo_mode": cfg0.hpo.mode,
+                    "trial_score": tr.score,
+                    "overrides": str(tr.overrides),
+                    **{f"trial_{k}": v for k, v in tr.metrics.items()},
+                }
+            )
+        import pandas as pd
+
+        ensure_dir(out_root / "hpo")
+        pd.DataFrame(trial_rows).to_csv(out_root / "hpo" / f"trials_{sp.name}.csv", index=False)
+        write_json(
+            out_root / "hpo" / f"best_{sp.name}.json",
+            {
+                "split": sp.name,
+                "metric": cfg0.hpo.metric,
+                "mode": cfg0.hpo.mode,
+                "best": None if hpo_res.best is None else {
+                    "score": hpo_res.best.score,
+                    "overrides": hpo_res.best.overrides,
+                    "metrics": hpo_res.best.metrics,
+                },
+            },
+        )
 
         cfg = apply_overrides(cfg0, best_overrides)
 
@@ -847,7 +884,15 @@ def _run_benchmark(cfg_path: str) -> None:
         else:
             metrics = regression_metrics(y_test.astype(float), y_score.astype(float)).metrics
 
-        row = {"split": sp.name, "skipped": 0, **metrics, "hpo_best": str(best_overrides)}
+        row = {
+            "split": sp.name,
+            "skipped": 0,
+            **metrics,
+            "hpo_metric": cfg0.hpo.metric,
+            "hpo_mode": cfg0.hpo.mode,
+            "hpo_best_score": None if hpo_res.best is None else hpo_res.best.score,
+            "hpo_best": str(best_overrides),
+        }
         rows.append(row)
 
         if cfg.output.save_preds and len(test_patient_ids) > 0:

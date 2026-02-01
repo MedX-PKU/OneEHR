@@ -36,8 +36,8 @@ name = "gru"
 
 [hpo]
 enabled = true
-metric = "val_auroc"
-mode = "max"
+metric = "val_loss"
+mode = "min"
 
 # Example DL HPO (grid over trainer hyperparameters). Benchmark selects best per split.
 grid = [
