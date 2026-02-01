@@ -16,7 +16,7 @@ from oneehr.data.sequence import build_patient_sequences
 from oneehr.data.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
 from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
-from oneehr.modeling.trainer import fit_sequence_model
+from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 
 
 def _train_sequence_patient_level(
@@ -62,6 +62,87 @@ def _train_sequence_patient_level(
         cfg=cfg,
     )
     return fit.y_pred, fit.y_true, pids_arr[test_m]
+
+
+def _train_sequence_time_level(
+    model,
+    binned,
+    labels_df,
+    split,
+    cfg,
+    task,
+):
+    torch = optional_import("torch")
+    if torch is None:
+        raise SystemExit("Missing optional dependency: torch. Install it first (e.g. `uv add torch`).")
+
+    from oneehr.data.sequence import build_time_sequences, pad_sequences
+
+    feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+    pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
+        binned,
+        labels_df,
+        feat_cols,
+        label_time_col="bin_time",
+    )
+    X_seq = pad_sequences(seqs, lens)
+    Y_seq = pad_sequences([y[:, None] for y in y_seqs], lens).squeeze(-1)
+    M_seq = pad_sequences([m[:, None] for m in mask_seqs], lens).squeeze(-1)
+    lens_t = torch.from_numpy(lens)
+
+    pids_arr = np.array(pids, dtype=str)
+    train_m = np.isin(pids_arr, split.train_patients)
+    val_m = np.isin(pids_arr, split.val_patients)
+    test_m = np.isin(pids_arr, split.test_patients)
+
+    X_tr, L_tr, Y_tr, M_tr = (
+        X_seq[train_m],
+        lens_t[train_m],
+        Y_seq[train_m],
+        M_seq[train_m],
+    )
+    X_va, L_va, Y_va, M_va = (
+        X_seq[val_m],
+        lens_t[val_m],
+        Y_seq[val_m],
+        M_seq[val_m],
+    )
+    X_te, L_te, Y_te, M_te = (
+        X_seq[test_m],
+        lens_t[test_m],
+        Y_seq[test_m],
+        M_seq[test_m],
+    )
+
+    fit = fit_sequence_model_time(
+        model=model,
+        X_train=X_tr,
+        len_train=L_tr,
+        y_train=Y_tr,
+        mask_train=M_tr,
+        X_val=X_te,
+        len_val=L_te,
+        y_val=Y_te,
+        mask_val=M_te,
+        task=task,
+        cfg=cfg,
+    )
+
+    y_score = fit.y_pred
+    y_true = fit.y_true
+    mask = fit.mask
+    if mask is not None:
+        flat = mask.reshape(-1).astype(bool)
+        y_score = y_score.reshape(-1)[flat]
+        y_true = y_true.reshape(-1)[flat]
+
+    key_rows = []
+    for pid, t, m in zip(pids, time_seqs, mask_seqs, strict=True):
+        for tt, mm in zip(t, m, strict=True):
+            if bool(mm):
+                key_rows.append((str(pid), tt))
+
+    return y_score, y_true, key_rows
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -179,10 +260,13 @@ def _run_train(cfg_path: str) -> None:
         art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
         y_score = predict_xgboost(art, X_test, cfg.task)
     else:
-        if cfg.task.prediction_mode != "patient":
-            raise SystemExit(
-                "MVP: deep sequence models currently support prediction_mode='patient' only"
-            )
+        if cfg.task.prediction_mode == "patient":
+            pass
+        elif cfg.task.prediction_mode == "time":
+            if labels_df is None:
+                raise SystemExit("prediction_mode='time' requires labels (labels.fn).")
+        else:
+            raise SystemExit(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
 
         input_dim = len(
             [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
@@ -190,63 +274,127 @@ def _run_train(cfg_path: str) -> None:
 
         if cfg.model.name == "gru":
             from oneehr.models.gru import GRUModel
+            from oneehr.models.gru import GRUTimeModel
 
-            model = GRUModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.gru.hidden_dim,
-                out_dim=1,
-                num_layers=cfg.model.gru.num_layers,
-                dropout=cfg.model.gru.dropout,
-            )
-            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
-                model=model,
-                binned=binned,
-                y=y,
-                split=split0,
-                cfg=cfg.model.gru,
-                task=cfg.task,
-            )
+            if cfg.task.prediction_mode == "patient":
+                model = GRUModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.gru.hidden_dim,
+                    out_dim=1,
+                    num_layers=cfg.model.gru.num_layers,
+                    dropout=cfg.model.gru.dropout,
+                )
+                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                    model=model,
+                    binned=binned,
+                    y=y,
+                    split=split0,
+                    cfg=cfg.model.gru,
+                    task=cfg.task,
+                )
+            else:
+                model = GRUTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.gru.hidden_dim,
+                    out_dim=1,
+                    num_layers=cfg.model.gru.num_layers,
+                    dropout=cfg.model.gru.dropout,
+                )
+                y_score, y_test, test_key_rows = _train_sequence_time_level(
+                    model=model,
+                    binned=binned,
+                    labels_df=labels_df,
+                    split=split0,
+                    cfg=cfg.model.gru,
+                    task=cfg.task,
+                )
+                test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
         elif cfg.model.name == "rnn":
             from oneehr.models.rnn import RNNModel
+            from oneehr.models.rnn import RNNTimeModel
 
-            model = RNNModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.rnn.hidden_dim,
-                out_dim=1,
-                num_layers=cfg.model.rnn.num_layers,
-                dropout=cfg.model.rnn.dropout,
-                bidirectional=cfg.model.rnn.bidirectional,
-                nonlinearity=cfg.model.rnn.nonlinearity,
-            )
-            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
-                model=model,
-                binned=binned,
-                y=y,
-                split=split0,
-                cfg=cfg.model.rnn,
-                task=cfg.task,
-            )
+            if cfg.task.prediction_mode == "patient":
+                model = RNNModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.rnn.hidden_dim,
+                    out_dim=1,
+                    num_layers=cfg.model.rnn.num_layers,
+                    dropout=cfg.model.rnn.dropout,
+                    bidirectional=cfg.model.rnn.bidirectional,
+                    nonlinearity=cfg.model.rnn.nonlinearity,
+                )
+                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                    model=model,
+                    binned=binned,
+                    y=y,
+                    split=split0,
+                    cfg=cfg.model.rnn,
+                    task=cfg.task,
+                )
+            else:
+                model = RNNTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.rnn.hidden_dim,
+                    out_dim=1,
+                    num_layers=cfg.model.rnn.num_layers,
+                    dropout=cfg.model.rnn.dropout,
+                    bidirectional=cfg.model.rnn.bidirectional,
+                    nonlinearity=cfg.model.rnn.nonlinearity,
+                )
+                y_score, y_test, test_key_rows = _train_sequence_time_level(
+                    model=model,
+                    binned=binned,
+                    labels_df=labels_df,
+                    split=split0,
+                    cfg=cfg.model.rnn,
+                    task=cfg.task,
+                )
+                test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
         elif cfg.model.name == "transformer":
             from oneehr.models.transformer import TransformerModel
+            from oneehr.models.transformer import TransformerTimeModel
 
-            model = TransformerModel(
-                input_dim=input_dim,
-                d_model=cfg.model.transformer.d_model,
-                out_dim=1,
-                nhead=cfg.model.transformer.nhead,
-                num_layers=cfg.model.transformer.num_layers,
-                dim_feedforward=cfg.model.transformer.dim_feedforward,
-                dropout=cfg.model.transformer.dropout,
-                pooling=cfg.model.transformer.pooling,
-            )
-            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
-                model=model,
-                binned=binned,
-                y=y,
-                split=split0,
-                cfg=cfg.model.transformer,
-                task=cfg.task,
-            )
+            if cfg.task.prediction_mode == "patient":
+                model = TransformerModel(
+                    input_dim=input_dim,
+                    d_model=cfg.model.transformer.d_model,
+                    out_dim=1,
+                    nhead=cfg.model.transformer.nhead,
+                    num_layers=cfg.model.transformer.num_layers,
+                    dim_feedforward=cfg.model.transformer.dim_feedforward,
+                    dropout=cfg.model.transformer.dropout,
+                    pooling=cfg.model.transformer.pooling,
+                )
+                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                    model=model,
+                    binned=binned,
+                    y=y,
+                    split=split0,
+                    cfg=cfg.model.transformer,
+                    task=cfg.task,
+                )
+            else:
+                model = TransformerTimeModel(
+                    input_dim=input_dim,
+                    d_model=cfg.model.transformer.d_model,
+                    out_dim=1,
+                    nhead=cfg.model.transformer.nhead,
+                    num_layers=cfg.model.transformer.num_layers,
+                    dim_feedforward=cfg.model.transformer.dim_feedforward,
+                    dropout=cfg.model.transformer.dropout,
+                )
+                y_score, y_test, test_key_rows = _train_sequence_time_level(
+                    model=model,
+                    binned=binned,
+                    labels_df=labels_df,
+                    split=split0,
+                    cfg=cfg.model.transformer,
+                    task=cfg.task,
+                )
+                test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
         else:
             raise SystemExit(f"Unsupported model.name={cfg.model.name!r}")
 
@@ -261,7 +409,7 @@ def _run_train(cfg_path: str) -> None:
     ensure_dir(out_root)
     write_json(out_root / "metrics.json", metrics)
 
-    if cfg.output.save_preds:
+    if cfg.output.save_preds and len(test_patient_ids) > 0:
         import pandas as pd
 
         preds = pd.DataFrame({"patient_id": test_patient_ids, "y_true": y_test, "y_pred": y_score})
@@ -351,73 +499,142 @@ def _run_benchmark(cfg_path: str) -> None:
             art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
             y_score = predict_xgboost(art, X_test, cfg.task)
         elif cfg.model.name in {"gru", "rnn", "transformer"}:
-            if cfg.task.prediction_mode != "patient":
-                raise SystemExit(
-                    "MVP: deep sequence models benchmark supports prediction_mode='patient' only"
-                )
+            if cfg.task.prediction_mode == "patient":
+                pass
+            elif cfg.task.prediction_mode == "time":
+                if labels_df is None:
+                    raise SystemExit("prediction_mode='time' requires labels (labels.fn).")
+            else:
+                raise SystemExit(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
 
-            input_dim = len([c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")])
+            input_dim = len(
+                [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+            )
 
             if cfg.model.name == "gru":
                 from oneehr.models.gru import GRUModel
+                from oneehr.models.gru import GRUTimeModel
 
-                model = GRUModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.gru.hidden_dim,
-                    out_dim=1,
-                    num_layers=cfg.model.gru.num_layers,
-                    dropout=cfg.model.gru.dropout,
-                )
-                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
-                    model=model,
-                    binned=binned,
-                    y=y,
-                    split=sp,
-                    cfg=cfg.model.gru,
-                    task=cfg.task,
-                )
+                if cfg.task.prediction_mode == "patient":
+                    model = GRUModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.gru.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.gru.num_layers,
+                        dropout=cfg.model.gru.dropout,
+                    )
+                    y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                        model=model,
+                        binned=binned,
+                        y=y,
+                        split=sp,
+                        cfg=cfg.model.gru,
+                        task=cfg.task,
+                    )
+                else:
+                    model = GRUTimeModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.gru.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.gru.num_layers,
+                        dropout=cfg.model.gru.dropout,
+                    )
+                    y_score, y_test, test_key_rows = _train_sequence_time_level(
+                        model=model,
+                        binned=binned,
+                        labels_df=labels_df,
+                        split=sp,
+                        cfg=cfg.model.gru,
+                        task=cfg.task,
+                    )
+                    test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                    test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
             elif cfg.model.name == "rnn":
                 from oneehr.models.rnn import RNNModel
+                from oneehr.models.rnn import RNNTimeModel
 
-                model = RNNModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.rnn.hidden_dim,
-                    out_dim=1,
-                    num_layers=cfg.model.rnn.num_layers,
-                    dropout=cfg.model.rnn.dropout,
-                    bidirectional=cfg.model.rnn.bidirectional,
-                    nonlinearity=cfg.model.rnn.nonlinearity,
-                )
-                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
-                    model=model,
-                    binned=binned,
-                    y=y,
-                    split=sp,
-                    cfg=cfg.model.rnn,
-                    task=cfg.task,
-                )
+                if cfg.task.prediction_mode == "patient":
+                    model = RNNModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.rnn.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.rnn.num_layers,
+                        dropout=cfg.model.rnn.dropout,
+                        bidirectional=cfg.model.rnn.bidirectional,
+                        nonlinearity=cfg.model.rnn.nonlinearity,
+                    )
+                    y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                        model=model,
+                        binned=binned,
+                        y=y,
+                        split=sp,
+                        cfg=cfg.model.rnn,
+                        task=cfg.task,
+                    )
+                else:
+                    model = RNNTimeModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.rnn.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.rnn.num_layers,
+                        dropout=cfg.model.rnn.dropout,
+                        bidirectional=cfg.model.rnn.bidirectional,
+                        nonlinearity=cfg.model.rnn.nonlinearity,
+                    )
+                    y_score, y_test, test_key_rows = _train_sequence_time_level(
+                        model=model,
+                        binned=binned,
+                        labels_df=labels_df,
+                        split=sp,
+                        cfg=cfg.model.rnn,
+                        task=cfg.task,
+                    )
+                    test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                    test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
             else:
                 from oneehr.models.transformer import TransformerModel
+                from oneehr.models.transformer import TransformerTimeModel
 
-                model = TransformerModel(
-                    input_dim=input_dim,
-                    d_model=cfg.model.transformer.d_model,
-                    out_dim=1,
-                    nhead=cfg.model.transformer.nhead,
-                    num_layers=cfg.model.transformer.num_layers,
-                    dim_feedforward=cfg.model.transformer.dim_feedforward,
-                    dropout=cfg.model.transformer.dropout,
-                    pooling=cfg.model.transformer.pooling,
-                )
-                y_score, y_test, test_patient_ids = _train_sequence_patient_level(
-                    model=model,
-                    binned=binned,
-                    y=y,
-                    split=sp,
-                    cfg=cfg.model.transformer,
-                    task=cfg.task,
-                )
-            test_key = None
+                if cfg.task.prediction_mode == "patient":
+                    model = TransformerModel(
+                        input_dim=input_dim,
+                        d_model=cfg.model.transformer.d_model,
+                        out_dim=1,
+                        nhead=cfg.model.transformer.nhead,
+                        num_layers=cfg.model.transformer.num_layers,
+                        dim_feedforward=cfg.model.transformer.dim_feedforward,
+                        dropout=cfg.model.transformer.dropout,
+                        pooling=cfg.model.transformer.pooling,
+                    )
+                    y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                        model=model,
+                        binned=binned,
+                        y=y,
+                        split=sp,
+                        cfg=cfg.model.transformer,
+                        task=cfg.task,
+                    )
+                else:
+                    model = TransformerTimeModel(
+                        input_dim=input_dim,
+                        d_model=cfg.model.transformer.d_model,
+                        out_dim=1,
+                        nhead=cfg.model.transformer.nhead,
+                        num_layers=cfg.model.transformer.num_layers,
+                        dim_feedforward=cfg.model.transformer.dim_feedforward,
+                        dropout=cfg.model.transformer.dropout,
+                    )
+                    y_score, y_test, test_key_rows = _train_sequence_time_level(
+                        model=model,
+                        binned=binned,
+                        labels_df=labels_df,
+                        split=sp,
+                        cfg=cfg.model.transformer,
+                        task=cfg.task,
+                    )
+                    test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                    test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
+            # Keep time-level key if present.
         else:
             raise SystemExit(f"Unsupported model.name={cfg.model.name!r}")
 
@@ -429,7 +646,7 @@ def _run_benchmark(cfg_path: str) -> None:
         row = {"split": sp.name, **metrics}
         rows.append(row)
 
-        if cfg.output.save_preds:
+        if cfg.output.save_preds and len(test_patient_ids) > 0:
             preds = pd.DataFrame(
                 {"patient_id": test_patient_ids, "y_true": y_test, "y_pred": y_score}
             )

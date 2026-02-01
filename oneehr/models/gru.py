@@ -47,8 +47,35 @@ class GRUModel(nn.Module):
         return self.head(emb)
 
 
+class GRUTimeModel(nn.Module):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        out_dim: int,
+        num_layers: int = 1,
+        dropout: float = 0.0,
+    ):
+        super().__init__()
+        self.gru = nn.GRU(
+            input_size=input_dim,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0.0,
+        )
+        self.head = nn.Linear(hidden_dim, out_dim)
+
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        packed = nn.utils.rnn.pack_padded_sequence(
+            x, lengths.cpu(), batch_first=True, enforce_sorted=False
+        )
+        packed_out, _ = self.gru(packed)
+        out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
+        return self.head(out)
+
+
 @dataclass(frozen=True)
 class GRUArtifacts:
     feature_columns: list[str]
     state_dict: dict
-

@@ -40,6 +40,14 @@ class FitResult:
     y_pred: np.ndarray
 
 
+@dataclass(frozen=True)
+class FitSeqResult:
+    state_dict: dict
+    y_true: np.ndarray
+    y_pred: np.ndarray
+    mask: np.ndarray | None
+
+
 def _make_loss(task: TaskConfig):
     _require_torch()
     if task.kind == "binary":
@@ -122,3 +130,91 @@ def fit_sequence_model(
         y_pred = logits
 
     return FitResult(state_dict=model.state_dict(), y_true=y_val.detach().cpu().numpy(), y_pred=y_pred)
+
+
+def fit_sequence_model_time(
+    model,
+    X_train,
+    len_train,
+    y_train,
+    mask_train,
+    X_val,
+    len_val,
+    y_val,
+    mask_val,
+    task: TaskConfig,
+    cfg: GRUConfig | RNNConfig | TransformerConfig,
+    device: str = "cpu",
+) -> FitSeqResult:
+    """Train/eval for N-N tasks (one prediction per time step).
+
+    Shapes:
+    - X: (B, T, D)
+    - y: (B, T)
+    - mask: (B, T) with 1.0 for valid label
+    """
+
+    _require_torch()
+    model = model.to(device)
+    optim = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
+    loss_fn = _make_loss(task)
+
+    best_state = None
+    best_val = float("inf")
+    bad_epochs = 0
+
+    def run_epoch(train: bool):
+        model.train(train)
+        X = X_train if train else X_val
+        L = len_train if train else len_val
+        y = y_train if train else y_val
+        m = mask_train if train else mask_val
+        idx = torch.randperm(X.shape[0]) if train else torch.arange(X.shape[0])
+        total = 0.0
+        count = 0.0
+        for i in range(0, len(idx), cfg.batch_size):
+            b = idx[i : i + cfg.batch_size]
+            xb, lb, yb, mb = X[b].to(device), L[b].to(device), y[b].to(device), m[b].to(device)
+            logits = model(xb, lb)
+            losses = loss_fn(logits.squeeze(-1), yb)
+            losses = losses * mb
+            denom = mb.sum().clamp_min(1.0)
+            loss = losses.sum() / denom
+            if train:
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
+            total += float(loss.detach().cpu()) * float(denom.detach().cpu())
+            count += float(denom.detach().cpu())
+        return total / max(count, 1.0)
+
+    for _epoch in range(cfg.max_epochs):
+        _ = run_epoch(train=True)
+        val_loss = run_epoch(train=False)
+        if val_loss < best_val:
+            best_val = val_loss
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            bad_epochs = 0
+        else:
+            bad_epochs += 1
+            if bad_epochs >= cfg.patience:
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    model.eval()
+    with torch.no_grad():
+        logits = model(X_val.to(device), len_val.to(device)).squeeze(-1).detach().cpu().numpy()
+
+    if task.kind == "binary":
+        y_pred = 1.0 / (1.0 + np.exp(-logits))
+    else:
+        y_pred = logits
+
+    return FitSeqResult(
+        state_dict=model.state_dict(),
+        y_true=y_val.detach().cpu().numpy(),
+        y_pred=y_pred,
+        mask=mask_val.detach().cpu().numpy() if mask_val is not None else None,
+    )
