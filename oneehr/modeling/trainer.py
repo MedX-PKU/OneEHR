@@ -322,39 +322,3 @@ def fit_sequence_model_time(
     )
 
 
-def ddp_should_spawn(trainer: TrainerConfig) -> bool:
-    torch = optional_import("torch")
-    if torch is None:
-        return False
-    return bool(trainer.ddp and torch.cuda.is_available() and torch.cuda.device_count() > 1)
-
-
-def ddp_worker_env(rank: int, world_size: int):
-    os.environ["RANK"] = str(rank)
-    os.environ["WORLD_SIZE"] = str(world_size)
-    os.environ["LOCAL_RANK"] = str(rank)
-
-
-def ddp_world() -> tuple[int, int, int]:
-    """Return (rank, world_size, local_rank) from env."""
-
-    rank = int(os.environ.get("RANK", "0"))
-    world_size = int(os.environ.get("WORLD_SIZE", "1"))
-    local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("RANK", "0")))
-    return rank, world_size, local_rank
-
-
-def ddp_init_process_group(backend: str) -> None:
-    torch = _torch()
-    dist = torch.distributed
-    if dist.is_available() and not dist.is_initialized():
-        dist.init_process_group(backend=backend, init_method="env://")
-
-
-def ddp_cleanup() -> None:
-    torch = optional_import("torch")
-    if torch is None:
-        return
-    dist = torch.distributed
-    if dist.is_available() and dist.is_initialized():
-        dist.destroy_process_group()

@@ -30,27 +30,7 @@ oneehr train --config examples/experiment.toml
 oneehr benchmark --config examples/experiment.toml
 ```
 
-## Multi-GPU (single node)
 
-For deep learning models (GRU/RNN/Transformer), you can enable single-node multi-GPU training via DDP
-in your TOML:
-
-```toml
-[trainer]
-ddp = true
-ddp_backend = "nccl"
-```
-
-Then run:
-
-```bash
-oneehr benchmark --config examples/experiment.toml
-```
-
-Notes:
-
-- DDP runs via `torch.multiprocessing.spawn` (one process per GPU).
-- Metrics/predictions are written by rank 0 only.
 
 `oneehr benchmark` writes per-split metrics to `summary.csv`, and aggregated paper-style tables
 including 95% CI to `paper_table.csv`.

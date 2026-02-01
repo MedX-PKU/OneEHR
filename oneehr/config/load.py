@@ -134,8 +134,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         lr=float(trainer_raw.get("lr", 1e-3)),
         weight_decay=float(trainer_raw.get("weight_decay", 0.0)),
         grad_clip_norm=trainer_raw.get("grad_clip_norm"),
-        ddp=bool(trainer_raw.get("ddp", False)),
-        ddp_backend=str(trainer_raw.get("ddp_backend", "nccl")),
         num_workers=int(trainer_raw.get("num_workers", 0)),
         early_stopping=bool(trainer_raw.get("early_stopping", True)),
         early_stopping_patience=int(trainer_raw.get("early_stopping_patience", 5)),

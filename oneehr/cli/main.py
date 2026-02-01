@@ -18,15 +18,7 @@ from oneehr.utils.io import ensure_dir, write_json
 from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
 from oneehr.hpo.grid import apply_overrides, iter_grid
 from oneehr.hpo.runner import select_best_overrides
-from oneehr.modeling.trainer import (
-    ddp_cleanup,
-    ddp_init_process_group,
-    ddp_should_spawn,
-    ddp_worker_env,
-    ddp_world,
-    fit_sequence_model,
-    fit_sequence_model_time,
-)
+from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 
 
 def _train_sequence_patient_level(
@@ -237,11 +229,6 @@ def _run_train(cfg_path: str) -> None:
         if torch is None:
             raise SystemExit(
                 "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
-            )
-
-        if ddp_should_spawn(cfg.trainer):
-            raise SystemExit(
-                "trainer.ddp is enabled. Use `oneehr benchmark` to run DDP training per split."
             )
 
     if cfg.task.prediction_mode == "patient":
@@ -503,33 +490,11 @@ def _run_benchmark(cfg_path: str) -> None:
                 "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
             )
 
-        # Single-node multi-GPU: spawn one worker per GPU.
-        if ddp_should_spawn(cfg0.trainer):
-            mp = torch.multiprocessing
-            world_size = torch.cuda.device_count()
-
-            def _worker(local_rank: int):
-                ddp_worker_env(local_rank, world_size)
-                try:
-                    _run_benchmark(cfg_path)
-                finally:
-                    ddp_cleanup()
-
-            mp.spawn(_worker, nprocs=world_size, join=True)
-            return
-
     rows = []
     out_root = cfg0.output.root / cfg0.output.run_name
     ensure_dir(out_root)
 
-    if cfg0.trainer.ddp:
-        torch = optional_import("torch")
-        if torch is None:
-            raise SystemExit("trainer.ddp requires torch")
-        ddp_init_process_group(cfg0.trainer.ddp_backend)
-        _rank, _world, _local_rank = ddp_world()
-        if torch.cuda.is_available():
-            torch.cuda.set_device(_local_rank)
+    # Single-process only.
 
     for sp in splits:
         test_key = None
@@ -668,9 +633,6 @@ def _run_benchmark(cfg_path: str) -> None:
             input_dim = len(
                 [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
             )
-            # In DDP mode, compute metrics/preds only on rank0.
-            rank, world_size, _local_rank = ddp_world()
-
             if cfg.model.name == "gru":
                 from oneehr.models.gru import GRUModel, GRUTimeModel
 
@@ -792,17 +754,15 @@ def _run_benchmark(cfg_path: str) -> None:
                     test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
                     test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
 
-        rank, world_size, _local_rank = ddp_world()
-        if rank == 0:
-            if cfg.task.kind == "binary":
-                metrics = binary_metrics(y_test.astype(float), y_score.astype(float)).metrics
-            else:
-                metrics = regression_metrics(y_test.astype(float), y_score.astype(float)).metrics
+        if cfg.task.kind == "binary":
+            metrics = binary_metrics(y_test.astype(float), y_score.astype(float)).metrics
+        else:
+            metrics = regression_metrics(y_test.astype(float), y_score.astype(float)).metrics
 
-            row = {"split": sp.name, "skipped": 0, **metrics, "hpo_best": str(best_overrides)}
-            rows.append(row)
+        row = {"split": sp.name, "skipped": 0, **metrics, "hpo_best": str(best_overrides)}
+        rows.append(row)
 
-        if rank == 0 and cfg.output.save_preds and len(test_patient_ids) > 0:
+        if cfg.output.save_preds and len(test_patient_ids) > 0:
             preds = pd.DataFrame(
                 {"patient_id": test_patient_ids, "y_true": y_test, "y_pred": y_score}
             )
@@ -811,16 +771,10 @@ def _run_benchmark(cfg_path: str) -> None:
             ensure_dir(out_root / "preds")
             preds.to_parquet(out_root / "preds" / f"{sp.name}.parquet", index=False)
 
-    # Only rank0 writes.
-    rank, world_size, _local_rank = ddp_world()
-    if rank == 0:
-        summary = pd.DataFrame(rows)
-        summary.to_csv(out_root / "summary.csv", index=False)
-        summarize_metrics(summary).to_csv(out_root / "summary_table.csv", index=False)
-        to_paper_wide_table(summary).to_csv(out_root / "paper_table.csv", index=False)
-
-    if cfg0.trainer.ddp:
-        ddp_cleanup()
+    summary = pd.DataFrame(rows)
+    summary.to_csv(out_root / "summary.csv", index=False)
+    summarize_metrics(summary).to_csv(out_root / "summary_table.csv", index=False)
+    to_paper_wide_table(summary).to_csv(out_root / "paper_table.csv", index=False)
 
 
 def _run_hpo(cfg_path: str) -> None:

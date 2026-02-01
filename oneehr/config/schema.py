@@ -59,9 +59,6 @@ class TrainerConfig:
     weight_decay: float = 0.0
     grad_clip_norm: float | None = None
 
-    # Distributed (single-node, multi-GPU)
-    ddp: bool = False
-    ddp_backend: str = "nccl"  # nccl | gloo
     num_workers: int = 0
 
     # Early stopping + checkpoint selection
