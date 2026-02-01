@@ -9,9 +9,11 @@ from oneehr.preprocess import bin_events
 from oneehr.task.align import normalize_patient_labels, normalize_time_labels
 from oneehr.task.label_fn import run_label_fn
 from oneehr.training.gru_trainer import train_gru_patient
-from oneehr.training.metrics import binary_metrics, regression_metrics
+from oneehr.metrics import binary_metrics, regression_metrics
 from oneehr.training.sequence import build_patient_sequences, pad_sequences
 from oneehr.training.splits import make_splits
+from oneehr.utils.io import ensure_dir, write_json
+from oneehr.reporting.tables import summarize_metrics
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -30,10 +32,6 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _ensure_dir(path):
-    path.mkdir(parents=True, exist_ok=True)
-
-
 def _run_preprocess(cfg_path: str) -> None:
     cfg = load_experiment_config(cfg_path)
     events = load_event_table(cfg.dataset)
@@ -42,7 +40,7 @@ def _run_preprocess(cfg_path: str) -> None:
     labels_res = run_label_fn(events, cfg)
 
     out_root = cfg.output.root / cfg.output.run_name
-    _ensure_dir(out_root)
+    ensure_dir(out_root)
     (out_root / "binned.parquet").write_bytes(binned.table.to_parquet(index=False))
     (out_root / "code_vocab.txt").write_text("\n".join(binned.code_vocab), encoding="utf-8")
 
@@ -172,8 +170,8 @@ def _run_train(cfg_path: str) -> None:
         metrics = regression_metrics(y_test.astype(float), y_score.astype(float)).metrics
 
     out_root = cfg.output.root / cfg.output.run_name
-    _ensure_dir(out_root)
-    (out_root / "metrics.json").write_text(str(metrics), encoding="utf-8")
+    ensure_dir(out_root)
+    write_json(out_root / "metrics.json", metrics)
 
     if cfg.output.save_preds:
         import pandas as pd
@@ -228,7 +226,7 @@ def _run_benchmark(cfg_path: str) -> None:
 
     rows = []
     out_root = cfg.output.root / cfg.output.run_name
-    _ensure_dir(out_root)
+    ensure_dir(out_root)
 
     for sp in splits:
         if cfg.task.prediction_mode == "patient":
@@ -305,11 +303,12 @@ def _run_benchmark(cfg_path: str) -> None:
             )
             if test_key is not None:
                 preds.insert(1, "bin_time", test_key["bin_time"].to_numpy())
-            _ensure_dir(out_root / "preds")
+            ensure_dir(out_root / "preds")
             preds.to_parquet(out_root / "preds" / f"{sp.name}.parquet", index=False)
 
     summary = pd.DataFrame(rows)
     summary.to_csv(out_root / "summary.csv", index=False)
+    summarize_metrics(summary).to_csv(out_root / "summary_table.csv", index=False)
 
 
 def main() -> None:

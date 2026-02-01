@@ -26,4 +26,3 @@ def run_label_fn(events: pd.DataFrame, cfg: ExperimentConfig) -> LabelsResult | 
     if not isinstance(out, pd.DataFrame):
         raise TypeError("label_fn must return a pandas.DataFrame")
     return LabelsResult(df=out)
-

@@ -11,11 +11,16 @@ class MetricResult:
 
 
 def binary_metrics(y_true: np.ndarray, y_score: np.ndarray) -> MetricResult:
+    """Standard binary classification metrics.
+
+    Required for MVP: AUROC and AUPRC.
+    """
+
     from sklearn.metrics import average_precision_score, roc_auc_score
 
     out: dict[str, float] = {}
-    out["auc"] = float(roc_auc_score(y_true, y_score))
-    out["ap"] = float(average_precision_score(y_true, y_score))
+    out["auroc"] = float(roc_auc_score(y_true, y_score))
+    out["auprc"] = float(average_precision_score(y_true, y_score))
     return MetricResult(metrics=out)
 
 
