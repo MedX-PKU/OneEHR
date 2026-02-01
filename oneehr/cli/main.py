@@ -3,11 +3,10 @@ import argparse
 from oneehr.config.load import load_experiment_config
 from oneehr.data.patient_index import make_patient_index
 from oneehr.data.io import load_event_table
-from oneehr.featurize.tabular import make_patient_tabular, make_time_tabular
+from oneehr.data.tabular import make_patient_tabular, make_time_tabular
 from oneehr.models.xgb import predict_xgboost, train_xgboost
-from oneehr.preprocess import bin_events
-from oneehr.task.align import normalize_patient_labels, normalize_time_labels
-from oneehr.task.label_fn import run_label_fn
+from oneehr.data.binning import bin_events
+from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.eval.metrics import binary_metrics, regression_metrics
 from oneehr.data.sequence import build_patient_sequences, pad_sequences
 from oneehr.data.splits import make_splits
