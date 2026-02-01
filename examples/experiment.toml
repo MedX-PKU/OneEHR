@@ -32,7 +32,14 @@ seed = 42
 val_size = 0.2
 
 [model]
-name = "xgboost"
+name = "gru"
+
+[hpo]
+enabled = true
+metric = "val_auroc"
+mode = "max"
+# Minimal example (only affects xgboost currently via `oneehr hpo`):
+# grid = [ ["model.xgboost.max_depth", [3, 5, 7]], ["model.xgboost.learning_rate", [0.05, 0.1]] ]
 
 [trainer]
 device = "auto"

@@ -133,6 +133,8 @@ def bin_events(
     for col in out.columns:
         if col.startswith("cat__"):
             out[col] = out[col].fillna(0.0)
+        elif col.startswith("num__"):
+            # For DL sequence models, NaNs will poison training. Default to 0.
+            out[col] = out[col].fillna(0.0)
 
     return BinnedTable(table=out, code_vocab=code_vocab)
-

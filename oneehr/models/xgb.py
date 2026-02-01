@@ -28,6 +28,14 @@ def train_xgboost(
     feature_columns = list(X_train.columns)
 
     if task.kind == "binary":
+        y_train_u = np.unique(y_train)
+        if y_train_u.size < 2:
+            # With very small datasets, some splits may contain a single class.
+            # XGBoost's logistic objective cannot train in that case.
+            raise ValueError(
+                "Binary training split contains a single class; cannot fit XGBoost. "
+                f"classes={y_train_u.tolist()}"
+            )
         model = XGBClassifier(
             max_depth=cfg.max_depth,
             n_estimators=cfg.n_estimators,
@@ -52,6 +60,12 @@ def train_xgboost(
         raise ValueError(f"Unsupported task.kind={task.kind!r}")
 
     if X_val is not None and y_val is not None and len(X_val) > 0:
+        if task.kind == "binary":
+            y_val_u = np.unique(y_val)
+            if y_val_u.size < 2:
+                # Avoid crashing inside XGBoost's logistic objective when base_score becomes 0/1.
+                model.fit(X_train, y_train)
+                return XGBArtifacts(feature_columns=feature_columns, model=model)
         model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
     else:
         model.fit(X_train, y_train)
@@ -66,4 +80,3 @@ def predict_xgboost(art: XGBArtifacts, X: pd.DataFrame, task: TaskConfig) -> np.
     if task.kind == "regression":
         return art.model.predict(X)
     raise ValueError(f"Unsupported task.kind={task.kind!r}")
-

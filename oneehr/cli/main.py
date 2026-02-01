@@ -16,6 +16,7 @@ from oneehr.data.sequence import build_patient_sequences
 from oneehr.data.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
 from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
+from oneehr.hpo.grid import apply_overrides, iter_grid
 from oneehr.modeling.trainer import ddp_should_spawn, fit_sequence_model, fit_sequence_model_time
 
 
@@ -175,6 +176,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_bm = sub.add_parser("benchmark", help="Run benchmarking across splits/models")
     p_bm.add_argument("--config", required=True)
+
+    p_hpo = sub.add_parser("hpo", help="Run hyperparameter selection on validation")
+    p_hpo.add_argument("--config", required=True)
 
     return parser
 
@@ -442,22 +446,22 @@ def _run_train(cfg_path: str) -> None:
 
 
 def _run_benchmark(cfg_path: str) -> None:
-    cfg = load_experiment_config(cfg_path)
-    events = load_event_table(cfg.dataset)
-    patient_index = make_patient_index(events, cfg.dataset.time_col, cfg.dataset.patient_id_col)
-    splits = make_splits(patient_index, cfg.split)
+    cfg0 = load_experiment_config(cfg_path)
+    events = load_event_table(cfg0.dataset)
+    patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
+    splits = make_splits(patient_index, cfg0.split)
 
-    binned = bin_events(events, cfg.dataset, cfg.preprocess).table
+    binned = bin_events(events, cfg0.dataset, cfg0.preprocess).table
 
-    labels_res = run_label_fn(events, cfg)
+    labels_res = run_label_fn(events, cfg0)
     labels_df = None
     if labels_res is not None:
-        if cfg.task.prediction_mode == "patient":
+        if cfg0.task.prediction_mode == "patient":
             labels_df = normalize_patient_labels(labels_res.df)
-        elif cfg.task.prediction_mode == "time":
-            labels_df = normalize_time_labels(labels_res.df, cfg)
+        elif cfg0.task.prediction_mode == "time":
+            labels_df = normalize_time_labels(labels_res.df, cfg0)
 
-    if cfg.task.prediction_mode == "patient":
+    if cfg0.task.prediction_mode == "patient":
         X, y0 = make_patient_tabular(binned)
         if labels_df is not None:
             y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
@@ -465,7 +469,7 @@ def _run_benchmark(cfg_path: str) -> None:
             y = y0
         key = None
         global_mask = None
-    elif cfg.task.prediction_mode == "time":
+    elif cfg0.task.prediction_mode == "time":
         X0, y0, key0 = make_time_tabular(binned)
         if labels_df is not None:
             feat = key0.copy()
@@ -479,11 +483,11 @@ def _run_benchmark(cfg_path: str) -> None:
             X, y, key = X0, y0, key0
             global_mask = None
     else:
-        raise SystemExit(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
+        raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
 
     import pandas as pd
 
-    if cfg.model.name in {"gru", "rnn", "transformer"}:
+    if cfg0.model.name in {"gru", "rnn", "transformer"}:
         torch = optional_import("torch")
         if torch is None:
             raise SystemExit(
@@ -491,52 +495,246 @@ def _run_benchmark(cfg_path: str) -> None:
             )
 
     rows = []
-    out_root = cfg.output.root / cfg.output.run_name
+    out_root = cfg0.output.root / cfg0.output.run_name
     ensure_dir(out_root)
 
+    def _hpo_better(mode: str, a: float, b: float) -> bool:
+        if mode == "min":
+            return a < b
+        if mode == "max":
+            return a > b
+        raise ValueError(f"Unsupported hpo.mode={mode!r}")
+
     for sp in splits:
-        if cfg.task.prediction_mode == "patient":
-            train_mask = X.index.astype(str).isin(sp.train_patients)
-            val_mask = X.index.astype(str).isin(sp.val_patients)
-            test_mask = X.index.astype(str).isin(sp.test_patients)
-            test_key = None
-            test_patient_ids = X.loc[test_mask].index.astype(str)
-        else:
-            assert key is not None
-            train_mask = key["patient_id"].astype(str).isin(sp.train_patients)
-            val_mask = key["patient_id"].astype(str).isin(sp.val_patients)
-            test_mask = key["patient_id"].astype(str).isin(sp.test_patients)
-            test_key = key.loc[test_mask].reset_index(drop=True)
-            test_patient_ids = test_key["patient_id"].astype(str)
+        best_overrides: dict[str, object] | None = None
+        best_val: float | None = None
 
-        if global_mask is not None:
-            train_mask = train_mask & global_mask
-            val_mask = val_mask & global_mask
-            test_mask = test_mask & global_mask
+        for overrides in iter_grid(cfg0.hpo):
+            cfg = apply_overrides(cfg0, overrides)
+            if cfg.task.prediction_mode == "patient":
+                train_mask = X.index.astype(str).isin(sp.train_patients)
+                val_mask = X.index.astype(str).isin(sp.val_patients)
+                test_mask = X.index.astype(str).isin(sp.test_patients)
+                test_key = None
+                test_patient_ids = X.loc[test_mask].index.astype(str)
+            else:
+                assert key is not None
+                train_mask = key["patient_id"].astype(str).isin(sp.train_patients)
+                val_mask = key["patient_id"].astype(str).isin(sp.val_patients)
+                test_mask = key["patient_id"].astype(str).isin(sp.test_patients)
+                test_key = key.loc[test_mask].reset_index(drop=True)
+                test_patient_ids = test_key["patient_id"].astype(str)
 
-        X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()
-        X_val, y_val = X.loc[val_mask], y.loc[val_mask].to_numpy()
-        X_test, y_test = X.loc[test_mask], y.loc[test_mask].to_numpy()
+            if global_mask is not None:
+                train_mask = train_mask & global_mask
+                val_mask = val_mask & global_mask
+                test_mask = test_mask & global_mask
 
+            X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()
+            X_val, y_val = X.loc[val_mask], y.loc[val_mask].to_numpy()
+            X_test, y_test = X.loc[test_mask], y.loc[test_mask].to_numpy()
+
+            if cfg.model.name == "xgboost":
+                # Skip invalid binary splits with a single class.
+                if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                    continue
+
+                art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
+                y_val_score = predict_xgboost(art, X_val, cfg.task)
+                if cfg.task.kind == "binary":
+                    vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                    if cfg.hpo.metric in {"val_auroc", "auroc"}:
+                        val_score = float(vm["auroc"])
+                    else:
+                        val_score = float(vm["auprc"])
+                else:
+                    vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                    if cfg.hpo.metric in {"val_rmse", "rmse"}:
+                        val_score = float(vm["rmse"])
+                    else:
+                        val_score = float(vm["mae"])
+
+                if best_val is None or _hpo_better(cfg.hpo.mode, val_score, best_val):
+                    best_val = val_score
+                    best_overrides = dict(overrides)
+            elif cfg.model.name in {"gru", "rnn", "transformer"}:
+                if cfg.task.prediction_mode == "patient":
+                    pass
+                elif cfg.task.prediction_mode == "time":
+                    if labels_df is None:
+                            raise SystemExit("prediction_mode='time' requires labels (labels.fn).")
+                    else:
+                        raise SystemExit(
+                            f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}"
+                        )
+
+                    input_dim = len(
+                        [
+                            c
+                            for c in binned.columns
+                            if c.startswith("num__") or c.startswith("cat__")
+                        ]
+                    )
+
+                    if cfg.model.name == "gru":
+                        from oneehr.models.gru import GRUModel, GRUTimeModel
+
+                        if cfg.task.prediction_mode == "patient":
+                            model = GRUModel(
+                                input_dim=input_dim,
+                                hidden_dim=cfg.model.gru.hidden_dim,
+                                out_dim=1,
+                                num_layers=cfg.model.gru.num_layers,
+                                dropout=cfg.model.gru.dropout,
+                            )
+                            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                                model=model,
+                                binned=binned,
+                                y=y,
+                                split=sp,
+                                cfg=cfg.trainer,
+                                task=cfg.task,
+                            )
+                        else:
+                            model = GRUTimeModel(
+                                input_dim=input_dim,
+                                hidden_dim=cfg.model.gru.hidden_dim,
+                                out_dim=1,
+                                num_layers=cfg.model.gru.num_layers,
+                                dropout=cfg.model.gru.dropout,
+                            )
+                            y_score, y_test, test_key_rows = _train_sequence_time_level(
+                                model=model,
+                                binned=binned,
+                                labels_df=labels_df,
+                                split=sp,
+                                cfg=cfg.trainer,
+                                task=cfg.task,
+                            )
+                            test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                            test_key = pd.DataFrame(
+                                test_key_rows, columns=["patient_id", "bin_time"]
+                            )
+                    elif cfg.model.name == "rnn":
+                        from oneehr.models.rnn import RNNModel, RNNTimeModel
+
+                        if cfg.task.prediction_mode == "patient":
+                            model = RNNModel(
+                                input_dim=input_dim,
+                                hidden_dim=cfg.model.rnn.hidden_dim,
+                                out_dim=1,
+                                num_layers=cfg.model.rnn.num_layers,
+                                dropout=cfg.model.rnn.dropout,
+                                bidirectional=cfg.model.rnn.bidirectional,
+                                nonlinearity=cfg.model.rnn.nonlinearity,
+                            )
+                            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                                model=model,
+                                binned=binned,
+                                y=y,
+                                split=sp,
+                                cfg=cfg.trainer,
+                                task=cfg.task,
+                            )
+                        else:
+                            model = RNNTimeModel(
+                                input_dim=input_dim,
+                                hidden_dim=cfg.model.rnn.hidden_dim,
+                                out_dim=1,
+                                num_layers=cfg.model.rnn.num_layers,
+                                dropout=cfg.model.rnn.dropout,
+                                bidirectional=cfg.model.rnn.bidirectional,
+                                nonlinearity=cfg.model.rnn.nonlinearity,
+                            )
+                            y_score, y_test, test_key_rows = _train_sequence_time_level(
+                                model=model,
+                                binned=binned,
+                                labels_df=labels_df,
+                                split=sp,
+                                cfg=cfg.trainer,
+                                task=cfg.task,
+                            )
+                            test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                            test_key = pd.DataFrame(
+                                test_key_rows, columns=["patient_id", "bin_time"]
+                            )
+                    else:
+                        from oneehr.models.transformer import (
+                            TransformerModel,
+                            TransformerTimeModel,
+                        )
+
+                        if cfg.task.prediction_mode == "patient":
+                            model = TransformerModel(
+                                input_dim=input_dim,
+                                d_model=cfg.model.transformer.d_model,
+                                out_dim=1,
+                                nhead=cfg.model.transformer.nhead,
+                                num_layers=cfg.model.transformer.num_layers,
+                                dim_feedforward=cfg.model.transformer.dim_feedforward,
+                                dropout=cfg.model.transformer.dropout,
+                                pooling=cfg.model.transformer.pooling,
+                            )
+                            y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                                model=model,
+                                binned=binned,
+                                y=y,
+                                split=sp,
+                                cfg=cfg.trainer,
+                                task=cfg.task,
+                            )
+                        else:
+                            model = TransformerTimeModel(
+                                input_dim=input_dim,
+                                d_model=cfg.model.transformer.d_model,
+                                out_dim=1,
+                                nhead=cfg.model.transformer.nhead,
+                                num_layers=cfg.model.transformer.num_layers,
+                                dim_feedforward=cfg.model.transformer.dim_feedforward,
+                                dropout=cfg.model.transformer.dropout,
+                            )
+                            y_score, y_test, test_key_rows = _train_sequence_time_level(
+                                model=model,
+                                binned=binned,
+                                labels_df=labels_df,
+                                split=sp,
+                                cfg=cfg.trainer,
+                                task=cfg.task,
+                            )
+                            test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                            test_key = pd.DataFrame(
+                                test_key_rows, columns=["patient_id", "bin_time"]
+                            )
+                # Keep time-level key if present.
+
+                # For deep learning, selection is already driven by cfg.trainer.monitor.
+                # We treat this as a single-point selection unless user provides a grid.
+                val_score = -1.0
+                if best_val is None or _hpo_better(cfg.hpo.mode, val_score, best_val):
+                    best_val = val_score
+                    best_overrides = dict(overrides)
+
+        if best_overrides is None:
+            best_overrides = {}
+
+        cfg = apply_overrides(cfg0, best_overrides)
+
+        # Train on this split using the selected hyperparameters, then evaluate on test.
         if cfg.model.name == "xgboost":
+            if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                # Keep a row for completeness, but mark as skipped.
+                row = {"split": sp.name, "skipped": 1, "reason": "single_class_train"}
+                rows.append(row)
+                continue
+
             art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
             y_score = predict_xgboost(art, X_test, cfg.task)
-        elif cfg.model.name in {"gru", "rnn", "transformer"}:
-            if cfg.task.prediction_mode == "patient":
-                pass
-            elif cfg.task.prediction_mode == "time":
-                if labels_df is None:
-                    raise SystemExit("prediction_mode='time' requires labels (labels.fn).")
-            else:
-                raise SystemExit(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
-
+        else:
             input_dim = len(
                 [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
             )
-
             if cfg.model.name == "gru":
-                from oneehr.models.gru import GRUModel
-                from oneehr.models.gru import GRUTimeModel
+                from oneehr.models.gru import GRUModel, GRUTimeModel
 
                 if cfg.task.prediction_mode == "patient":
                     model = GRUModel(
@@ -551,7 +749,7 @@ def _run_benchmark(cfg_path: str) -> None:
                         binned=binned,
                         y=y,
                         split=sp,
-                        cfg=cfg.model.gru,
+                        cfg=cfg.trainer,
                         task=cfg.task,
                     )
                 else:
@@ -567,14 +765,13 @@ def _run_benchmark(cfg_path: str) -> None:
                         binned=binned,
                         labels_df=labels_df,
                         split=sp,
-                        cfg=cfg.model.gru,
+                        cfg=cfg.trainer,
                         task=cfg.task,
                     )
                     test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
                     test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
             elif cfg.model.name == "rnn":
-                from oneehr.models.rnn import RNNModel
-                from oneehr.models.rnn import RNNTimeModel
+                from oneehr.models.rnn import RNNModel, RNNTimeModel
 
                 if cfg.task.prediction_mode == "patient":
                     model = RNNModel(
@@ -591,7 +788,7 @@ def _run_benchmark(cfg_path: str) -> None:
                         binned=binned,
                         y=y,
                         split=sp,
-                        cfg=cfg.model.rnn,
+                        cfg=cfg.trainer,
                         task=cfg.task,
                     )
                 else:
@@ -609,14 +806,13 @@ def _run_benchmark(cfg_path: str) -> None:
                         binned=binned,
                         labels_df=labels_df,
                         split=sp,
-                        cfg=cfg.model.rnn,
+                        cfg=cfg.trainer,
                         task=cfg.task,
                     )
                     test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
                     test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
             else:
-                from oneehr.models.transformer import TransformerModel
-                from oneehr.models.transformer import TransformerTimeModel
+                from oneehr.models.transformer import TransformerModel, TransformerTimeModel
 
                 if cfg.task.prediction_mode == "patient":
                     model = TransformerModel(
@@ -634,7 +830,7 @@ def _run_benchmark(cfg_path: str) -> None:
                         binned=binned,
                         y=y,
                         split=sp,
-                        cfg=cfg.model.transformer,
+                        cfg=cfg.trainer,
                         task=cfg.task,
                     )
                 else:
@@ -652,21 +848,18 @@ def _run_benchmark(cfg_path: str) -> None:
                         binned=binned,
                         labels_df=labels_df,
                         split=sp,
-                        cfg=cfg.model.transformer,
+                        cfg=cfg.trainer,
                         task=cfg.task,
                     )
                     test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
                     test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
-            # Keep time-level key if present.
-        else:
-            raise SystemExit(f"Unsupported model.name={cfg.model.name!r}")
 
         if cfg.task.kind == "binary":
             metrics = binary_metrics(y_test.astype(float), y_score.astype(float)).metrics
         else:
             metrics = regression_metrics(y_test.astype(float), y_score.astype(float)).metrics
 
-        row = {"split": sp.name, **metrics}
+        row = {"split": sp.name, "skipped": 0, **metrics, "hpo_best": str(best_overrides)}
         rows.append(row)
 
         if cfg.output.save_preds and len(test_patient_ids) > 0:
@@ -684,6 +877,71 @@ def _run_benchmark(cfg_path: str) -> None:
     to_paper_wide_table(summary).to_csv(out_root / "paper_table.csv", index=False)
 
 
+def _run_hpo(cfg_path: str) -> None:
+    """Run a pure HPO selection on the first split (validation-driven).
+
+    Intended for quick iteration; `benchmark` already runs per-split selection.
+    """
+
+    cfg0 = load_experiment_config(cfg_path)
+    events = load_event_table(cfg0.dataset)
+    patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
+    splits = make_splits(patient_index, cfg0.split)
+    sp = splits[0]
+
+    binned = bin_events(events, cfg0.dataset, cfg0.preprocess).table
+
+    labels_res = run_label_fn(events, cfg0)
+    labels_df = None
+    if labels_res is not None:
+        if cfg0.task.prediction_mode == "patient":
+            labels_df = normalize_patient_labels(labels_res.df)
+        else:
+            labels_df = normalize_time_labels(labels_res.df, cfg0)
+
+    if cfg0.task.prediction_mode == "patient":
+        X, y0 = make_patient_tabular(binned)
+        if labels_df is not None:
+            y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
+        else:
+            y = y0
+        train_mask = X.index.astype(str).isin(sp.train_patients)
+        val_mask = X.index.astype(str).isin(sp.val_patients)
+        X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()
+        X_val, y_val = X.loc[val_mask], y.loc[val_mask].to_numpy()
+    else:
+        raise SystemExit("hpo currently supports prediction_mode='patient' only")
+
+    best_overrides = None
+    best_val = None
+
+    def _better(mode: str, a: float, b: float) -> bool:
+        return a < b if mode == "min" else a > b
+
+    for overrides in iter_grid(cfg0.hpo):
+        cfg = apply_overrides(cfg0, overrides)
+        if cfg.model.name != "xgboost":
+            continue
+        if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+            continue
+        art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
+        y_val_score = predict_xgboost(art, X_val, cfg.task)
+        if cfg.task.kind == "binary":
+            vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+            val_score = float(vm["auroc"]) if cfg.hpo.metric in {"val_auroc", "auroc"} else float(vm["auprc"])
+        else:
+            vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+            val_score = float(vm["rmse"]) if cfg.hpo.metric in {"val_rmse", "rmse"} else float(vm["mae"])
+
+        if best_val is None or _better(cfg.hpo.mode, val_score, best_val):
+            best_val = val_score
+            best_overrides = dict(overrides)
+
+    out_root = cfg0.output.root / cfg0.output.run_name
+    ensure_dir(out_root)
+    write_json(out_root / "hpo_best.json", {"best_overrides": best_overrides, "best_val": best_val})
+
+
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
@@ -696,5 +954,8 @@ def main() -> None:
         return
     if args.command == "benchmark":
         _run_benchmark(args.config)
+        return
+    if args.command == "hpo":
+        _run_hpo(args.config)
         return
     raise SystemExit(f"Unknown command: {args.command}")

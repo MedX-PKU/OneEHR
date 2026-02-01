@@ -24,10 +24,14 @@ def summarize_metrics(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
     if "split" not in metrics_per_split.columns:
         raise ValueError("metrics_per_split must contain 'split'")
 
-    metric_cols = [c for c in metrics_per_split.columns if c != "split"]
+    metric_cols = [
+        c
+        for c in metrics_per_split.columns
+        if c not in {"split", "hpo_best", "reason"} and not c.startswith("skipped")
+    ]
     rows = []
     for col in metric_cols:
-        s = metrics_per_split[col].astype(float)
+        s = pd.to_numeric(metrics_per_split[col], errors="coerce")
         ci_low, ci_high = _bootstrap_ci95_mean(s)
         rows.append(
             {
@@ -39,6 +43,8 @@ def summarize_metrics(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
                 "n": int(s.dropna().shape[0]),
             }
         )
+    if not rows:
+        return pd.DataFrame(columns=["metric", "mean", "std", "ci95_low", "ci95_high", "n"])
     return pd.DataFrame(rows).sort_values("metric")
 
 
@@ -54,4 +60,3 @@ def to_paper_wide_table(metrics_per_split: pd.DataFrame) -> pd.DataFrame:
         cells[f"{m}_ci95_high"] = r["ci95_high"]
         cells[f"{m}_n"] = r["n"]
     return pd.DataFrame([cells])
-

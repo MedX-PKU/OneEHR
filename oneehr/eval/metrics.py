@@ -19,7 +19,12 @@ def binary_metrics(y_true: np.ndarray, y_score: np.ndarray) -> MetricResult:
     from sklearn.metrics import average_precision_score, roc_auc_score
 
     out: dict[str, float] = {}
-    out["auroc"] = float(roc_auc_score(y_true, y_score))
+    if np.unique(y_true).size < 2:
+        out["auroc"] = float("nan")
+    else:
+        out["auroc"] = float(roc_auc_score(y_true, y_score))
+
+    # AUPRC is defined for single-class y_true but can be uninformative.
     out["auprc"] = float(average_precision_score(y_true, y_score))
     return MetricResult(metrics=out)
 
@@ -31,4 +36,3 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> MetricResult:
     out["mae"] = float(mean_absolute_error(y_true, y_pred))
     out["rmse"] = float(mean_squared_error(y_true, y_pred, squared=False))
     return MetricResult(metrics=out)
-
