@@ -45,6 +45,12 @@ grid = [
   ["trainer.batch_size", [16, 32]],
 ]
 
+# If you switch to time-level tasks, set:
+# [task]
+# prediction_mode = "time"
+# and ensure `labels.fn` returns time-aligned labels.
+# For time-level HPO, use `trainer.monitor = "val_loss"` (default).
+
 [trainer]
 device = "auto"
 seed = 42

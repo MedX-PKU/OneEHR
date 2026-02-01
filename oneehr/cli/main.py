@@ -536,83 +536,171 @@ def _run_benchmark(cfg_path: str) -> None:
                     return float(vm["rmse"]), vm
                 return float(vm["mae"]), vm
 
-            # DL HPO MVP: patient-level only.
-            if cfg.task.prediction_mode != "patient":
-                return None
-
             torch = optional_import("torch")
             if torch is None:
                 raise SystemExit("DL HPO requires torch")
 
-            from oneehr.data.sequence import build_patient_sequences, pad_sequences
+            from oneehr.data.sequence import build_patient_sequences, build_time_sequences, pad_sequences
 
-            feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
-            pids, seqs, lens = build_patient_sequences(binned, feat_cols)
-            X_seq = pad_sequences(seqs, lens)
-            lens_t = torch.from_numpy(lens)
+            feat_cols = [
+                c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")
+            ]
 
-            y_map = dict(zip(y.index.astype(str).tolist(), y.to_numpy().tolist()))
-            y_arr = np.array([y_map.get(pid) for pid in pids], dtype=np.float32)
-            pids_arr = np.array(pids, dtype=str)
+            if cfg.task.prediction_mode == "patient":
+                pids, seqs, lens = build_patient_sequences(binned, feat_cols)
+                X_seq = pad_sequences(seqs, lens)
+                lens_t = torch.from_numpy(lens)
 
-            tr_m = np.isin(pids_arr, sp.train_patients)
-            va_m = np.isin(pids_arr, sp.val_patients)
-            X_tr, L_tr, y_tr = X_seq[tr_m], lens_t[tr_m], torch.from_numpy(y_arr[tr_m])
-            X_va, L_va, y_va = X_seq[va_m], lens_t[va_m], torch.from_numpy(y_arr[va_m])
+                y_map = dict(zip(y.index.astype(str).tolist(), y.to_numpy().tolist()))
+                y_arr = np.array([y_map.get(pid) for pid in pids], dtype=np.float32)
+                pids_arr = np.array(pids, dtype=str)
 
-            input_dim = int(X_seq.shape[-1])
-            if cfg.model.name == "gru":
-                from oneehr.models.gru import GRUModel
+                tr_m = np.isin(pids_arr, sp.train_patients)
+                va_m = np.isin(pids_arr, sp.val_patients)
+                X_tr, L_tr, y_tr = X_seq[tr_m], lens_t[tr_m], torch.from_numpy(y_arr[tr_m])
+                X_va, L_va, y_va = X_seq[va_m], lens_t[va_m], torch.from_numpy(y_arr[va_m])
 
-                model = GRUModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.gru.hidden_dim,
-                    out_dim=1,
-                    num_layers=cfg.model.gru.num_layers,
-                    dropout=cfg.model.gru.dropout,
+                input_dim = int(X_seq.shape[-1])
+                if cfg.model.name == "gru":
+                    from oneehr.models.gru import GRUModel
+
+                    model = GRUModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.gru.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.gru.num_layers,
+                        dropout=cfg.model.gru.dropout,
+                    )
+                elif cfg.model.name == "rnn":
+                    from oneehr.models.rnn import RNNModel
+
+                    model = RNNModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.rnn.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.rnn.num_layers,
+                        dropout=cfg.model.rnn.dropout,
+                        bidirectional=cfg.model.rnn.bidirectional,
+                        nonlinearity=cfg.model.rnn.nonlinearity,
+                    )
+                elif cfg.model.name == "transformer":
+                    from oneehr.models.transformer import TransformerModel
+
+                    model = TransformerModel(
+                        input_dim=input_dim,
+                        d_model=cfg.model.transformer.d_model,
+                        out_dim=1,
+                        nhead=cfg.model.transformer.nhead,
+                        num_layers=cfg.model.transformer.num_layers,
+                        dim_feedforward=cfg.model.transformer.dim_feedforward,
+                        dropout=cfg.model.transformer.dropout,
+                        pooling=cfg.model.transformer.pooling,
+                    )
+                else:
+                    return None
+
+                fit = fit_sequence_model(
+                    model=model,
+                    X_train=X_tr,
+                    len_train=L_tr,
+                    y_train=y_tr,
+                    X_val=X_va,
+                    len_val=L_va,
+                    y_val=y_va,
+                    task=cfg.task,
+                    trainer=cfg.trainer,
                 )
-            elif cfg.model.name == "rnn":
-                from oneehr.models.rnn import RNNModel
+                last = fit.history[-1] if fit.history else {}
+                score = float(last.get(cfg.trainer.monitor, last.get("val_loss", 0.0)))
+                return score, {cfg.trainer.monitor: score}
 
-                model = RNNModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.rnn.hidden_dim,
-                    out_dim=1,
-                    num_layers=cfg.model.rnn.num_layers,
-                    dropout=cfg.model.rnn.dropout,
-                    bidirectional=cfg.model.rnn.bidirectional,
-                    nonlinearity=cfg.model.rnn.nonlinearity,
+            if cfg.task.prediction_mode == "time":
+                if labels_df is None:
+                    raise SystemExit("prediction_mode='time' requires labels (labels.fn).")
+
+                pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
+                    binned,
+                    labels_df,
+                    feat_cols,
+                    label_time_col="bin_time",
                 )
-            elif cfg.model.name == "transformer":
-                from oneehr.models.transformer import TransformerModel
+                X_seq = pad_sequences(seqs, lens)
+                Y_seq = pad_sequences([y[:, None] for y in y_seqs], lens).squeeze(-1)
+                M_seq = pad_sequences([m[:, None] for m in mask_seqs], lens).squeeze(-1)
+                lens_t = torch.from_numpy(lens)
 
-                model = TransformerModel(
-                    input_dim=input_dim,
-                    d_model=cfg.model.transformer.d_model,
-                    out_dim=1,
-                    nhead=cfg.model.transformer.nhead,
-                    num_layers=cfg.model.transformer.num_layers,
-                    dim_feedforward=cfg.model.transformer.dim_feedforward,
-                    dropout=cfg.model.transformer.dropout,
-                    pooling=cfg.model.transformer.pooling,
+                pids_arr = np.array(pids, dtype=str)
+                tr_m = np.isin(pids_arr, sp.train_patients)
+                va_m = np.isin(pids_arr, sp.val_patients)
+                X_tr, L_tr, Y_tr, M_tr = (
+                    X_seq[tr_m],
+                    lens_t[tr_m],
+                    Y_seq[tr_m],
+                    M_seq[tr_m],
                 )
-            else:
-                return None
+                X_va, L_va, Y_va, M_va = (
+                    X_seq[va_m],
+                    lens_t[va_m],
+                    Y_seq[va_m],
+                    M_seq[va_m],
+                )
 
-            fit = fit_sequence_model(
-                model=model,
-                X_train=X_tr,
-                len_train=L_tr,
-                y_train=y_tr,
-                X_val=X_va,
-                len_val=L_va,
-                y_val=y_va,
-                task=cfg.task,
-                trainer=cfg.trainer,
-            )
-            last = fit.history[-1] if fit.history else {}
-            score = float(last.get(cfg.trainer.monitor, last.get("val_loss", 0.0)))
-            return score, {cfg.trainer.monitor: score}
+                input_dim = int(X_seq.shape[-1])
+                if cfg.model.name == "gru":
+                    from oneehr.models.gru import GRUTimeModel
+
+                    model = GRUTimeModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.gru.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.gru.num_layers,
+                        dropout=cfg.model.gru.dropout,
+                    )
+                elif cfg.model.name == "rnn":
+                    from oneehr.models.rnn import RNNTimeModel
+
+                    model = RNNTimeModel(
+                        input_dim=input_dim,
+                        hidden_dim=cfg.model.rnn.hidden_dim,
+                        out_dim=1,
+                        num_layers=cfg.model.rnn.num_layers,
+                        dropout=cfg.model.rnn.dropout,
+                        bidirectional=cfg.model.rnn.bidirectional,
+                        nonlinearity=cfg.model.rnn.nonlinearity,
+                    )
+                elif cfg.model.name == "transformer":
+                    from oneehr.models.transformer import TransformerTimeModel
+
+                    model = TransformerTimeModel(
+                        input_dim=input_dim,
+                        d_model=cfg.model.transformer.d_model,
+                        out_dim=1,
+                        nhead=cfg.model.transformer.nhead,
+                        num_layers=cfg.model.transformer.num_layers,
+                        dim_feedforward=cfg.model.transformer.dim_feedforward,
+                        dropout=cfg.model.transformer.dropout,
+                    )
+                else:
+                    return None
+
+                fit = fit_sequence_model_time(
+                    model=model,
+                    X_train=X_tr,
+                    len_train=L_tr,
+                    y_train=Y_tr,
+                    mask_train=M_tr,
+                    X_val=X_va,
+                    len_val=L_va,
+                    y_val=Y_va,
+                    mask_val=M_va,
+                    task=cfg.task,
+                    trainer=cfg.trainer,
+                )
+                last = fit.history[-1] if fit.history else {}
+                score = float(last.get(cfg.trainer.monitor, last.get("val_loss", 0.0)))
+                return score, {cfg.trainer.monitor: score}
+
+            return None
 
         best = select_best_overrides(cfg0, _eval_trial)
         best_overrides = best.overrides if best is not None else {}
@@ -775,6 +863,10 @@ def _run_benchmark(cfg_path: str) -> None:
     summary.to_csv(out_root / "summary.csv", index=False)
     summarize_metrics(summary).to_csv(out_root / "summary_table.csv", index=False)
     to_paper_wide_table(summary).to_csv(out_root / "paper_table.csv", index=False)
+
+    # Persist best overrides per split for reproducibility.
+    best_rows = [{"split": r["split"], "hpo_best": r.get("hpo_best")} for r in rows]
+    pd.DataFrame(best_rows).to_csv(out_root / "hpo_best.csv", index=False)
 
 
 def _run_hpo(cfg_path: str) -> None:
