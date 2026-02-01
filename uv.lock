@@ -1,0 +1,7 @@
+# This file is intentionally checked in as a placeholder.
+#
+# OneEHR uses `uv` for environment and dependency management.
+# Once dependencies stabilize, run:
+#   uv lock
+# to generate a fully pinned lockfile.
+
