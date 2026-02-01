@@ -25,6 +25,9 @@ oneehr train --config examples/experiment.toml
 oneehr benchmark --config examples/experiment.toml
 ```
 
+`oneehr benchmark` writes per-split metrics to `summary.csv`, and aggregated paper-style tables
+including 95% CI to `paper_table.csv`.
+
 ## GRU (baseline)
 
 For a quick GRU baseline, set in TOML:

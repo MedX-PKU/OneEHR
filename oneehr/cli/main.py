@@ -13,7 +13,7 @@ from oneehr.metrics import binary_metrics, regression_metrics
 from oneehr.training.sequence import build_patient_sequences, pad_sequences
 from oneehr.training.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
-from oneehr.reporting.tables import summarize_metrics
+from oneehr.reporting.tables import summarize_metrics, to_paper_wide_table
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -309,6 +309,7 @@ def _run_benchmark(cfg_path: str) -> None:
     summary = pd.DataFrame(rows)
     summary.to_csv(out_root / "summary.csv", index=False)
     summarize_metrics(summary).to_csv(out_root / "summary_table.csv", index=False)
+    to_paper_wide_table(summary).to_csv(out_root / "paper_table.csv", index=False)
 
 
 def main() -> None:
