@@ -129,7 +129,7 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class OutputConfig:
-    root: Path = Path("outputs")
+    root: Path = Path("logs")
     run_name: str = "run"
     save_preds: bool = True
 

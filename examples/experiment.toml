@@ -67,6 +67,6 @@ monitor_mode = "min"
 # loss_fn = "examples/custom_loss.py:make_loss"
 
 [output]
-root = "outputs"
+root = "logs"
 run_name = "example"
 save_preds = true

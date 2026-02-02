@@ -1,2 +1,0 @@
-auprc_mean,auprc_ci95_low,auprc_ci95_high,auprc_n,auroc_mean,auroc_ci95_low,auroc_ci95_high,auroc_n,hpo_best_score_mean,hpo_best_score_ci95_low,hpo_best_score_ci95_high,hpo_best_score_n,hpo_metric_mean,hpo_metric_ci95_low,hpo_metric_ci95_high,hpo_metric_n,hpo_mode_mean,hpo_mode_ci95_low,hpo_mode_ci95_high,hpo_mode_n
-0.5,0.0,1.0,3,0.0,0.0,0.0,1,1.4037421941757202,1.1739184856414795,1.5299628973007202,3,,,,0,,,,0

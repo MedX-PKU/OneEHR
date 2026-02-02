@@ -12,17 +12,10 @@ Environment setup with uv:
 
 ```bash
 uv venv .venv --python 3.12
-uv sync
+uv pip install -e .
 ```
 
-Add dependencies as needed:
-
-```bash
-uv add torch
-uv add xgboost scikit-learn
-```
-
-## Quickstart (MVP: XGBoost)
+## Quickstart
 
 ```bash
 oneehr preprocess --config examples/experiment.toml
@@ -60,3 +53,7 @@ You can optionally generate labels via a Python function:
 
 For N-N tasks (`task.prediction_mode = "time"`), your label function may return `label_time` and
 OneEHR will internally align it to `bin_time` using `preprocess.bin_size`.
+
+## Outputs
+
+By default, run artifacts are written under `logs/`.

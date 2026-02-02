@@ -120,7 +120,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     )
 
     output = OutputConfig(
-        root=Path(output_raw.get("root", "outputs")),
+        root=Path(output_raw.get("root", "logs")),
         run_name=str(output_raw.get("run_name", "run")),
         save_preds=bool(output_raw.get("save_preds", True)),
     )
