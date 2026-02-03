@@ -16,6 +16,7 @@ from oneehr.models.xgb import predict_xgboost, train_xgboost
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.eval.metrics import binary_metrics, regression_metrics
+from oneehr.eval.bootstrap import bootstrap_metric
 from oneehr.data.sequence import build_patient_sequences
 from oneehr.data.splits import make_splits
 from oneehr.utils.io import ensure_dir, write_json
@@ -439,7 +440,7 @@ def _run_benchmark(cfg_path: str) -> None:
 
         # Optional: run HPO once on a selected split, then reuse best overrides across all splits.
         reused_overrides: dict[str, object] | None = None
-        if cfg_model.hpo.enabled and cfg_model.hpo.scope in {"single", "select_best_split"}:
+        if cfg_model.hpo.enabled and cfg_model.hpo.scope in {"single", "cv_mean"}:
             if cfg_model.hpo.tune_split is not None:
                 tune_splits = [sp for sp in splits if sp.name == cfg_model.hpo.tune_split]
                 if not tune_splits:
@@ -507,7 +508,7 @@ def _run_benchmark(cfg_path: str) -> None:
         # Optional: cross-split HPO selection.
         # For each hyperparameter override, evaluate on every split's validation set and
         # pick the override with the best mean score across splits.
-        if cfg_model.hpo.enabled and cfg_model.hpo.scope == "select_best_split":
+        if cfg_model.hpo.enabled and cfg_model.hpo.scope == "cv_mean":
             trials = []
             best = None
 
@@ -1039,6 +1040,131 @@ def _run_benchmark(cfg_path: str) -> None:
         for r in rows
     ]
     pd.DataFrame(best_rows).to_csv(out_root / "hpo_best.csv", index=False)
+
+    if cfg0.split.kind.lower() == "time" and cfg0.split.inner_kind is not None:
+        _run_final_prospective_eval(
+            cfg0=cfg0,
+            binned=binned,
+            labels_df=labels_df,
+            patient_index=patient_index,
+            out_root=out_root,
+        )
+
+
+def _run_final_prospective_eval(
+    *,
+    cfg0,
+    binned,
+    labels_df,
+    patient_index,
+    out_root: Path,
+) -> None:
+    import pandas as pd
+
+    boundary = pd.to_datetime(cfg0.split.time_boundary, errors="raise")
+    pid = patient_index[["patient_id", "max_time"]].copy()
+    pid["patient_id"] = pid["patient_id"].astype(str)
+    pre_patients = pid[pid["max_time"] < boundary]["patient_id"].to_numpy().astype(str)
+    post_patients = pid[pid["max_time"] >= boundary]["patient_id"].to_numpy().astype(str)
+
+    if cfg0.task.prediction_mode != "patient":
+        raise SystemExit("final prospective eval currently supports prediction_mode='patient' only")
+
+    X, y0 = make_patient_tabular(binned)
+    if labels_df is not None:
+        y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
+    else:
+        y = y0
+
+    pre_mask = X.index.astype(str).isin(pre_patients)
+    post_mask = X.index.astype(str).isin(post_patients)
+
+    if cfg0.trainer.final_refit not in {"train_only", "train_val"}:
+        raise SystemExit("trainer.final_refit must be 'train_only' or 'train_val'")
+
+    if cfg0.trainer.final_refit == "train_only" and cfg0.split.val_size > 0:
+        rng = np.random.default_rng(cfg0.split.seed)
+        pre_idx = np.where(pre_mask)[0]
+        n_val = max(1, int(round(len(pre_idx) * cfg0.split.val_size)))
+        perm = rng.permutation(len(pre_idx))
+        val_idx = pre_idx[perm[:n_val]]
+        train_idx = pre_idx[perm[n_val:]]
+        train_mask = np.zeros(len(X), dtype=bool)
+        train_mask[train_idx] = True
+    else:
+        train_mask = pre_mask
+
+    X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()
+    X_test, y_test = X.loc[post_mask], y.loc[post_mask].to_numpy()
+
+    final_dir = ensure_dir(out_root / "final")
+
+    rows = []
+    for model_cfg in (cfg0.models or [cfg0.model]):
+        cfg_model = replace(cfg0, model=model_cfg, models=[model_cfg])
+        model_name = cfg_model.model.name
+        if model_name in cfg0.hpo_by_model:
+            cfg_model = replace(cfg_model, hpo=cfg0.hpo_by_model[model_name])
+
+        hpo_dir = out_root / "hpo" / model_name
+        overrides = {}
+        if cfg_model.hpo.enabled:
+            if cfg_model.hpo.scope == "cv_mean":
+                sel = hpo_dir / "select_best_split.json"
+                if sel.exists():
+                    overrides = json.loads(sel.read_text(encoding="utf-8")).get("selected_overrides") or {}
+            elif cfg_model.hpo.scope == "single":
+                sel = hpo_dir / "best_once.json"
+                if sel.exists():
+                    best = json.loads(sel.read_text(encoding="utf-8")).get("best") or {}
+                    overrides = best.get("overrides") or {}
+        cfg_fit = apply_overrides(cfg_model, overrides)
+
+        if cfg_fit.model.name != "xgboost":
+            continue
+        if cfg_fit.task.kind == "binary" and len(np.unique(y_train)) < 2:
+            continue
+
+        art = train_xgboost(X_train, y_train, None, None, cfg_fit.task, cfg_fit.model.xgboost)
+        y_pred = predict_xgboost(art, X_test, cfg_fit.task)
+
+        if cfg_fit.task.kind == "binary":
+            metrics = binary_metrics(y_test.astype(float), y_pred.astype(float)).metrics
+        else:
+            metrics = regression_metrics(y_test.astype(float), y_pred.astype(float)).metrics
+
+        write_json(final_dir / f"test_metrics_{model_name}.json", metrics)
+
+        if cfg_fit.trainer.bootstrap_test:
+            metric_name = "auroc" if cfg_fit.task.kind == "binary" else "rmse"
+            bs = bootstrap_metric(
+                y_true=y_test.astype(float),
+                y_pred=y_pred.astype(float),
+                task=cfg_fit.task,
+                metric=metric_name,
+                n=cfg_fit.trainer.bootstrap_n,
+                seed=cfg_fit.trainer.seed,
+            )
+            write_json(
+                final_dir / f"test_bootstrap_{model_name}.json",
+                {
+                    "metric": bs.metric,
+                    "n": bs.n,
+                    "mean": bs.mean,
+                    "ci_low": bs.ci_low,
+                    "ci_high": bs.ci_high,
+                },
+            )
+
+        if cfg_fit.output.save_preds and len(X_test) > 0:
+            pd.DataFrame(
+                {"patient_id": X_test.index.astype(str), "y_true": y_test, "y_pred": y_pred}
+            ).to_parquet(final_dir / f"test_preds_{model_name}.parquet", index=False)
+
+        rows.append({"model": model_name, **metrics})
+
+    if rows:
+        pd.DataFrame(rows).to_csv(final_dir / "test_summary.csv", index=False)
 
 
 def _run_hpo(cfg_path: str) -> None:

@@ -83,6 +83,9 @@ class TrainerConfig:
 
     # Customization hooks
     loss_fn: str | None = None  # python callable ref: path/to.py:loss_fn
+    final_refit: str = "train_val"  # train_only | train_val
+    bootstrap_test: bool = False
+    bootstrap_n: int = 200
 
 
 @dataclass(frozen=True)
@@ -93,7 +96,7 @@ class HPOConfig:
     grid: list[tuple[str, list]] = field(default_factory=list)
     metric: str = "val_loss"
     mode: str = "min"  # min | max
-    scope: str = "single"  # single | per_split | select_best_split
+    scope: str = "single"  # single | per_split | cv_mean
     tune_split: str | None = None  # split name, e.g. fold0, split0, time0
 
 

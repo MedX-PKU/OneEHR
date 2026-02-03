@@ -54,7 +54,9 @@ name = "xgboost"
 enabled = true
 metric = "val_loss"
 mode = "min"
-scope = "single" # single | per_split | select_best_split
+scope = "single" # single | per_split | cv_mean
+# Paper-style CV selection:
+# scope = "cv_mean" # single | per_split | cv_mean
 # Optional: which split name to tune on (e.g. fold0 for kfold, split0 for random, time0 for time)
 # tune_split = "fold0"
 
@@ -90,6 +92,9 @@ early_stopping = true
 early_stopping_patience = 5
 monitor = "val_loss"
 monitor_mode = "min"
+final_refit = "train_val" # train_only | train_val
+bootstrap_test = false
+bootstrap_n = 200
 
 # Optional: custom loss factory. Signature: loss_fn(task: TaskConfig) -> torch.nn.Module
 # loss_fn = "examples/custom_loss.py:make_loss"
