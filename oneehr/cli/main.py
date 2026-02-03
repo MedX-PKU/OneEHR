@@ -1216,6 +1216,17 @@ def _run_benchmark(cfg_path: str) -> None:
 
             model_out = ensure_dir(out_root / "models" / model_name / sp.name)
             write_json(model_out / "metrics.json", metrics)
+            if cfg.task.kind == "binary" and cfg.calibration.enabled:
+                # Small, human-friendly artifact for quick inspection.
+                # The threshold is always computed on the calibration (val) split.
+                if "val_best_threshold_cal_f1" in metrics:
+                    (model_out / "best_threshold_cal_f1.txt").write_text(
+                        f"{metrics['val_best_threshold_cal_f1']}\n", encoding="utf-8"
+                    )
+                if "val_best_threshold_raw_f1" in metrics:
+                    (model_out / "best_threshold_raw_f1.txt").write_text(
+                        f"{metrics['val_best_threshold_raw_f1']}\n", encoding="utf-8"
+                    )
 
             row = {
                 "model": model_name,
