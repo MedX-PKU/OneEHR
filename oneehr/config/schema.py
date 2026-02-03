@@ -170,12 +170,118 @@ class TransformerConfig:
 
 
 @dataclass(frozen=True)
+class MLPConfig:
+    hidden_dim: int = 128
+    num_layers: int = 2
+    dropout: float = 0.1
+
+
+@dataclass(frozen=True)
+class TCNConfig:
+    hidden_dim: int = 128
+    num_layers: int = 2
+    kernel_size: int = 3
+    dropout: float = 0.1
+
+
+@dataclass(frozen=True)
+class AdaCareConfig:
+    hidden_dim: int = 128
+    kernel_size: int = 2
+    kernel_num: int = 64
+    r_v: int = 4
+    r_c: int = 4
+    dropout: float = 0.5
+
+
+@dataclass(frozen=True)
+class StageNetConfig:
+    hidden_dim: int = 384
+    conv_size: int = 10
+    levels: int = 3
+    dropconnect: float = 0.3
+    dropout: float = 0.3
+    dropres: float = 0.3
+
+
+@dataclass(frozen=True)
+class RETAINConfig:
+    hidden_dim: int = 128
+    dropout: float = 0.1
+
+
+@dataclass(frozen=True)
+class ConCareConfig:
+    hidden_dim: int = 128
+    num_heads: int = 4
+    dropout: float = 0.1
+
+
+@dataclass(frozen=True)
+class GRASPConfig:
+    hidden_dim: int = 128
+    dropout: float = 0.1
+
+
+@dataclass(frozen=True)
+class MCGRUConfig:
+    hidden_dim: int = 128
+    num_layers: int = 1
+    dropout: float = 0.0
+
+
+@dataclass(frozen=True)
+class AgentConfig:
+    hidden_dim: int = 128
+    dropout: float = 0.1
+
+
+@dataclass(frozen=True)
+class CatBoostConfig:
+    depth: int = 6
+    n_estimators: int = 500
+    learning_rate: float = 0.05
+
+
+@dataclass(frozen=True)
+class RFConfig:
+    n_estimators: int = 500
+    max_depth: int | None = None
+
+
+@dataclass(frozen=True)
+class DTConfig:
+    max_depth: int | None = None
+
+
+@dataclass(frozen=True)
+class GBDTConfig:
+    n_estimators: int = 500
+    learning_rate: float = 0.05
+    max_depth: int = 3
+
+
+@dataclass(frozen=True)
 class ModelConfig:
-    name: str  # xgboost | gru | rnn | transformer
+    name: str  # xgboost | catboost | rf | dt | gbdt | gru | rnn | lstm | mlp | tcn | transformer | ...
     xgboost: XGBoostConfig = field(default_factory=XGBoostConfig)
+    catboost: CatBoostConfig = field(default_factory=CatBoostConfig)
+    rf: RFConfig = field(default_factory=RFConfig)
+    dt: DTConfig = field(default_factory=DTConfig)
+    gbdt: GBDTConfig = field(default_factory=GBDTConfig)
     gru: GRUConfig = field(default_factory=GRUConfig)
     rnn: RNNConfig = field(default_factory=RNNConfig)
+    lstm: RNNConfig = field(default_factory=RNNConfig)
+    mlp: MLPConfig = field(default_factory=MLPConfig)
+    tcn: TCNConfig = field(default_factory=TCNConfig)
     transformer: TransformerConfig = field(default_factory=TransformerConfig)
+    adacare: AdaCareConfig = field(default_factory=AdaCareConfig)
+    stagenet: StageNetConfig = field(default_factory=StageNetConfig)
+    retain: RETAINConfig = field(default_factory=RETAINConfig)
+    concare: ConCareConfig = field(default_factory=ConCareConfig)
+    grasp: GRASPConfig = field(default_factory=GRASPConfig)
+    mcgru: MCGRUConfig = field(default_factory=MCGRUConfig)
+    agent: AgentConfig = field(default_factory=AgentConfig)
 
 
 @dataclass(frozen=True)
