@@ -541,6 +541,7 @@ def _run_benchmark(cfg_path: str) -> None:
             )
 
     rows = []
+    run_records: list[dict[str, object]] = []
     out_root = cfg0.output.root / cfg0.output.run_name
     ensure_dir(out_root)
 
@@ -1216,38 +1217,19 @@ def _run_benchmark(cfg_path: str) -> None:
 
             model_out = ensure_dir(out_root / "models" / model_name / sp.name)
             write_json(model_out / "metrics.json", metrics)
-            if cfg.task.kind == "binary" and cfg.calibration.enabled:
-                # Single, structured artifact for downstream consumption.
-                # The threshold is always computed on the calibration (val) split.
-                cal = {
-                    "enabled": bool(cfg.calibration.enabled),
-                    "method": str(cfg.calibration.method),
-                    "source": str(cfg.calibration.source),
-                    "threshold_strategy": str(cfg.calibration.threshold_strategy),
-                    "use_calibrated": bool(cfg.calibration.use_calibrated),
+            run_records.append(
+                {
+                    "model": model_name,
+                    "split": sp.name,
+                    "task_kind": str(cfg.task.kind),
+                    "prediction_mode": str(cfg.task.prediction_mode),
+                    "skipped": 0,
+                    "metrics": dict(metrics),
+                    "artifacts": {
+                        "metrics_json": str((model_out / "metrics.json").relative_to(out_root)),
+                    },
                 }
-                if "val_best_threshold_raw_f1" in metrics:
-                    cal["best_threshold_raw_f1"] = float(metrics["val_best_threshold_raw_f1"])
-                if "val_best_threshold_cal_f1" in metrics:
-                    cal["best_threshold_cal_f1"] = float(metrics["val_best_threshold_cal_f1"])
-                if "val_logloss_raw" in metrics:
-                    cal["val_logloss_raw"] = float(metrics["val_logloss_raw"])
-                if "val_logloss_cal" in metrics:
-                    cal["val_logloss_cal"] = float(metrics["val_logloss_cal"])
-                if "val_brier_raw" in metrics:
-                    cal["val_brier_raw"] = float(metrics["val_brier_raw"])
-                if "val_brier_cal" in metrics:
-                    cal["val_brier_cal"] = float(metrics["val_brier_cal"])
-
-                # Calibrator parameters (method-specific)
-                if "calibration_temperature" in metrics:
-                    cal["temperature"] = float(metrics["calibration_temperature"])
-                if "calibration_a" in metrics:
-                    cal["a"] = float(metrics["calibration_a"])
-                if "calibration_b" in metrics:
-                    cal["b"] = float(metrics["calibration_b"])
-
-                write_json(model_out / "calibration.json", cal)
+            )
 
             row = {
                 "model": model_name,
@@ -1274,6 +1256,23 @@ def _run_benchmark(cfg_path: str) -> None:
     summary.to_csv(out_root / "summary.csv", index=False)
     summarize_metrics(summary, group_cols=["model"]).to_csv(out_root / "summary_table.csv", index=False)
     to_paper_wide_table(summary, group_cols=["model"]).to_csv(out_root / "paper_table.csv", index=False)
+
+    write_json(
+        out_root / "summary.json",
+        {
+            "run_name": str(cfg0.output.run_name),
+            "task": {"kind": str(cfg0.task.kind), "prediction_mode": str(cfg0.task.prediction_mode)},
+            "split": {"kind": str(cfg0.split.kind), "n_splits": int(cfg0.split.n_splits)},
+            "calibration": {
+                "enabled": bool(cfg0.calibration.enabled),
+                "method": str(cfg0.calibration.method),
+                "source": str(cfg0.calibration.source),
+                "threshold_strategy": str(cfg0.calibration.threshold_strategy),
+                "use_calibrated": bool(cfg0.calibration.use_calibrated),
+            },
+            "records": run_records,
+        },
+    )
 
     # Persist best overrides per split for reproducibility.
     best_rows = [

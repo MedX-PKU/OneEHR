@@ -19,4 +19,5 @@ def test_cli_smoke_preprocess_and_train(tmp_path: Path) -> None:
 
     run_root = out / "example"
     assert (run_root / "summary.csv").exists()
+    assert (run_root / "summary.json").exists()
     assert (run_root / "hpo_best.csv").exists()
