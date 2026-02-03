@@ -323,4 +323,56 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
     if name in {"xgboost", "catboost", "rf", "dt", "gbdt"}:
         return BuiltModel(model=None, kind="ml")
 
+    if name == "lstm":
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.lstm import LSTMTimeModel
+
+            return BuiltModel(
+                model=LSTMTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.lstm.hidden_dim,
+                    out_dim=out_dim,
+                    num_layers=cfg.model.lstm.num_layers,
+                    dropout=cfg.model.lstm.dropout,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.lstm import LSTMModel
+
+        return BuiltModel(
+            model=LSTMModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.lstm.hidden_dim,
+                out_dim=out_dim,
+                num_layers=cfg.model.lstm.num_layers,
+                dropout=cfg.model.lstm.dropout,
+            ),
+            kind="dl",
+        )
+
+    if name == "mlp":
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.mlp import MLPTimeModel
+
+            return BuiltModel(
+                model=MLPTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.mlp.hidden_dim,
+                    num_layers=cfg.model.mlp.num_layers,
+                    dropout=cfg.model.mlp.dropout,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.mlp import MLPModel
+
+        return BuiltModel(
+            model=MLPModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.mlp.hidden_dim,
+                num_layers=cfg.model.mlp.num_layers,
+                dropout=cfg.model.mlp.dropout,
+            ),
+            kind="dl",
+        )
+
     raise ValueError(f"Unsupported model.name={name!r}")
