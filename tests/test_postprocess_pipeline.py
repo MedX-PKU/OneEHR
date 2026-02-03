@@ -39,3 +39,35 @@ def test_pipeline_winsorize_quantiles() -> None:
     Xt = transform_postprocess_pipeline(pd.DataFrame({"num__a": [1000.0]}), fitted)
     assert float(Xt.loc[0, "num__a"]) <= 100.0
 
+
+def test_pipeline_forward_fill_with_fallback() -> None:
+    # Within each patient, forward-fill. If no previous value exists, use fallback.
+    X_train = pd.DataFrame(
+        {
+            "patient_id": ["p1", "p1", "p2", "p2"],
+            "bin_time": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-01", "2020-01-02"]),
+            "num__a": [1.0, np.nan, np.nan, 5.0],
+            "cat__x": [1.0, np.nan, np.nan, 2.0],
+        }
+    )
+    pipeline = [
+        {
+            "op": "forward_fill",
+            "cols": ["num__a", "cat__x"],
+            "group_key": "patient_id",
+            "order_key": "bin_time",
+            "fallback": {"strategy": "constant", "value": 0.0},
+        }
+    ]
+    fitted = fit_postprocess_pipeline(X_train, pipeline)
+    Xt = transform_postprocess_pipeline(X_train, fitted).sort_values(["patient_id", "bin_time"])
+
+    # p1 at 2020-01-02 should carry forward 1.0 and 1.0
+    p1_t1 = Xt[(Xt["patient_id"] == "p1") & (Xt["bin_time"] == pd.Timestamp("2020-01-02"))].iloc[0]
+    assert float(p1_t1["num__a"]) == 1.0
+    assert float(p1_t1["cat__x"]) == 1.0
+
+    # p2 at 2020-01-01 has no previous value => fallback 0.0
+    p2_t0 = Xt[(Xt["patient_id"] == "p2") & (Xt["bin_time"] == pd.Timestamp("2020-01-01"))].iloc[0]
+    assert float(p2_t0["num__a"]) == 0.0
+    assert float(p2_t0["cat__x"]) == 0.0

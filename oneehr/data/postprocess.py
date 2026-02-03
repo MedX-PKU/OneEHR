@@ -37,6 +37,41 @@ def _ensure_numeric_frame(X: pd.DataFrame, cols: list[str]) -> None:
         raise ValueError(f"Columns must be numeric for this op: {non_numeric}")
 
 
+def _fit_fill_values(
+    X: pd.DataFrame,
+    cols: list[str],
+    *,
+    strategy: str,
+    value: float | None = None,
+) -> pd.Series:
+    strategy = str(strategy).lower()
+    if not cols:
+        return pd.Series(dtype=float)
+
+    _ensure_numeric_frame(X, cols)
+
+    if strategy == "mean":
+        fill = X[cols].mean(axis=0, skipna=True)
+        return fill.fillna(0.0)
+    if strategy == "median":
+        fill = X[cols].median(axis=0, skipna=True)
+        return fill.fillna(0.0)
+    if strategy in {"mode", "most_frequent"}:
+        out = {}
+        for c in cols:
+            s = X[c].dropna()
+            if s.empty:
+                out[c] = 0.0
+                continue
+            m = s.mode(dropna=True)
+            out[c] = float(m.iloc[0]) if not m.empty else float(s.iloc[0])
+        return pd.Series(out)
+    if strategy == "constant":
+        vv = 0.0 if value is None else float(value)
+        return pd.Series({c: vv for c in cols})
+    raise ValueError(f"Unsupported fill strategy={strategy!r}. Expected mean|median|mode|constant")
+
+
 def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, object]]) -> FittedPostprocess:
     """Fit post-merge preprocessing steps on training split only.
 
@@ -66,20 +101,44 @@ def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, obj
             strategy = str(step.get("strategy", "mean")).lower()
             _ensure_numeric_frame(X, cols)
 
-            if strategy == "mean":
-                fill = X[cols].mean(axis=0, skipna=True)
-                fill = fill.fillna(0.0)
-            elif strategy == "median":
-                fill = X[cols].median(axis=0, skipna=True)
-                fill = fill.fillna(0.0)
-            elif strategy == "constant":
-                value = step.get("value", 0.0)
-                fill = pd.Series({c: float(value) for c in cols})
-            else:
-                raise ValueError(f"Unsupported impute.strategy={strategy!r}")
+            fill = _fit_fill_values(X, cols, strategy=strategy, value=step.get("value"))
 
             fitted_steps.append({"op": "impute", "cols": cols, "strategy": strategy, "fill": fill})
             X.loc[:, cols] = X[cols].fillna(fill)
+            continue
+
+        if op == "forward_fill":
+            group_key = str(step.get("group_key", "patient_id"))
+            order_key = str(step.get("order_key", "bin_time"))
+            fallback = step.get("fallback") or {}
+            if not isinstance(fallback, dict):
+                raise ValueError("forward_fill.fallback must be a table (dict)")
+
+            fallback_strategy = str(fallback.get("strategy", "mean")).lower()
+            fallback_value = fallback.get("value")
+
+            if group_key not in X.columns or order_key not in X.columns:
+                raise ValueError(
+                    f"forward_fill requires X to include columns {group_key!r} and {order_key!r}. "
+                    "Use forward_fill only for time-level features with explicit time ordering."
+                )
+
+            ff_cols = [c for c in cols if c not in {group_key, order_key}]
+            _ensure_numeric_frame(X, ff_cols)
+            fill = _fit_fill_values(X, ff_cols, strategy=fallback_strategy, value=fallback_value)
+            fitted_steps.append(
+                {
+                    "op": "forward_fill",
+                    "cols": ff_cols,
+                    "group_key": group_key,
+                    "order_key": order_key,
+                    "fallback": {"strategy": fallback_strategy, "value": fallback_value},
+                    "fill": fill,
+                }
+            )
+            X = X.sort_values([group_key, order_key], kind="stable")
+            X.loc[:, ff_cols] = X.groupby(group_key, sort=False)[ff_cols].ffill()
+            X.loc[:, ff_cols] = X[ff_cols].fillna(fill)
             continue
 
         if op == "clip":
@@ -125,6 +184,17 @@ def transform_postprocess_pipeline(X: pd.DataFrame, fitted: FittedPostprocess) -
         elif op == "impute":
             fill = step["fill"]
             X_out.loc[:, cols] = X_out[cols].fillna(fill)
+        elif op == "forward_fill":
+            group_key = str(step["group_key"])
+            order_key = str(step["order_key"])
+            fill = step["fill"]
+            if group_key not in X_out.columns or order_key not in X_out.columns:
+                raise ValueError(
+                    f"forward_fill requires columns {group_key!r} and {order_key!r} in X."
+                )
+            X_out = X_out.sort_values([group_key, order_key], kind="stable")
+            X_out.loc[:, cols] = X_out.groupby(group_key, sort=False)[cols].ffill()
+            X_out.loc[:, cols] = X_out[cols].fillna(fill)
         elif op == "clip":
             X_out.loc[:, cols] = X_out[cols].clip(lower=step.get("lower"), upper=step.get("upper"))
         elif op == "winsorize":
@@ -147,4 +217,3 @@ def maybe_fit_transform_postprocess(
     X_val_t = None if X_val is None else transform_postprocess_pipeline(X_val, fitted)
     X_test_t = None if X_test is None else transform_postprocess_pipeline(X_test, fitted)
     return X_train_t, X_val_t, X_test_t, fitted
-
