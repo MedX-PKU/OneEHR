@@ -32,6 +32,7 @@ from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
 from oneehr.hpo.grid import apply_overrides, iter_grid
 from oneehr.hpo.runner import select_best_with_trials
 from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
+from oneehr.models.registry import build_model
 
 
 def _train_sequence_patient_level(
@@ -810,43 +811,11 @@ def _run_benchmark(cfg_path: str) -> None:
                     )
 
                     input_dim = int(X_seq.shape[-1])
-                    if cfg.model.name == "gru":
-                        from oneehr.models.gru import GRUModel
-
-                        model = GRUModel(
-                            input_dim=input_dim,
-                            hidden_dim=cfg.model.gru.hidden_dim,
-                            out_dim=1,
-                            num_layers=cfg.model.gru.num_layers,
-                            dropout=cfg.model.gru.dropout,
-                        )
-                    elif cfg.model.name == "rnn":
-                        from oneehr.models.rnn import RNNModel
-
-                        model = RNNModel(
-                            input_dim=input_dim,
-                            hidden_dim=cfg.model.rnn.hidden_dim,
-                            out_dim=1,
-                            num_layers=cfg.model.rnn.num_layers,
-                            dropout=cfg.model.rnn.dropout,
-                            bidirectional=cfg.model.rnn.bidirectional,
-                            nonlinearity=cfg.model.rnn.nonlinearity,
-                        )
-                    elif cfg.model.name == "transformer":
-                        from oneehr.models.transformer import TransformerModel
-
-                        model = TransformerModel(
-                            input_dim=input_dim,
-                            d_model=cfg.model.transformer.d_model,
-                            out_dim=1,
-                            nhead=cfg.model.transformer.nhead,
-                            num_layers=cfg.model.transformer.num_layers,
-                            dim_feedforward=cfg.model.transformer.dim_feedforward,
-                            dropout=cfg.model.transformer.dropout,
-                            pooling=cfg.model.transformer.pooling,
-                        )
-                    else:
+                    cfg_use = replace(cfg, preprocess=replace(cfg.preprocess, top_k_codes=input_dim))
+                    built = build_model(cfg_use)
+                    if built.kind != "dl":
                         return None
+                    model = built.model
 
                     fit = fit_sequence_model(
                         model=model,
@@ -896,42 +865,11 @@ def _run_benchmark(cfg_path: str) -> None:
                     )
 
                     input_dim = int(X_seq.shape[-1])
-                    if cfg.model.name == "gru":
-                        from oneehr.models.gru import GRUTimeModel
-
-                        model = GRUTimeModel(
-                            input_dim=input_dim,
-                            hidden_dim=cfg.model.gru.hidden_dim,
-                            out_dim=1,
-                            num_layers=cfg.model.gru.num_layers,
-                            dropout=cfg.model.gru.dropout,
-                        )
-                    elif cfg.model.name == "rnn":
-                        from oneehr.models.rnn import RNNTimeModel
-
-                        model = RNNTimeModel(
-                            input_dim=input_dim,
-                            hidden_dim=cfg.model.rnn.hidden_dim,
-                            out_dim=1,
-                            num_layers=cfg.model.rnn.num_layers,
-                            dropout=cfg.model.rnn.dropout,
-                            bidirectional=cfg.model.rnn.bidirectional,
-                            nonlinearity=cfg.model.rnn.nonlinearity,
-                        )
-                    elif cfg.model.name == "transformer":
-                        from oneehr.models.transformer import TransformerTimeModel
-
-                        model = TransformerTimeModel(
-                            input_dim=input_dim,
-                            d_model=cfg.model.transformer.d_model,
-                            out_dim=1,
-                            nhead=cfg.model.transformer.nhead,
-                            num_layers=cfg.model.transformer.num_layers,
-                            dim_feedforward=cfg.model.transformer.dim_feedforward,
-                            dropout=cfg.model.transformer.dropout,
-                        )
-                    else:
+                    cfg_use = replace(cfg, preprocess=replace(cfg.preprocess, top_k_codes=input_dim))
+                    built = build_model(cfg_use)
+                    if built.kind != "dl":
                         return None
+                    model = built.model
 
                     fit = fit_sequence_model_time(
                         model=model,
