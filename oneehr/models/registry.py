@@ -162,6 +162,29 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
+    if name == "retain":
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.retain import RETAINTimeModel
+
+            return BuiltModel(
+                model=RETAINTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.retain.hidden_dim,
+                    dropout=cfg.model.retain.dropout,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.retain import RETAINModel
+
+        return BuiltModel(
+            model=RETAINModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.retain.hidden_dim,
+                dropout=cfg.model.retain.dropout,
+            ),
+            kind="dl",
+        )
+
     static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
 
     if name in {"dragent"}:
