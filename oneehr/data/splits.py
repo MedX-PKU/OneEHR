@@ -98,15 +98,45 @@ def make_splits(
 
         pid = patient_index[["patient_id", "max_time"]].copy()
         pid["patient_id"] = pid["patient_id"].astype(str)
-        train = pid[pid["max_time"] < boundary]["patient_id"].to_numpy()
-        test = pid[pid["max_time"] >= boundary]["patient_id"].to_numpy()
-        rng.shuffle(train)
-        if split.val_size > 0 and len(train) > 1:
-            n_val = max(1, int(round(len(train) * split.val_size)))
-            val = train[:n_val]
-            train = train[n_val:]
+        pre = pid[pid["max_time"] < boundary]["patient_id"].to_numpy()
+        post = pid[pid["max_time"] >= boundary]["patient_id"].to_numpy()
+        pre = pre.astype(str)
+        post = post.astype(str)
+
+        # Nested CV: fixed prospective test (post-boundary), and CV splits on pre-boundary pool.
+        if split.inner_kind is not None:
+            inner_kind = split.inner_kind.lower()
+            if inner_kind != "kfold":
+                raise ValueError("split.time currently supports inner_kind='kfold' only")
+            n_splits = split.inner_n_splits or split.n_splits
+            from sklearn.model_selection import GroupKFold
+
+            gkf = GroupKFold(n_splits=int(n_splits))
+            X0 = np.zeros((len(pre), 1))
+            groups0 = pre
+            out: list[Split] = []
+            for fold, (train_idx, val_idx) in enumerate(gkf.split(X0, groups=groups0), start=0):
+                tr = pre[train_idx]
+                va = pre[val_idx]
+                out.append(Split(name=f"time0_fold{fold}", train_patients=tr, val_patients=va, test_patients=post))
+            if split.fold_index is None:
+                return out
+            if split.fold_index < 0 or split.fold_index >= len(out):
+                raise ValueError(
+                    f"split.fold_index out of range: {split.fold_index}. "
+                    f"Expected 0..{len(out) - 1}"
+                )
+            return [out[int(split.fold_index)]]
+
+        # Default time split: pre-boundary train/val, post-boundary test.
+        rng.shuffle(pre)
+        if split.val_size > 0 and len(pre) > 1:
+            n_val = max(1, int(round(len(pre) * split.val_size)))
+            val = pre[:n_val]
+            train = pre[n_val:]
         else:
             val = np.array([], dtype=str)
-        return [Split(name="time0", train_patients=train, val_patients=val, test_patients=test)]
+            train = pre
+        return [Split(name="time0", train_patients=train, val_patients=val, test_patients=post)]
 
     raise ValueError(f"Unsupported split.kind={split.kind!r}. Expected kfold|random|time")

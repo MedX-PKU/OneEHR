@@ -58,6 +58,8 @@ class SplitConfig:
     test_size: float = 0.2
     time_boundary: str | None = None  # datetime string used for time split
     fold_index: int | None = None
+    inner_kind: str | None = None  # for nested CV, e.g. time->kfold
+    inner_n_splits: int | None = None
 
 
 @dataclass(frozen=True)

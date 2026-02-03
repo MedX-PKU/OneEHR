@@ -38,6 +38,12 @@ n_splits = 3
 seed = 42
 val_size = 0.2
 
+# Prospective split example:
+# kind = "time"
+# time_boundary = "2012-01-01"
+# inner_kind = "kfold"        # optional: nested CV on pre-boundary pool
+# inner_n_splits = 5
+
 [[models]]
 name = "gru"
 

@@ -129,6 +129,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         test_size=float(split_raw.get("test_size", 0.2)),
         time_boundary=split_raw.get("time_boundary"),
         fold_index=split_raw.get("fold_index"),
+        inner_kind=split_raw.get("inner_kind"),
+        inner_n_splits=split_raw.get("inner_n_splits"),
     )
 
     def _load_model(model_raw_in: dict[str, Any]) -> ModelConfig:
