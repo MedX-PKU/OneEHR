@@ -486,7 +486,13 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
                 ).to_parquet(out_dir / f"preds_{tag}.parquet", index=False)
             rows.append({"model": model_name, "split": sp_dir.name, **metrics})
 
-    pd.DataFrame(rows).to_csv(out_dir / "summary.csv", index=False)
+    write_json(
+        out_dir / "summary.json",
+        {
+            "task": {"kind": str(cfg0.task.kind), "prediction_mode": str(cfg0.task.prediction_mode)},
+            "records": rows,
+        },
+    )
 
 
 def _run_benchmark(cfg_path: str) -> None:
@@ -1253,9 +1259,6 @@ def _run_benchmark(cfg_path: str) -> None:
                 preds.to_parquet(pred_dir / f"{sp.name}.parquet", index=False)
 
     summary = pd.DataFrame(rows)
-    summary.to_csv(out_root / "summary.csv", index=False)
-    summarize_metrics(summary, group_cols=["model"]).to_csv(out_root / "summary_table.csv", index=False)
-    to_paper_wide_table(summary, group_cols=["model"]).to_csv(out_root / "paper_table.csv", index=False)
 
     write_json(
         out_root / "summary.json",
@@ -1344,10 +1347,24 @@ def _run_final_prospective_eval(
 
     best_split_by_model: dict[str, str] = {}
     if cfg0.trainer.final_model_source == "best_split":
-        summary_path = out_root / "summary.csv"
+        summary_path = out_root / "summary.json"
         if not summary_path.exists():
-            raise SystemExit("Missing summary.csv for selecting best_split model.")
-        summary = pd.read_csv(summary_path)
+            raise SystemExit("Missing summary.json for selecting best_split model.")
+        summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        recs = summary_payload.get("records") or []
+        if not isinstance(recs, list):
+            raise SystemExit("Invalid summary.json format: records must be a list")
+        summary = pd.DataFrame(
+            [
+                {
+                    "model": r.get("model"),
+                    "split": r.get("split"),
+                    "skipped": r.get("skipped", 0),
+                    **(r.get("metrics") or {}),
+                }
+                for r in recs
+            ]
+        )
         # Never select based on test performance (leakage). Use validation signal instead.
         metric = cfg0.hpo.metric
         if metric in {"val_auroc", "auroc"}:
@@ -1460,7 +1477,7 @@ def _run_final_prospective_eval(
         rows.append({"model": model_name, **metrics})
 
     if rows:
-        pd.DataFrame(rows).to_csv(final_dir / "test_summary.csv", index=False)
+        write_json(final_dir / "test_summary.json", {"records": rows})
 
 
 def _run_hpo(cfg_path: str) -> None:
