@@ -72,6 +72,9 @@ mode = "max"
 grid = [["model.xgboost.max_depth", [4, 6, 8]]]
 ```
 
+Each model can include its own hyperparameters in the HPO grid, e.g.
+`model.gru.hidden_dim`, `model.rnn.num_layers`, `model.transformer.nhead`, etc.
+
 ### Labels (optional)
 
 You can optionally generate labels via a Python function:

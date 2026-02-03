@@ -1,4 +1,5 @@
 import argparse
+import sys
 from dataclasses import replace
 
 import numpy as np
@@ -183,6 +184,30 @@ def _build_parser() -> argparse.ArgumentParser:
     p_hpo.add_argument("--config", required=True)
 
     return parser
+
+
+def _warn_unused_hpo_overrides(model_name: str, overrides: list[dict[str, object]]) -> None:
+    valid_model_key = f"model.{model_name}."
+    invalid_model_keys: set[str] = set()
+    trainer_keys: set[str] = set()
+    for override in overrides:
+        for key in override.keys():
+            if key.startswith("model.") and not key.startswith(valid_model_key):
+                invalid_model_keys.add(key)
+            if model_name == "xgboost" and key.startswith("trainer."):
+                trainer_keys.add(key)
+    if invalid_model_keys:
+        print(
+            "HPO overrides include keys not matching model "
+            f"{model_name!r}: {sorted(invalid_model_keys)}",
+            file=sys.stderr,
+        )
+    if trainer_keys:
+        print(
+            "HPO overrides include trainer.* keys, which are ignored for xgboost: "
+            f"{sorted(trainer_keys)}",
+            file=sys.stderr,
+        )
 
 
 def _run_preprocess(cfg_path: str) -> None:
@@ -510,6 +535,8 @@ def _run_benchmark(cfg_path: str) -> None:
         model_name = cfg_model.model.name
         if model_name in cfg0.hpo_by_model:
             cfg_model = replace(cfg_model, hpo=cfg0.hpo_by_model[model_name])
+
+        _warn_unused_hpo_overrides(model_name, list(iter_grid(cfg_model.hpo)))
 
         for sp in splits:
             test_key = None
