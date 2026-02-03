@@ -19,6 +19,7 @@ from oneehr.eval.metrics import binary_metrics, regression_metrics
 from oneehr.eval.bootstrap import bootstrap_metric
 from oneehr.data.sequence import build_patient_sequences
 from oneehr.data.splits import make_splits
+from oneehr.data.postprocess import maybe_fit_transform_postprocess
 from oneehr.utils.io import ensure_dir, write_json
 from oneehr.eval.tables import summarize_metrics, to_paper_wide_table
 from oneehr.hpo.grid import apply_overrides, iter_grid
@@ -623,6 +624,14 @@ def _run_benchmark(cfg_path: str) -> None:
             else:
                 test_patient_ids = X_test.index.astype(str)
 
+            # Post-merge preprocessing pipeline (fit on train split only).
+            X_train, X_val, X_test, fitted_post = maybe_fit_transform_postprocess(
+                X_train=X_train,
+                X_val=X_val,
+                X_test=X_test,
+                pipeline=cfg0.preprocess.pipeline,
+            )
+
             # Select best hyperparameters using validation.
             def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
                 # If users configured HPO metric incompatible with current trial type,
@@ -889,6 +898,9 @@ def _run_benchmark(cfg_path: str) -> None:
                     json.dumps(art.feature_columns), encoding="utf-8"
                 )
                 y_score = predict_xgboost(art, X_test, cfg.task)
+                if fitted_post is not None:
+                    pp_dir = ensure_dir(out_root / "preprocess" / sp.name)
+                    write_json(pp_dir / "pipeline.json", {"pipeline": fitted_post.pipeline})
             else:
                 input_dim = len(
                     [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]

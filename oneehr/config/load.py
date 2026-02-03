@@ -108,6 +108,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         ),
         importance_code_col=str(preprocess_raw.get("importance_code_col", "code")),
         importance_value_col=str(preprocess_raw.get("importance_value_col", "importance")),
+        pipeline=list(preprocess_raw.get("pipeline", []) or []),
     )
 
     task = TaskConfig(

@@ -35,6 +35,24 @@ class PreprocessConfig:
     importance_code_col: str = "code"
     importance_value_col: str = "importance"
 
+    # Post-merge preprocessing pipeline (applied after split on X).
+    # Each step is a dict describing a built-in operator.
+    # Example:
+    #   pipeline = [
+    #     {"op": "standardize", "cols": "num__*"},
+    #     {"op": "impute", "strategy": "mean", "cols": "num__*"},
+    #   ]
+    pipeline: list[dict[str, object]] = field(default_factory=list)
+
+    # Post-merge preprocessing pipeline (applied after split on X).
+    # Each step is a dict describing a built-in operator.
+    # Example:
+    #   pipeline = [
+    #     {"op": "standardize", "cols": "num__*"},
+    #     {"op": "impute", "strategy": "mean", "cols": "num__*"},
+    #   ]
+    pipeline: list[dict[str, object]] = field(default_factory=list)
+
 
 @dataclass(frozen=True)
 class TaskConfig:
@@ -158,11 +176,11 @@ class OutputConfig:
 @dataclass(frozen=True)
 class ExperimentConfig:
     dataset: DatasetConfig
-    datasets: DatasetsConfig | None = None
-    preprocess: PreprocessConfig
     task: TaskConfig
     split: SplitConfig
     model: ModelConfig
+    preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
+    datasets: DatasetsConfig | None = None
     models: list[ModelConfig] = field(default_factory=list)
     labels: LabelsConfig = field(default_factory=LabelsConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)

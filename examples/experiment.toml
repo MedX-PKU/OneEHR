@@ -14,6 +14,12 @@ categorical_strategy = "count"
 code_selection = "frequency" # frequency | all | list | importance
 top_k_codes = 100 # or "all"
 min_code_count = 1
+# Post-merge preprocessing on tabular features (fit on train split only).
+# The recommended order is standardization -> imputation.
+pipeline = [
+  { op = "standardize", cols = "num__*" },
+  { op = "impute", strategy = "mean", cols = "num__*" },
+]
 # For code_selection = "list"
 # code_list = ["A", "B", "C"]
 # For code_selection = "importance" (e.g., SHAP outputs)
