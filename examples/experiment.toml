@@ -55,6 +55,15 @@ grid = [
   ["trainer.batch_size", [16, 32]],
 ]
 
+[hpo_models.xgboost]
+enabled = true
+metric = "val_auroc"
+mode = "max"
+grid = [
+  ["model.xgboost.max_depth", [4, 6, 8]],
+  ["model.xgboost.n_estimators", [200, 500]],
+]
+
 # If you switch to time-level tasks, set:
 # [task]
 # prediction_mode = "time"

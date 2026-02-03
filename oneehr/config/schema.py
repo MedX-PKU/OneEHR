@@ -150,4 +150,5 @@ class ExperimentConfig:
     labels: LabelsConfig = field(default_factory=LabelsConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
     hpo: HPOConfig = field(default_factory=HPOConfig)
+    hpo_by_model: dict[str, HPOConfig] = field(default_factory=dict)
     output: OutputConfig = field(default_factory=OutputConfig)

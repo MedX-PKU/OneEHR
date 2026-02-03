@@ -51,6 +51,24 @@ Single-model config also works:
 name = "rnn" # or "transformer"
 ```
 
+## HPO Per Model
+
+Define shared HPO in `[hpo]`, and override per model via `[hpo_models.<model_name>]`.
+
+```toml
+[hpo]
+enabled = true
+metric = "val_loss"
+mode = "min"
+grid = [["trainer.lr", [1e-3, 3e-4]]]
+
+[hpo_models.xgboost]
+enabled = true
+metric = "val_auroc"
+mode = "max"
+grid = [["model.xgboost.max_depth", [4, 6, 8]]]
+```
+
 ### Labels (optional)
 
 You can optionally generate labels via a Python function:

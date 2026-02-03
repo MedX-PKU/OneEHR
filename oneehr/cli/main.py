@@ -508,6 +508,8 @@ def _run_benchmark(cfg_path: str) -> None:
     for model_cfg in models:
         cfg_model = replace(cfg0, model=model_cfg, models=[model_cfg])
         model_name = cfg_model.model.name
+        if model_name in cfg0.hpo_by_model:
+            cfg_model = replace(cfg_model, hpo=cfg0.hpo_by_model[model_name])
 
         for sp in splits:
             test_key = None

@@ -45,6 +45,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     labels_raw = raw.get("labels", {})
     trainer_raw = raw.get("trainer", {})
     hpo_raw = raw.get("hpo", {})
+    hpo_models_raw = raw.get("hpo_models", {})
 
     dataset = DatasetConfig(
         path=Path(_require(dataset_raw, "path")),
@@ -170,17 +171,25 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         loss_fn=trainer_raw.get("loss_fn") or None,
     )
 
-    grid_items = []
-    for item in hpo_raw.get("grid", []) or []:
-        if not isinstance(item, (list, tuple)) or len(item) != 2:
-            raise ValueError("hpo.grid items must be [key, values]")
-        grid_items.append((str(item[0]), list(item[1])))
-    hpo = HPOConfig(
-        enabled=bool(hpo_raw.get("enabled", False)),
-        grid=grid_items,
-        metric=str(hpo_raw.get("metric", "val_loss")),
-        mode=str(hpo_raw.get("mode", "min")),
-    )
+    def _load_hpo(hpo_section: dict[str, Any]) -> HPOConfig:
+        grid_items = []
+        for item in hpo_section.get("grid", []) or []:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                raise ValueError("hpo.grid items must be [key, values]")
+            grid_items.append((str(item[0]), list(item[1])))
+        return HPOConfig(
+            enabled=bool(hpo_section.get("enabled", False)),
+            grid=grid_items,
+            metric=str(hpo_section.get("metric", "val_loss")),
+            mode=str(hpo_section.get("mode", "min")),
+        )
+
+    hpo = _load_hpo(hpo_raw)
+    hpo_by_model: dict[str, HPOConfig] = {}
+    for name, section in (hpo_models_raw or {}).items():
+        if not isinstance(section, dict):
+            raise ValueError("hpo_models entries must be tables")
+        hpo_by_model[str(name)] = _load_hpo(section)
 
     return ExperimentConfig(
         dataset=dataset,
@@ -192,5 +201,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         models=models,
         trainer=trainer,
         hpo=hpo,
+        hpo_by_model=hpo_by_model,
         output=output,
     )
