@@ -133,9 +133,9 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
 
     static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
 
-    if name in {"dr_agent", "dr-agent"}:
+    if name in {"dragent"}:
         if cfg.task.prediction_mode == "time":
-            from oneehr.models.dr_agent import DrAgentTimeModel
+            from oneehr.models.dragent import DrAgentTimeModel
 
             return BuiltModel(
                 model=DrAgentTimeModel(
@@ -146,7 +146,7 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
                 ),
                 kind="dl",
             )
-        from oneehr.models.dr_agent import DrAgentModel
+        from oneehr.models.dragent import DrAgentModel
 
         return BuiltModel(
             model=DrAgentModel(
@@ -158,9 +158,9 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
-    if name in {"mc_gru", "mcgru"}:
+    if name in {"mcgru"}:
         if cfg.task.prediction_mode == "time":
-            from oneehr.models.mc_gru import MCGRUTimeModel
+            from oneehr.models.mcgru import MCGRUTimeModel
 
             return BuiltModel(
                 model=MCGRUTimeModel(
@@ -172,7 +172,7 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
                 ),
                 kind="dl",
             )
-        from oneehr.models.mc_gru import MCGRUModel
+        from oneehr.models.mcgru import MCGRUModel
 
         return BuiltModel(
             model=MCGRUModel(

@@ -41,7 +41,6 @@ class MCGRUEncoder(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
-        # x: (B, T, D)
         bsz, t, d = x.shape
         if d != self.input_dim:
             raise ValueError(f"Expected input_dim={self.input_dim}, got D={d}")
@@ -49,10 +48,10 @@ class MCGRUEncoder(nn.Module):
         x = self.in_proj(x)
         out = x.new_zeros((bsz, t, self.input_dim, self.feat_dim))
         for i, gru in enumerate(self.grus):
-            cur = x[:, :, i].unsqueeze(-1)  # (B, T, 1)
+            cur = x[:, :, i].unsqueeze(-1)
             cur, _ = gru(cur)
             out[:, :, i] = cur
-        out = out.flatten(2)  # (B, T, D*feat_dim)
+        out = out.flatten(2)
 
         if self.static_dim and static is not None:
             s = self.static_proj(static).unsqueeze(1).expand(bsz, t, -1)
@@ -63,8 +62,6 @@ class MCGRUEncoder(nn.Module):
 
 
 class MCGRUModel(nn.Module):
-    """N-1 (patient-level) MC-GRU model."""
-
     def __init__(
         self,
         input_dim: int,
@@ -90,8 +87,6 @@ class MCGRUModel(nn.Module):
 
 
 class MCGRUTimeModel(nn.Module):
-    """N-N (time-level) MC-GRU model."""
-
     def __init__(
         self,
         input_dim: int,

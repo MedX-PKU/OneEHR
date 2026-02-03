@@ -12,15 +12,11 @@ def _last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
 
 
 class DrAgentModel(nn.Module):
-    """A simplified 'Dr. Agent' sequence model with optional static features.
+    """A simplified 'Dr. Agent' model with optional static features.
 
-    This is a structure-clean rewrite aligned with OneEHR's trainer contract:
-    - patient mode: forward(x, lengths, static=None) -> (B, 1)
-    - time mode: forward(x, lengths, static=None) -> (B, T, 1)
-
-    Notes:
-    - PyEHR's Agent contains a more complex RL-inspired module; this MVP keeps the
-      same "dynamic + static" interface while we port the full architecture.
+    Signature aligned to OneEHR trainer:
+    - patient: forward(x, lengths, static=None) -> (B, 1)
+    - time:    forward(x, lengths, static=None) -> (B, T, 1)
     """
 
     def __init__(
