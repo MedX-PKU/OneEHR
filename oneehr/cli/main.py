@@ -1217,16 +1217,37 @@ def _run_benchmark(cfg_path: str) -> None:
             model_out = ensure_dir(out_root / "models" / model_name / sp.name)
             write_json(model_out / "metrics.json", metrics)
             if cfg.task.kind == "binary" and cfg.calibration.enabled:
-                # Small, human-friendly artifact for quick inspection.
+                # Single, structured artifact for downstream consumption.
                 # The threshold is always computed on the calibration (val) split.
-                if "val_best_threshold_cal_f1" in metrics:
-                    (model_out / "best_threshold_cal_f1.txt").write_text(
-                        f"{metrics['val_best_threshold_cal_f1']}\n", encoding="utf-8"
-                    )
+                cal = {
+                    "enabled": bool(cfg.calibration.enabled),
+                    "method": str(cfg.calibration.method),
+                    "source": str(cfg.calibration.source),
+                    "threshold_strategy": str(cfg.calibration.threshold_strategy),
+                    "use_calibrated": bool(cfg.calibration.use_calibrated),
+                }
                 if "val_best_threshold_raw_f1" in metrics:
-                    (model_out / "best_threshold_raw_f1.txt").write_text(
-                        f"{metrics['val_best_threshold_raw_f1']}\n", encoding="utf-8"
-                    )
+                    cal["best_threshold_raw_f1"] = float(metrics["val_best_threshold_raw_f1"])
+                if "val_best_threshold_cal_f1" in metrics:
+                    cal["best_threshold_cal_f1"] = float(metrics["val_best_threshold_cal_f1"])
+                if "val_logloss_raw" in metrics:
+                    cal["val_logloss_raw"] = float(metrics["val_logloss_raw"])
+                if "val_logloss_cal" in metrics:
+                    cal["val_logloss_cal"] = float(metrics["val_logloss_cal"])
+                if "val_brier_raw" in metrics:
+                    cal["val_brier_raw"] = float(metrics["val_brier_raw"])
+                if "val_brier_cal" in metrics:
+                    cal["val_brier_cal"] = float(metrics["val_brier_cal"])
+
+                # Calibrator parameters (method-specific)
+                if "calibration_temperature" in metrics:
+                    cal["temperature"] = float(metrics["calibration_temperature"])
+                if "calibration_a" in metrics:
+                    cal["a"] = float(metrics["calibration_a"])
+                if "calibration_b" in metrics:
+                    cal["b"] = float(metrics["calibration_b"])
+
+                write_json(model_out / "calibration.json", cal)
 
             row = {
                 "model": model_name,
