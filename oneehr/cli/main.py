@@ -1122,7 +1122,19 @@ def _run_final_prospective_eval(
         if not summary_path.exists():
             raise SystemExit("Missing summary.csv for selecting best_split model.")
         summary = pd.read_csv(summary_path)
-        metric = "auroc" if cfg0.task.kind == "binary" else "rmse"
+        # Never select based on test performance (leakage). Use validation signal instead.
+        metric = cfg0.hpo.metric
+        if metric in {"val_auroc", "auroc"}:
+            metric = "auroc"
+        elif metric in {"val_auprc", "auprc"}:
+            metric = "auprc"
+        elif metric in {"val_rmse", "rmse"}:
+            metric = "rmse"
+        elif metric in {"val_mae", "mae"}:
+            metric = "mae"
+        if metric not in summary.columns:
+            # Fall back to task defaults if the configured metric isn't present.
+            metric = "auroc" if cfg0.task.kind == "binary" else "rmse"
         for model_name, dfm in summary.groupby("model"):
             dfm2 = dfm[dfm.get("skipped", 0) == 0].copy()
             if dfm2.empty or metric not in dfm2.columns:
