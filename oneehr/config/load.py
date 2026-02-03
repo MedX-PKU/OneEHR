@@ -7,6 +7,7 @@ import tomllib
 
 from oneehr.config.schema import (
     DatasetConfig,
+    DatasetsConfig,
     ExperimentConfig,
     HPOConfig,
     LabelsConfig,
@@ -34,6 +35,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
 
     dataset_raw = _require(raw, "dataset")
+    datasets_raw = raw.get("datasets")
     preprocess_raw = raw.get("preprocess", {})
     task_raw = _require(raw, "task")
     split_raw = _require(raw, "split")
@@ -57,6 +59,35 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         label_col=dataset_raw.get("label_col", "label"),
         time_format=dataset_raw.get("time_format"),
     )
+
+    datasets = None
+    if datasets_raw is not None:
+        if not isinstance(datasets_raw, dict):
+            raise ValueError("datasets must be a table")
+        train_raw = _require(datasets_raw, "train")
+        if not isinstance(train_raw, dict):
+            raise ValueError("datasets.train must be a table")
+
+        def _load_dataset(ds_raw: dict[str, Any]) -> DatasetConfig:
+            return DatasetConfig(
+                path=Path(_require(ds_raw, "path")),
+                file_type=ds_raw.get("file_type", "csv"),
+                patient_id_col=ds_raw.get("patient_id_col", "patient_id"),
+                time_col=ds_raw.get("time_col", "event_time"),
+                code_col=ds_raw.get("code_col", "code"),
+                value_col=ds_raw.get("value_col", "value"),
+                label_col=ds_raw.get("label_col", "label"),
+                time_format=ds_raw.get("time_format"),
+            )
+
+        train_ds = _load_dataset(train_raw)
+        test_ds = None
+        if datasets_raw.get("test") is not None:
+            test_raw = datasets_raw.get("test")
+            if not isinstance(test_raw, dict):
+                raise ValueError("datasets.test must be a table")
+            test_ds = _load_dataset(test_raw)
+        datasets = DatasetsConfig(train=train_ds, test=test_ds)
 
     preprocess = PreprocessConfig(
         bin_size=preprocess_raw.get("bin_size", "1d"),
@@ -97,6 +128,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         val_size=float(split_raw.get("val_size", 0.1)),
         test_size=float(split_raw.get("test_size", 0.2)),
         time_boundary=split_raw.get("time_boundary"),
+        fold_index=split_raw.get("fold_index"),
     )
 
     def _load_model(model_raw_in: dict[str, Any]) -> ModelConfig:
@@ -193,6 +225,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     return ExperimentConfig(
         dataset=dataset,
+        datasets=datasets,
         preprocess=preprocess,
         task=task,
         labels=labels,

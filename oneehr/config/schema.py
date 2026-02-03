@@ -17,6 +17,12 @@ class DatasetConfig:
 
 
 @dataclass(frozen=True)
+class DatasetsConfig:
+    train: DatasetConfig
+    test: DatasetConfig | None = None
+
+
+@dataclass(frozen=True)
 class PreprocessConfig:
     bin_size: str = "1d"  # e.g. 1h, 6h, 1d
     numeric_strategy: str = "mean"  # mean | last
@@ -51,6 +57,7 @@ class SplitConfig:
     val_size: float = 0.1
     test_size: float = 0.2
     time_boundary: str | None = None  # datetime string used for time split
+    fold_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +149,7 @@ class OutputConfig:
 @dataclass(frozen=True)
 class ExperimentConfig:
     dataset: DatasetConfig
+    datasets: DatasetsConfig | None = None
     preprocess: PreprocessConfig
     task: TaskConfig
     split: SplitConfig

@@ -62,7 +62,14 @@ def make_splits(
                     test_patients=test_patients,
                 )
             )
-        return splits
+        if split.fold_index is None:
+            return splits
+        if split.fold_index < 0 or split.fold_index >= len(splits):
+            raise ValueError(
+                f"split.fold_index out of range: {split.fold_index}. "
+                f"Expected 0..{len(splits) - 1}"
+            )
+        return [splits[int(split.fold_index)]]
 
     if kind == "random":
         perm = rng.permutation(len(patients))
@@ -103,4 +110,3 @@ def make_splits(
         return [Split(name="time0", train_patients=train, val_patients=val, test_patients=test)]
 
     raise ValueError(f"Unsupported split.kind={split.kind!r}. Expected kfold|random|time")
-
