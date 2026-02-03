@@ -6,7 +6,8 @@ import pandas as pd
 def make_patient_tabular(binned: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     """Convert binned long table into one-row-per-patient tabular features.
 
-    Current behavior (MVP): aggregate each feature column over time with mean.
+    Current behavior (MVP): take features from the last time bin (discretized)
+    for each patient.
     """
 
     if "patient_id" not in binned.columns or "label" not in binned.columns:
@@ -16,7 +17,8 @@ def make_patient_tabular(binned: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]
     if not feature_cols:
         raise ValueError("No feature columns found (expected num__/cat__ prefix)")
 
-    X = binned.groupby("patient_id", sort=False)[feature_cols].mean()
+    binned = binned.sort_values(["patient_id", "bin_time"], kind="stable")
+    X = binned.groupby("patient_id", sort=False)[feature_cols].last()
     y = binned.groupby("patient_id", sort=False)["label"].last()
     return X, y
 
