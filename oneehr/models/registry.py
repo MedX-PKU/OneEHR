@@ -241,6 +241,31 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
+    if name == "grasp":
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.grasp import GRASPTimeModel
+
+            return BuiltModel(
+                model=GRASPTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.grasp.hidden_dim,
+                    cluster_num=12,
+                    dropout=cfg.model.grasp.dropout,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.grasp import GRASPModel
+
+        return BuiltModel(
+            model=GRASPModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.grasp.hidden_dim,
+                cluster_num=12,
+                dropout=cfg.model.grasp.dropout,
+            ),
+            kind="dl",
+        )
+
     static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
 
     if name in {"dragent"}:
