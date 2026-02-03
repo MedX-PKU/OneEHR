@@ -216,6 +216,31 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
+    if name == "concare":
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.concare import ConCareTimeModel
+
+            return BuiltModel(
+                model=ConCareTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.concare.hidden_dim,
+                    num_heads=cfg.model.concare.num_heads,
+                    dropout=cfg.model.concare.dropout,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.concare import ConCareModel
+
+        return BuiltModel(
+            model=ConCareModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.concare.hidden_dim,
+                num_heads=cfg.model.concare.num_heads,
+                dropout=cfg.model.concare.dropout,
+            ),
+            kind="dl",
+        )
+
     static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
 
     if name in {"dragent"}:
