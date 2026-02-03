@@ -11,6 +11,7 @@ from oneehr.utils.imports import optional_import
 from oneehr.config.load import load_experiment_config
 from oneehr.data.patient_index import make_patient_index
 from oneehr.data.io import load_event_table
+from oneehr.data.static_features import build_static_features
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
 from oneehr.models.tabular import predict_tabular, predict_tabular_logits, train_tabular_model
 from oneehr.data.binning import bin_events
@@ -39,6 +40,7 @@ def _train_sequence_patient_level(
     model,
     binned,
     y,
+    static,
     split,
     cfg,
     task,
@@ -66,14 +68,29 @@ def _train_sequence_patient_level(
     X_va, L_va, y_va = X_seq[val_m], lens_t[val_m], torch.from_numpy(y_arr[val_m])
     X_te, L_te, y_te = X_seq[test_m], lens_t[test_m], torch.from_numpy(y_arr[test_m])
 
+    S = None
+    if static is not None:
+        from oneehr.data.sequence import align_static_features
+
+        S_all = align_static_features(pids, static)
+        if S_all is not None:
+            S = torch.from_numpy(S_all)
+            S_tr, S_va, S_te = S[train_m], S[val_m], S[test_m]
+        else:
+            S_tr = S_va = S_te = None
+    else:
+        S_tr = S_va = S_te = None
+
     fit = fit_sequence_model(
         model=model,
         X_train=X_tr,
         len_train=L_tr,
         y_train=y_tr,
+        static_train=S_tr,
         X_val=X_va,
         len_val=L_va,
         y_val=y_va,
+        static_val=S_va,
         task=task,
         trainer=cfg,
     )
@@ -82,7 +99,10 @@ def _train_sequence_patient_level(
     model.load_state_dict(fit.state_dict)
     model.eval()
     with torch.no_grad():
-        val_logits = model(X_va, L_va).squeeze(-1).detach().cpu().numpy()
+        if S_va is None:
+            val_logits = model(X_va, L_va).squeeze(-1).detach().cpu().numpy()
+        else:
+            val_logits = model(X_va, L_va, S_va).squeeze(-1).detach().cpu().numpy()
     if task.kind == "binary":
         val_score = 1.0 / (1.0 + np.exp(-val_logits))
     else:
@@ -92,7 +112,10 @@ def _train_sequence_patient_level(
     model.load_state_dict(fit.state_dict)
     model.eval()
     with torch.no_grad():
-        logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+        if S_te is None:
+            logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+        else:
+            logits = model(X_te, L_te, S_te).squeeze(-1).detach().cpu().numpy()
     y_true = y_te.detach().cpu().numpy()
     if task.kind == "binary":
         y_score = 1.0 / (1.0 + np.exp(-logits))
@@ -105,6 +128,7 @@ def _train_sequence_time_level(
     model,
     binned,
     labels_df,
+    static,
     split,
     cfg,
     task,
@@ -151,16 +175,30 @@ def _train_sequence_time_level(
         M_seq[test_m],
     )
 
+    if static is not None:
+        from oneehr.data.sequence import align_static_features
+
+        S_all = align_static_features(pids, static)
+        if S_all is not None:
+            S = torch.from_numpy(S_all)
+            S_tr, S_va, S_te = S[train_m], S[val_m], S[test_m]
+        else:
+            S_tr = S_va = S_te = None
+    else:
+        S_tr = S_va = S_te = None
+
     fit = fit_sequence_model_time(
         model=model,
         X_train=X_tr,
         len_train=L_tr,
         y_train=Y_tr,
         mask_train=M_tr,
+        static_train=S_tr,
         X_val=X_va,
         len_val=L_va,
         y_val=Y_va,
         mask_val=M_va,
+        static_val=S_va,
         task=task,
         trainer=cfg,
     )
@@ -169,7 +207,10 @@ def _train_sequence_time_level(
     model.load_state_dict(fit.state_dict)
     model.eval()
     with torch.no_grad():
-        val_logits = model(X_va, L_va).squeeze(-1).detach().cpu().numpy()
+        if S_va is None:
+            val_logits = model(X_va, L_va).squeeze(-1).detach().cpu().numpy()
+        else:
+            val_logits = model(X_va, L_va, S_va).squeeze(-1).detach().cpu().numpy()
     if task.kind == "binary":
         val_score = 1.0 / (1.0 + np.exp(-val_logits))
     else:
@@ -186,7 +227,10 @@ def _train_sequence_time_level(
     model.load_state_dict(fit.state_dict)
     model.eval()
     with torch.no_grad():
-        logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+        if S_te is None:
+            logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+        else:
+            logits = model(X_te, L_te, S_te).squeeze(-1).detach().cpu().numpy()
     if task.kind == "binary":
         y_score = 1.0 / (1.0 + np.exp(-logits))
     else:
@@ -500,6 +544,7 @@ def _run_benchmark(cfg_path: str) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     events = load_event_table(train_dataset)
+    static_df = build_static_features(events, cfg0.dataset, cfg0.static_features)
     patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
     splits = make_splits(patient_index, cfg0.split)
 
@@ -1019,6 +1064,7 @@ def _run_benchmark(cfg_path: str) -> None:
                             model=model,
                             binned=binned,
                             y=y,
+                            static=static_df,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1043,6 +1089,7 @@ def _run_benchmark(cfg_path: str) -> None:
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
+                            static=static_df,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1074,6 +1121,7 @@ def _run_benchmark(cfg_path: str) -> None:
                             model=model,
                             binned=binned,
                             y=y,
+                            static=static_df,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1100,6 +1148,7 @@ def _run_benchmark(cfg_path: str) -> None:
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
+                            static=static_df,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1132,6 +1181,7 @@ def _run_benchmark(cfg_path: str) -> None:
                             model=model,
                             binned=binned,
                             y=y,
+                            static=static_df,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1158,6 +1208,7 @@ def _run_benchmark(cfg_path: str) -> None:
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
+                            static=static_df,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,

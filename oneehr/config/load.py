@@ -15,6 +15,7 @@ from oneehr.config.schema import (
     ModelConfig,
     OutputConfig,
     PreprocessConfig,
+    StaticFeaturesConfig,
     SplitConfig,
     TaskConfig,
     TrainerConfig,
@@ -51,6 +52,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     dataset_raw = _require(raw, "dataset")
     datasets_raw = raw.get("datasets")
     preprocess_raw = raw.get("preprocess", {})
+    static_raw = raw.get("static_features", {})
     task_raw = _require(raw, "task")
     split_raw = _require(raw, "split")
     model_raw = raw.get("model")
@@ -124,6 +126,12 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         importance_code_col=str(preprocess_raw.get("importance_code_col", "code")),
         importance_value_col=str(preprocess_raw.get("importance_value_col", "importance")),
         pipeline=list(preprocess_raw.get("pipeline", []) or []),
+    )
+
+    static_features = StaticFeaturesConfig(
+        enabled=bool(static_raw.get("enabled", False)),
+        cols=[str(c) for c in static_raw.get("cols", [])],
+        agg=str(static_raw.get("agg", "last")),
     )
 
     task = TaskConfig(
@@ -347,6 +355,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         dataset=dataset,
         datasets=datasets,
         preprocess=preprocess,
+        static_features=static_features,
         task=task,
         labels=labels,
         split=split,

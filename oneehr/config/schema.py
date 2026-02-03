@@ -35,6 +35,21 @@ class DatasetsConfig:
 
 
 @dataclass(frozen=True)
+class StaticFeaturesConfig:
+    """Static (patient-level) features.
+
+    Static features are constant across time steps for a patient (e.g., sex, age at baseline).
+    They can be used by models which accept extra patient-level covariates.
+    """
+
+    enabled: bool = False
+    # Columns in the *event table* treated as static. We will aggregate per patient.
+    cols: list[str] = field(default_factory=list)
+    # How to aggregate when multiple rows exist per patient.
+    agg: str = "last"  # first | last
+
+
+@dataclass(frozen=True)
 class PreprocessConfig:
     bin_size: str = "1d"  # e.g. 1h, 6h, 1d
     numeric_strategy: str = "mean"  # mean | last
@@ -298,6 +313,7 @@ class ExperimentConfig:
     split: SplitConfig
     model: ModelConfig
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
+    static_features: StaticFeaturesConfig = field(default_factory=StaticFeaturesConfig)
     datasets: DatasetsConfig | None = None
     models: list[ModelConfig] = field(default_factory=list)
     labels: LabelsConfig = field(default_factory=LabelsConfig)

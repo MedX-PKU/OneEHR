@@ -40,6 +40,29 @@ def build_patient_sequences(binned: pd.DataFrame, feature_columns: list[str]):
     return patient_ids, seqs, lengths
 
 
+def align_static_features(
+    patient_ids: list[str],
+    static_df: pd.DataFrame | None,
+) -> np.ndarray | None:
+    """Align static (patient-level) features to a sequence batch.
+
+    Returns a float32 numpy array of shape (N, S) or None if no static features.
+    """
+
+    if static_df is None or static_df.empty:
+        return None
+    df = static_df.copy()
+    df.index = df.index.astype(str)
+    df = df.reindex(patient_ids)
+    if df.isna().any().any():
+        df = df.fillna(0.0)
+    # Convert non-numeric to categorical codes (minimal default).
+    for c in df.columns:
+        if not np.issubdtype(df[c].dtype, np.number):
+            df[c] = df[c].astype("category").cat.codes.astype("float32")
+    return df.to_numpy(dtype=np.float32)
+
+
 def build_time_sequences(
     binned: pd.DataFrame,
     labels: pd.DataFrame,

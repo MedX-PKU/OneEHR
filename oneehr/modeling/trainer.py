@@ -98,9 +98,11 @@ def fit_sequence_model(
     X_train,
     len_train,
     y_train,
+    static_train,
     X_val,
     len_val,
     y_val,
+    static_val,
     task: TaskConfig,
     trainer: TrainerConfig,
 ) -> FitResult:
@@ -128,6 +130,7 @@ def fit_sequence_model(
         X = X_train if train else X_val
         L = len_train if train else len_val
         y = y_train if train else y_val
+        S = static_train if train else static_val
         idx = torch.randperm(X.shape[0]) if train else torch.arange(X.shape[0])
         total_loss = 0.0
         count = 0
@@ -135,7 +138,9 @@ def fit_sequence_model(
         for i in range(0, len(idx), trainer.batch_size):
             b = idx[i : i + trainer.batch_size]
             xb, lb, yb = X[b].to(device), L[b].to(device), y[b].to(device)
-            logits = model(xb, lb).squeeze(-1)
+            sb = None if S is None else S[b].to(device)
+            logits = model(xb, lb) if sb is None else model(xb, lb, sb)
+            logits = logits.squeeze(-1)
             losses = loss_fn(logits, yb)
             loss = losses.mean()
             if train:
@@ -155,7 +160,11 @@ def fit_sequence_model(
 
         model.eval()
         with torch.no_grad():
-            val_logits = model(X_val.to(device), len_val.to(device)).squeeze(-1)
+            Xv = X_val.to(device)
+            Lv = len_val.to(device)
+            Sv = None if static_val is None else static_val.to(device)
+            val_logits = model(Xv, Lv) if Sv is None else model(Xv, Lv, Sv)
+            val_logits = val_logits.squeeze(-1)
             val_logits_np = val_logits.detach().cpu().numpy()
 
         if task.kind == "binary":
@@ -187,7 +196,11 @@ def fit_sequence_model(
 
     model.eval()
     with torch.no_grad():
-        logits = model(X_val.to(device), len_val.to(device)).squeeze(-1).detach().cpu().numpy()
+        Xv = X_val.to(device)
+        Lv = len_val.to(device)
+        Sv = None if static_val is None else static_val.to(device)
+        logits = model(Xv, Lv) if Sv is None else model(Xv, Lv, Sv)
+        logits = logits.squeeze(-1).detach().cpu().numpy()
     if task.kind == "binary":
         y_pred = 1.0 / (1.0 + np.exp(-logits))
     else:
@@ -207,10 +220,12 @@ def fit_sequence_model_time(
     len_train,
     y_train,
     mask_train,
+    static_train,
     X_val,
     len_val,
     y_val,
     mask_val,
+    static_val,
     task: TaskConfig,
     trainer: TrainerConfig,
 ) -> FitSeqResult:
@@ -239,6 +254,7 @@ def fit_sequence_model_time(
         L = len_train if train else len_val
         y = y_train if train else y_val
         m = mask_train if train else mask_val
+        S = static_train if train else static_val
 
         idx = torch.randperm(X.shape[0]) if train else torch.arange(X.shape[0])
         total_loss = 0.0
@@ -246,7 +262,9 @@ def fit_sequence_model_time(
         for i in range(0, len(idx), trainer.batch_size):
             b = idx[i : i + trainer.batch_size]
             xb, lb, yb, mb = X[b].to(device), L[b].to(device), y[b].to(device), m[b].to(device)
-            logits = model(xb, lb).squeeze(-1)
+            sb = None if S is None else S[b].to(device)
+            logits = model(xb, lb) if sb is None else model(xb, lb, sb)
+            logits = logits.squeeze(-1)
             losses = loss_fn(logits, yb)
             losses = losses * mb
             denom = mb.sum().clamp_min(1.0)
@@ -271,7 +289,11 @@ def fit_sequence_model_time(
 
         model.eval()
         with torch.no_grad():
-            val_logits = model(X_val.to(device), len_val.to(device)).squeeze(-1)
+            Xv = X_val.to(device)
+            Lv = len_val.to(device)
+            Sv = None if static_val is None else static_val.to(device)
+            val_logits = model(Xv, Lv) if Sv is None else model(Xv, Lv, Sv)
+            val_logits = val_logits.squeeze(-1)
             val_logits_np = val_logits.detach().cpu().numpy()
 
         if task.kind == "binary":
@@ -307,7 +329,11 @@ def fit_sequence_model_time(
 
     model.eval()
     with torch.no_grad():
-        logits = model(X_val.to(device), len_val.to(device)).squeeze(-1).detach().cpu().numpy()
+        Xv = X_val.to(device)
+        Lv = len_val.to(device)
+        Sv = None if static_val is None else static_val.to(device)
+        logits = model(Xv, Lv) if Sv is None else model(Xv, Lv, Sv)
+        logits = logits.squeeze(-1).detach().cpu().numpy()
     if task.kind == "binary":
         y_pred = 1.0 / (1.0 + np.exp(-logits))
     else:
@@ -320,5 +346,3 @@ def fit_sequence_model_time(
         mask=mask_val.detach().cpu().numpy() if mask_val is not None else None,
         history=history,
     )
-
-
