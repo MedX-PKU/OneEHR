@@ -16,6 +16,13 @@ from oneehr.models.xgb import predict_xgboost, train_xgboost
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.eval.metrics import binary_metrics, regression_metrics
+from oneehr.eval.calibration import (
+    binary_brier,
+    binary_log_loss,
+    calibrate_from_logits,
+    calibrate_from_probs,
+    select_threshold_f1,
+)
 from oneehr.eval.bootstrap import bootstrap_metric
 from oneehr.data.sequence import build_patient_sequences
 from oneehr.data.splits import make_splits
@@ -70,16 +77,27 @@ def _train_sequence_patient_level(
         trainer=cfg,
     )
 
+    # Calibration set inference (val)
+    model.load_state_dict(fit.state_dict)
+    model.eval()
+    with torch.no_grad():
+        val_logits = model(X_va, L_va).squeeze(-1).detach().cpu().numpy()
+    if task.kind == "binary":
+        val_score = 1.0 / (1.0 + np.exp(-val_logits))
+    else:
+        val_score = val_logits
+
     # final evaluation on test
     model.load_state_dict(fit.state_dict)
     model.eval()
     with torch.no_grad():
         logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+    y_true = y_te.detach().cpu().numpy()
     if task.kind == "binary":
         y_score = 1.0 / (1.0 + np.exp(-logits))
-    else:
-        y_score = logits
-    return y_score, y_te.detach().cpu().numpy(), pids_arr[test_m]
+        return y_score, y_true, pids_arr[test_m], logits, val_score, val_logits, y_va.detach().cpu().numpy()
+    y_score = logits
+    return y_score, y_true, pids_arr[test_m], None, val_score, val_logits, y_va.detach().cpu().numpy()
 
 
 def _train_sequence_time_level(
@@ -146,6 +164,23 @@ def _train_sequence_time_level(
         trainer=cfg,
     )
 
+    # Calibration set inference (val)
+    model.load_state_dict(fit.state_dict)
+    model.eval()
+    with torch.no_grad():
+        val_logits = model(X_va, L_va).squeeze(-1).detach().cpu().numpy()
+    if task.kind == "binary":
+        val_score = 1.0 / (1.0 + np.exp(-val_logits))
+    else:
+        val_score = val_logits
+    y_val_np = Y_va.detach().cpu().numpy()
+    m_val_np = M_va.detach().cpu().numpy() if M_va is not None else None
+    if m_val_np is not None:
+        flat = m_val_np.reshape(-1).astype(bool)
+        val_score = val_score.reshape(-1)[flat]
+        val_logits = val_logits.reshape(-1)[flat]
+        y_val_np = y_val_np.reshape(-1)[flat]
+
     # final evaluation on test
     model.load_state_dict(fit.state_dict)
     model.eval()
@@ -161,6 +196,7 @@ def _train_sequence_time_level(
         flat = mask.reshape(-1).astype(bool)
         y_score = y_score.reshape(-1)[flat]
         y_true = y_true.reshape(-1)[flat]
+        logits = logits.reshape(-1)[flat]
 
     key_rows = []
     for pid, t, m in zip(pids, time_seqs, mask_seqs, strict=True):
@@ -168,7 +204,86 @@ def _train_sequence_time_level(
             if bool(mm):
                 key_rows.append((str(pid), tt))
 
-    return y_score, y_true, key_rows
+    if task.kind == "binary":
+        return y_score, y_true, key_rows, logits, val_score, val_logits, y_val_np
+    return y_score, y_true, key_rows, None, val_score, val_logits, y_val_np
+
+
+def _maybe_calibrate_and_threshold(
+    *,
+    cfg0,
+    y_val_true: np.ndarray,
+    y_val_score: np.ndarray,
+    y_val_logits: np.ndarray | None,
+    y_test_score: np.ndarray,
+    y_test_logits: np.ndarray | None,
+) -> tuple[np.ndarray, dict[str, float]]:
+    """Apply optional calibration using val split, and compute thresholds.
+
+    Returns: (y_test_score_out, extra_metrics)
+    """
+
+    extra: dict[str, float] = {}
+    if cfg0.task.kind != "binary" or not cfg0.calibration.enabled:
+        return y_test_score, extra
+
+    if cfg0.calibration.source != "val":
+        raise SystemExit("calibration.source currently supports 'val' only")
+    if cfg0.calibration.threshold_strategy != "f1":
+        raise SystemExit("calibration.threshold_strategy currently supports 'f1' only")
+
+    method = cfg0.calibration.method
+    y_val_true = y_val_true.astype(float).reshape(-1)
+    y_val_score = y_val_score.astype(float).reshape(-1)
+
+    if y_val_logits is not None:
+        y_val_cal, params = calibrate_from_logits(y_val_true, y_val_logits, method=method)
+    else:
+        y_val_cal, params = calibrate_from_probs(y_val_true, y_val_score, method=method)
+
+    thr_raw = select_threshold_f1(y_val_true, y_val_score)
+    thr_cal = select_threshold_f1(y_val_true, y_val_cal)
+    extra["val_best_threshold_raw_f1"] = float(thr_raw)
+    extra["val_best_threshold_cal_f1"] = float(thr_cal)
+
+    extra["val_logloss_raw"] = binary_log_loss(y_val_true, y_val_score)
+    extra["val_brier_raw"] = binary_brier(y_val_true, y_val_score)
+    extra["val_logloss_cal"] = binary_log_loss(y_val_true, y_val_cal)
+    extra["val_brier_cal"] = binary_brier(y_val_true, y_val_cal)
+
+    # Persist calibrator params into metrics (merged output).
+    for k, v in params.items():
+        extra[f"calibration_{k}"] = float(v)
+
+    if not cfg0.calibration.use_calibrated:
+        return y_test_score, extra
+
+    # Apply to test split using same calibrator parameters.
+    if method == "temperature":
+        t = float(params["temperature"])
+        if y_test_logits is not None:
+            y_test_cal = 1.0 / (1.0 + np.exp(-(y_test_logits / t)))
+        else:
+            eps = np.finfo(float).eps
+            p = np.clip(y_test_score.astype(float), eps, 1.0 - eps)
+            logits = np.log(p / (1.0 - p))
+            y_test_cal = 1.0 / (1.0 + np.exp(-(logits / t)))
+        return y_test_cal.astype(float), extra
+
+    if method == "platt":
+        a = float(params["a"])
+        b = float(params["b"])
+        if y_test_logits is not None:
+            z = a * y_test_logits + b
+        else:
+            eps = np.finfo(float).eps
+            p = np.clip(y_test_score.astype(float), eps, 1.0 - eps)
+            logits = np.log(p / (1.0 - p))
+            z = a * logits + b
+        y_test_cal = 1.0 / (1.0 + np.exp(-z))
+        return y_test_cal.astype(float), extra
+
+    raise SystemExit(f"Unsupported calibration.method={method!r}")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -916,7 +1031,15 @@ def _run_benchmark(cfg_path: str) -> None:
                             num_layers=cfg.model.gru.num_layers,
                             dropout=cfg.model.gru.dropout,
                         )
-                        y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                        (
+                            y_score,
+                            y_test,
+                            test_patient_ids,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_patient_level(
                             model=model,
                             binned=binned,
                             y=y,
@@ -932,7 +1055,15 @@ def _run_benchmark(cfg_path: str) -> None:
                             num_layers=cfg.model.gru.num_layers,
                             dropout=cfg.model.gru.dropout,
                         )
-                        y_score, y_test, test_key_rows = _train_sequence_time_level(
+                        (
+                            y_score,
+                            y_test,
+                            test_key_rows,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_time_level(
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
@@ -955,7 +1086,15 @@ def _run_benchmark(cfg_path: str) -> None:
                             bidirectional=cfg.model.rnn.bidirectional,
                             nonlinearity=cfg.model.rnn.nonlinearity,
                         )
-                        y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                        (
+                            y_score,
+                            y_test,
+                            test_patient_ids,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_patient_level(
                             model=model,
                             binned=binned,
                             y=y,
@@ -973,7 +1112,15 @@ def _run_benchmark(cfg_path: str) -> None:
                             bidirectional=cfg.model.rnn.bidirectional,
                             nonlinearity=cfg.model.rnn.nonlinearity,
                         )
-                        y_score, y_test, test_key_rows = _train_sequence_time_level(
+                        (
+                            y_score,
+                            y_test,
+                            test_key_rows,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_time_level(
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
@@ -997,7 +1144,15 @@ def _run_benchmark(cfg_path: str) -> None:
                             dropout=cfg.model.transformer.dropout,
                             pooling=cfg.model.transformer.pooling,
                         )
-                        y_score, y_test, test_patient_ids = _train_sequence_patient_level(
+                        (
+                            y_score,
+                            y_test,
+                            test_patient_ids,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_patient_level(
                             model=model,
                             binned=binned,
                             y=y,
@@ -1015,7 +1170,15 @@ def _run_benchmark(cfg_path: str) -> None:
                             dim_feedforward=cfg.model.transformer.dim_feedforward,
                             dropout=cfg.model.transformer.dropout,
                         )
-                        y_score, y_test, test_key_rows = _train_sequence_time_level(
+                        (
+                            y_score,
+                            y_test,
+                            test_key_rows,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_time_level(
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
@@ -1026,10 +1189,30 @@ def _run_benchmark(cfg_path: str) -> None:
                         test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
                         test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
 
+            # Optional calibration (fit on val split) + threshold selection.
+            cal_extra = {}
+            if cfg.task.kind == "binary":
+                if cfg.model.name == "xgboost":
+                    from oneehr.models.xgb import predict_xgboost_logits
+
+                    val_score = predict_xgboost(art, X_val, cfg.task)
+                    val_logits = predict_xgboost_logits(art, X_val, cfg.task)
+                    y_val_true = y_val.astype(float)
+
+                y_score, cal_extra = _maybe_calibrate_and_threshold(
+                    cfg0=cfg0,
+                    y_val_true=y_val_true.astype(float),
+                    y_val_score=val_score.astype(float),
+                    y_val_logits=val_logits,
+                    y_test_score=y_score.astype(float),
+                    y_test_logits=test_logits,
+                )
+
             if cfg.task.kind == "binary":
                 metrics = binary_metrics(y_test.astype(float), y_score.astype(float)).metrics
             else:
                 metrics = regression_metrics(y_test.astype(float), y_score.astype(float)).metrics
+            metrics = {**metrics, **cal_extra}
 
             model_out = ensure_dir(out_root / "models" / model_name / sp.name)
             write_json(model_out / "metrics.json", metrics)

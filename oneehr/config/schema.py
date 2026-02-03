@@ -5,6 +5,18 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
+class CalibrationConfig:
+    enabled: bool = False
+    # Only for binary tasks.
+    method: str = "temperature"  # temperature | platt
+    source: str = "val"  # val
+    # Threshold selection on calibration set.
+    threshold_strategy: str = "f1"  # f1
+    # Whether to use calibrated probs for threshold selection + downstream outputs.
+    use_calibrated: bool = True
+
+
+@dataclass(frozen=True)
 class DatasetConfig:
     path: Path
     file_type: str = "csv"  # csv | xlsx
@@ -186,4 +198,5 @@ class ExperimentConfig:
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
     hpo: HPOConfig = field(default_factory=HPOConfig)
     hpo_by_model: dict[str, HPOConfig] = field(default_factory=dict)
+    calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
     output: OutputConfig = field(default_factory=OutputConfig)

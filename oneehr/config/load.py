@@ -6,6 +6,7 @@ from typing import Any
 import tomllib
 
 from oneehr.config.schema import (
+    CalibrationConfig,
     DatasetConfig,
     DatasetsConfig,
     ExperimentConfig,
@@ -48,6 +49,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     trainer_raw = raw.get("trainer", {})
     hpo_raw = raw.get("hpo", {})
     hpo_models_raw = raw.get("hpo_models", {})
+    calibration_raw = raw.get("calibration", {})
 
     dataset = DatasetConfig(
         path=Path(_require(dataset_raw, "path")),
@@ -233,6 +235,14 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             raise ValueError("hpo_models entries must be tables")
         hpo_by_model[str(name)] = _load_hpo(section)
 
+    calibration = CalibrationConfig(
+        enabled=bool(calibration_raw.get("enabled", False)),
+        method=str(calibration_raw.get("method", "temperature")),
+        source=str(calibration_raw.get("source", "val")),
+        threshold_strategy=str(calibration_raw.get("threshold_strategy", "f1")),
+        use_calibrated=bool(calibration_raw.get("use_calibrated", True)),
+    )
+
     return ExperimentConfig(
         dataset=dataset,
         datasets=datasets,
@@ -245,5 +255,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         trainer=trainer,
         hpo=hpo,
         hpo_by_model=hpo_by_model,
+        calibration=calibration,
         output=output,
     )

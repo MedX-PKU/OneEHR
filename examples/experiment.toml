@@ -109,6 +109,14 @@ bootstrap_n = 200
 # Optional: custom loss factory. Signature: loss_fn(task: TaskConfig) -> torch.nn.Module
 # loss_fn = "examples/custom_loss.py:make_loss"
 
+[calibration]
+# Optional post-hoc probability calibration (binary only), fit on val split.
+enabled = false
+method = "temperature" # temperature | platt
+source = "val"
+threshold_strategy = "f1"
+use_calibrated = true
+
 [output]
 root = "logs"
 run_name = "example"

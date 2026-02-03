@@ -80,3 +80,16 @@ def predict_xgboost(art: XGBArtifacts, X: pd.DataFrame, task: TaskConfig) -> np.
     if task.kind == "regression":
         return art.model.predict(X)
     raise ValueError(f"Unsupported task.kind={task.kind!r}")
+
+
+def predict_xgboost_logits(art: XGBArtifacts, X: pd.DataFrame, task: TaskConfig) -> np.ndarray:
+    """Return log-odds (margin) for binary models.
+
+    This is useful for post-hoc calibration (temperature/platt) which is defined on logits.
+    """
+
+    X = X[art.feature_columns]
+    if task.kind != "binary":
+        raise ValueError("predict_xgboost_logits only supports binary tasks")
+    # xgboost sklearn wrapper supports output_margin=True for decision values (log-odds).
+    return art.model.predict(X, output_margin=True)
