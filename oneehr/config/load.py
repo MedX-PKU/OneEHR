@@ -204,6 +204,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         monitor_mode=str(trainer_raw.get("monitor_mode", "min")),
         loss_fn=trainer_raw.get("loss_fn") or None,
         final_refit=str(trainer_raw.get("final_refit", "train_val")),
+        final_model_source=str(trainer_raw.get("final_model_source", "refit")),
         bootstrap_test=bool(trainer_raw.get("bootstrap_test", False)),
         bootstrap_n=int(trainer_raw.get("bootstrap_n", 200)),
     )
@@ -221,6 +222,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             mode=str(hpo_section.get("mode", "min")),
             scope=str(hpo_section.get("scope", "single")),
             tune_split=hpo_section.get("tune_split"),
+            aggregate_metric=hpo_section.get("aggregate_metric"),
         )
 
     hpo = _load_hpo(hpo_raw)

@@ -84,6 +84,7 @@ class TrainerConfig:
     # Customization hooks
     loss_fn: str | None = None  # python callable ref: path/to.py:loss_fn
     final_refit: str = "train_val"  # train_only | train_val
+    final_model_source: str = "refit"  # refit | best_split
     bootstrap_test: bool = False
     bootstrap_n: int = 200
 
@@ -98,6 +99,7 @@ class HPOConfig:
     mode: str = "min"  # min | max
     scope: str = "single"  # single | per_split | cv_mean
     tune_split: str | None = None  # split name, e.g. fold0, split0, time0
+    aggregate_metric: str | None = None  # metric key in metrics dict, e.g. auroc, rmse
 
 
 @dataclass(frozen=True)

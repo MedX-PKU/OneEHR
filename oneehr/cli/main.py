@@ -547,10 +547,24 @@ def _run_benchmark(cfg_path: str) -> None:
 
                     if cfg_trial.task.kind == "binary":
                         vm = binary_metrics(y_val_s.astype(float), y_val_score.astype(float)).metrics
-                        score = float(vm["auroc"]) if cfg_trial.hpo.metric in {"val_auroc", "auroc"} else float(vm["auprc"])
+                        if cfg_trial.hpo.aggregate_metric is not None:
+                            if cfg_trial.hpo.aggregate_metric not in vm:
+                                raise SystemExit(
+                                    f"hpo.aggregate_metric={cfg_trial.hpo.aggregate_metric!r} not in metrics: {list(vm.keys())}"
+                                )
+                            score = float(vm[cfg_trial.hpo.aggregate_metric])
+                        else:
+                            score = float(vm["auroc"]) if cfg_trial.hpo.metric in {"val_auroc", "auroc"} else float(vm["auprc"])
                     else:
                         vm = regression_metrics(y_val_s.astype(float), y_val_score.astype(float)).metrics
-                        score = float(vm["rmse"]) if cfg_trial.hpo.metric in {"val_rmse", "rmse"} else float(vm["mae"])
+                        if cfg_trial.hpo.aggregate_metric is not None:
+                            if cfg_trial.hpo.aggregate_metric not in vm:
+                                raise SystemExit(
+                                    f"hpo.aggregate_metric={cfg_trial.hpo.aggregate_metric!r} not in metrics: {list(vm.keys())}"
+                                )
+                            score = float(vm[cfg_trial.hpo.aggregate_metric])
+                        else:
+                            score = float(vm["rmse"]) if cfg_trial.hpo.metric in {"val_rmse", "rmse"} else float(vm["mae"])
 
                     split_scores.append({"split": sp.name, "score": score})
                     split_metrics.append(vm)
@@ -1061,6 +1075,9 @@ def _run_final_prospective_eval(
 ) -> None:
     import pandas as pd
 
+    if cfg0.trainer.final_model_source not in {"refit", "best_split"}:
+        raise SystemExit("trainer.final_model_source must be 'refit' or 'best_split'")
+
     boundary = pd.to_datetime(cfg0.split.time_boundary, errors="raise")
     pid = patient_index[["patient_id", "max_time"]].copy()
     pid["patient_id"] = pid["patient_id"].astype(str)
@@ -1099,6 +1116,23 @@ def _run_final_prospective_eval(
 
     final_dir = ensure_dir(out_root / "final")
 
+    best_split_by_model: dict[str, str] = {}
+    if cfg0.trainer.final_model_source == "best_split":
+        summary_path = out_root / "summary.csv"
+        if not summary_path.exists():
+            raise SystemExit("Missing summary.csv for selecting best_split model.")
+        summary = pd.read_csv(summary_path)
+        metric = "auroc" if cfg0.task.kind == "binary" else "rmse"
+        for model_name, dfm in summary.groupby("model"):
+            dfm2 = dfm[dfm.get("skipped", 0) == 0].copy()
+            if dfm2.empty or metric not in dfm2.columns:
+                continue
+            if cfg0.task.kind == "binary":
+                best_row = dfm2.sort_values(metric, ascending=False).iloc[0]
+            else:
+                best_row = dfm2.sort_values(metric, ascending=True).iloc[0]
+            best_split_by_model[str(model_name)] = str(best_row["split"])
+
     rows = []
     for model_cfg in (cfg0.models or [cfg0.model]):
         cfg_model = replace(cfg0, model=model_cfg, models=[model_cfg])
@@ -1106,27 +1140,51 @@ def _run_final_prospective_eval(
         if model_name in cfg0.hpo_by_model:
             cfg_model = replace(cfg_model, hpo=cfg0.hpo_by_model[model_name])
 
-        hpo_dir = out_root / "hpo" / model_name
-        overrides = {}
-        if cfg_model.hpo.enabled:
-            if cfg_model.hpo.scope == "cv_mean":
-                sel = hpo_dir / "select_best_split.json"
-                if sel.exists():
-                    overrides = json.loads(sel.read_text(encoding="utf-8")).get("selected_overrides") or {}
-            elif cfg_model.hpo.scope == "single":
-                sel = hpo_dir / "best_once.json"
-                if sel.exists():
-                    best = json.loads(sel.read_text(encoding="utf-8")).get("best") or {}
-                    overrides = best.get("overrides") or {}
-        cfg_fit = apply_overrides(cfg_model, overrides)
-
-        if cfg_fit.model.name != "xgboost":
-            continue
-        if cfg_fit.task.kind == "binary" and len(np.unique(y_train)) < 2:
+        if cfg_model.model.name != "xgboost":
             continue
 
-        art = train_xgboost(X_train, y_train, None, None, cfg_fit.task, cfg_fit.model.xgboost)
-        y_pred = predict_xgboost(art, X_test, cfg_fit.task)
+        if cfg0.trainer.final_model_source == "best_split":
+            split_name = best_split_by_model.get(model_name)
+            if split_name is None:
+                continue
+            model_dir = out_root / "models" / model_name / split_name
+            model_path = model_dir / "model.json"
+            cols_path = model_dir / "feature_columns.json"
+            if not model_path.exists() or not cols_path.exists():
+                raise SystemExit(f"Missing saved model artifacts for best_split at {model_dir}")
+            feature_columns = json.loads(cols_path.read_text(encoding="utf-8"))
+            from xgboost import XGBClassifier, XGBRegressor
+
+            if cfg0.task.kind == "binary":
+                mdl = XGBClassifier()
+                mdl.load_model(model_path)
+                y_pred = mdl.predict_proba(X_test[feature_columns])[:, 1]
+            else:
+                mdl = XGBRegressor()
+                mdl.load_model(model_path)
+                y_pred = mdl.predict(X_test[feature_columns])
+            cfg_fit = cfg_model
+        else:
+            hpo_dir = out_root / "hpo" / model_name
+            overrides = {}
+            if cfg_model.hpo.enabled:
+                if cfg_model.hpo.scope == "cv_mean":
+                    sel = hpo_dir / "select_best_split.json"
+                    if sel.exists():
+                        overrides = (
+                            json.loads(sel.read_text(encoding="utf-8")).get("selected_overrides") or {}
+                        )
+                elif cfg_model.hpo.scope == "single":
+                    sel = hpo_dir / "best_once.json"
+                    if sel.exists():
+                        best = json.loads(sel.read_text(encoding="utf-8")).get("best") or {}
+                        overrides = best.get("overrides") or {}
+            cfg_fit = apply_overrides(cfg_model, overrides)
+
+            if cfg_fit.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                continue
+            art = train_xgboost(X_train, y_train, None, None, cfg_fit.task, cfg_fit.model.xgboost)
+            y_pred = predict_xgboost(art, X_test, cfg_fit.task)
 
         if cfg_fit.task.kind == "binary":
             metrics = binary_metrics(y_test.astype(float), y_pred.astype(float)).metrics
