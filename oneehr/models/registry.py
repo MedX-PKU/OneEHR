@@ -131,6 +131,37 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
+    if name == "stagenet":
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.stagenet import StageNetTimeModel
+
+            return BuiltModel(
+                model=StageNetTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.stagenet.hidden_dim,
+                    conv_size=cfg.model.stagenet.conv_size,
+                    levels=cfg.model.stagenet.levels,
+                    dropconnect=cfg.model.stagenet.dropconnect,
+                    dropout=cfg.model.stagenet.dropout,
+                    dropres=cfg.model.stagenet.dropres,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.stagenet import StageNetModel
+
+        return BuiltModel(
+            model=StageNetModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.stagenet.hidden_dim,
+                conv_size=cfg.model.stagenet.conv_size,
+                levels=cfg.model.stagenet.levels,
+                dropconnect=cfg.model.stagenet.dropconnect,
+                dropout=cfg.model.stagenet.dropout,
+                dropres=cfg.model.stagenet.dropres,
+            ),
+            kind="dl",
+        )
+
     static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
 
     if name in {"dragent"}:
