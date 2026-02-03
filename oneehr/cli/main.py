@@ -13,6 +13,7 @@ from oneehr.data.patient_index import make_patient_index
 from oneehr.data.io import load_event_table
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
 from oneehr.models.xgb import predict_xgboost, train_xgboost
+from oneehr.models.ml import predict_ml, train_catboost, train_dt, train_gbdt, train_rf
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.eval.metrics import binary_metrics, regression_metrics
@@ -777,6 +778,64 @@ def _run_benchmark(cfg_path: str) -> None:
                     if hpo_metric in {"val_rmse", "rmse"}:
                         return float(vm["rmse"]), vm
                     return float(vm["mae"]), vm
+                if cfg.model.name == "catboost":
+                    if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                        return None
+                    art = train_catboost(
+                        X_train, y_train, X_val, y_val, cfg.task, cfg.model.catboost
+                    )
+                    y_val_score = predict_ml(art, X_val, cfg.task)
+                    if cfg.task.kind == "binary":
+                        vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                        if hpo_metric in {"val_auroc", "auroc"}:
+                            return float(vm["auroc"]), vm
+                        return float(vm["auprc"]), vm
+                    vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                    if hpo_metric in {"val_rmse", "rmse"}:
+                        return float(vm["rmse"]), vm
+                    return float(vm["mae"]), vm
+                if cfg.model.name == "rf":
+                    if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                        return None
+                    art = train_rf(X_train, y_train, cfg.task, cfg.model.rf)
+                    y_val_score = predict_ml(art, X_val, cfg.task)
+                    if cfg.task.kind == "binary":
+                        vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                        if hpo_metric in {"val_auroc", "auroc"}:
+                            return float(vm["auroc"]), vm
+                        return float(vm["auprc"]), vm
+                    vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                    if hpo_metric in {"val_rmse", "rmse"}:
+                        return float(vm["rmse"]), vm
+                    return float(vm["mae"]), vm
+                if cfg.model.name == "dt":
+                    if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                        return None
+                    art = train_dt(X_train, y_train, cfg.task, cfg.model.dt)
+                    y_val_score = predict_ml(art, X_val, cfg.task)
+                    if cfg.task.kind == "binary":
+                        vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                        if hpo_metric in {"val_auroc", "auroc"}:
+                            return float(vm["auroc"]), vm
+                        return float(vm["auprc"]), vm
+                    vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                    if hpo_metric in {"val_rmse", "rmse"}:
+                        return float(vm["rmse"]), vm
+                    return float(vm["mae"]), vm
+                if cfg.model.name == "gbdt":
+                    if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                        return None
+                    art = train_gbdt(X_train, y_train, cfg.task, cfg.model.gbdt)
+                    y_val_score = predict_ml(art, X_val, cfg.task)
+                    if cfg.task.kind == "binary":
+                        vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                        if hpo_metric in {"val_auroc", "auroc"}:
+                            return float(vm["auroc"]), vm
+                        return float(vm["auprc"]), vm
+                    vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                    if hpo_metric in {"val_rmse", "rmse"}:
+                        return float(vm["rmse"]), vm
+                    return float(vm["mae"]), vm
 
                 torch = optional_import("torch")
                 if torch is None:
@@ -961,6 +1020,37 @@ def _run_benchmark(cfg_path: str) -> None:
                 if fitted_post is not None:
                     pp_dir = ensure_dir(out_root / "preprocess" / sp.name)
                     write_json(pp_dir / "pipeline.json", {"pipeline": fitted_post.pipeline})
+            elif cfg.model.name in {"catboost", "rf", "dt", "gbdt"}:
+                if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                    row = {
+                        "model": model_name,
+                        "split": sp.name,
+                        "skipped": 1,
+                        "reason": "single_class_train",
+                    }
+                    rows.append(row)
+                    continue
+
+                if cfg.model.name == "catboost":
+                    art = train_catboost(
+                        X_train, y_train, X_val, y_val, cfg.task, cfg.model.catboost
+                    )
+                elif cfg.model.name == "rf":
+                    art = train_rf(X_train, y_train, cfg.task, cfg.model.rf)
+                elif cfg.model.name == "dt":
+                    art = train_dt(X_train, y_train, cfg.task, cfg.model.dt)
+                else:
+                    art = train_gbdt(X_train, y_train, cfg.task, cfg.model.gbdt)
+
+                y_score = predict_ml(art, X_test, cfg.task)
+                model_out = ensure_dir(out_root / "models" / model_name / sp.name)
+                write_json(model_out / "feature_columns.json", art.feature_columns)
+                # Prefer portable sklearn joblib/pickle outputs; CatBoost has its own format.
+                # We will standardize persistence in a later refactor.
+                test_logits = None
+                val_score = predict_ml(art, X_val, cfg.task)
+                val_logits = None
+                y_val_true = y_val.astype(float)
             else:
                 input_dim = len(
                     [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
@@ -1143,6 +1233,10 @@ def _run_benchmark(cfg_path: str) -> None:
                     val_score = predict_xgboost(art, X_val, cfg.task)
                     val_logits = predict_xgboost_logits(art, X_val, cfg.task)
                     y_val_true = y_val.astype(float)
+                elif cfg.model.name in {"catboost", "rf", "dt", "gbdt"}:
+                    # These models don't have a stable logit interface; calibrate on probabilities.
+                    y_val_true = y_val.astype(float)
+                    val_logits = None
 
                 y_score, cal_extra = _maybe_calibrate_and_threshold(
                     cfg0=cfg0,
