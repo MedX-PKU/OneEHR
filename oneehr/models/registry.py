@@ -114,6 +114,23 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
+    if name == "tcn":
+        if cfg.task.prediction_mode != "time":
+            raise ValueError("model.name='tcn' currently supports prediction_mode='time' only")
+        from oneehr.models.tcn import TCNTimeModel
+
+        return BuiltModel(
+            model=TCNTimeModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.tcn.hidden_dim,
+                out_dim=out_dim,
+                num_layers=cfg.model.tcn.num_layers,
+                kernel_size=cfg.model.tcn.kernel_size,
+                dropout=cfg.model.tcn.dropout,
+            ),
+            kind="dl",
+        )
+
     if name in {"xgboost", "catboost", "rf", "dt", "gbdt"}:
         return BuiltModel(model=None, kind="ml")
 
