@@ -23,6 +23,59 @@ class TabularArtifacts:
     kind: str  # xgboost | catboost | rf | dt | gbdt
 
 
+def save_tabular_model(art: TabularArtifacts, model_dir: str | "pd.Path") -> None:
+    from pathlib import Path
+    import json
+
+    d = Path(model_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "feature_columns.json").write_text(json.dumps(art.feature_columns), encoding="utf-8")
+
+    if art.kind == "xgboost":
+        art.model.save_model(d / "model.json")
+        return
+    if art.kind == "catboost":
+        art.model.save_model(d / "model.cbm")
+        return
+
+    import joblib
+
+    joblib.dump(art.model, d / "model.joblib")
+
+
+def load_tabular_model(model_dir: str | "pd.Path", *, task: TaskConfig, kind: str) -> TabularArtifacts:
+    from pathlib import Path
+    import json
+
+    d = Path(model_dir)
+    feature_columns = json.loads((d / "feature_columns.json").read_text(encoding="utf-8"))
+
+    if kind == "xgboost":
+        from xgboost import XGBClassifier, XGBRegressor
+
+        if task.kind == "binary":
+            model = XGBClassifier()
+        else:
+            model = XGBRegressor()
+        model.load_model(d / "model.json")
+        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="xgboost")
+
+    if kind == "catboost":
+        from catboost import CatBoostClassifier, CatBoostRegressor
+
+        if task.kind == "binary":
+            model = CatBoostClassifier()
+        else:
+            model = CatBoostRegressor()
+        model.load_model(d / "model.cbm")
+        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
+
+    import joblib
+
+    model = joblib.load(d / "model.joblib")
+    return TabularArtifacts(feature_columns=feature_columns, model=model, kind=kind)
+
+
 def train_tabular_model(
     *,
     model_name: str,
@@ -216,4 +269,3 @@ def predict_tabular_logits(art: TabularArtifacts, X: pd.DataFrame, task: TaskCon
         return None
     X = X[art.feature_columns]
     return art.model.predict(X, output_margin=True)
-

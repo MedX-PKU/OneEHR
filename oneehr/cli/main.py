@@ -13,7 +13,13 @@ from oneehr.data.patient_index import make_patient_index
 from oneehr.data.io import load_event_table
 from oneehr.data.static_features import build_static_features
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
-from oneehr.models.tabular import predict_tabular, predict_tabular_logits, train_tabular_model
+from oneehr.models.tabular import (
+    load_tabular_model,
+    predict_tabular,
+    predict_tabular_logits,
+    save_tabular_model,
+    train_tabular_model,
+)
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.eval.metrics import binary_metrics, regression_metrics
@@ -486,13 +492,11 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
         if not model_dir.exists():
             raise SystemExit(f"Missing trained model artifacts: {model_dir}")
 
-        # XGBoost inference via persisted booster (stored in metrics-only currently),
-        # so we restrict to tabular baseline for now.
-        if model_name != "xgboost":
-            raise SystemExit("test currently supports model.name='xgboost' only")
-
-        # Load xgboost model using XGBClassifier/Regressor native load_model.
-        from xgboost import XGBClassifier, XGBRegressor
+        if model_name not in {"xgboost", "catboost", "rf", "dt", "gbdt"}:
+            raise SystemExit(
+                "test currently supports tabular models only: "
+                "model.name in {'xgboost','catboost','rf','dt','gbdt'}"
+            )
 
         # Evaluate all trained splits (folds) under this model.
         split_dirs = sorted([p for p in model_dir.iterdir() if p.is_dir()])
@@ -503,20 +507,11 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
             )
 
         for sp_dir in split_dirs:
-            model_path = sp_dir / "model.json"
             cols_path = sp_dir / "feature_columns.json"
-            if not model_path.exists() or not cols_path.exists():
+            if not cols_path.exists():
                 continue
-
-            feature_columns = json.loads(cols_path.read_text(encoding="utf-8"))
-            if cfg0.task.kind == "binary":
-                model = XGBClassifier()
-                model.load_model(model_path)
-                y_pred = model.predict_proba(X[feature_columns])[:, 1]
-            else:
-                model = XGBRegressor()
-                model.load_model(model_path)
-                y_pred = model.predict(X[feature_columns])
+            art = load_tabular_model(sp_dir, task=cfg0.task, kind=model_name)
+            y_pred = predict_tabular(art, X, cfg0.task)
 
             if cfg0.task.kind == "binary":
                 metrics = binary_metrics(y.to_numpy().astype(float), y_pred.astype(float)).metrics
@@ -1027,12 +1022,7 @@ def _run_benchmark(cfg_path: str) -> None:
                     model_cfg=model_cfg,
                 )
                 model_out = ensure_dir(out_root / "models" / model_name / sp.name)
-                # Persist minimal artifacts for later `oneehr test`.
-                if cfg.model.name == "xgboost":
-                    art.model.save_model(model_out / "model.json")
-                (model_out / "feature_columns.json").write_text(
-                    json.dumps(art.feature_columns), encoding="utf-8"
-                )
+                save_tabular_model(art, model_out)
                 y_score = predict_tabular(art, X_test, cfg.task)
                 if fitted_post is not None:
                     pp_dir = ensure_dir(out_root / "preprocess" / sp.name)
