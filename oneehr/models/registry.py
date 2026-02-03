@@ -131,8 +131,9 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
+    static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
+
     if name in {"dr_agent", "dr-agent"}:
-        static_dim = 0 if cfg.static_features is None or not cfg.static_features.enabled else len(cfg.static_features.cols)
         if cfg.task.prediction_mode == "time":
             from oneehr.models.dr_agent import DrAgentTimeModel
 
@@ -153,6 +154,33 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
                 static_dim=static_dim,
                 hidden_dim=cfg.model.agent.hidden_dim,
                 dropout=cfg.model.agent.dropout,
+            ),
+            kind="dl",
+        )
+
+    if name in {"mc_gru", "mcgru"}:
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.mc_gru import MCGRUTimeModel
+
+            return BuiltModel(
+                model=MCGRUTimeModel(
+                    input_dim=input_dim,
+                    static_dim=static_dim,
+                    hidden_dim=cfg.model.mcgru.hidden_dim,
+                    feat_dim=cfg.model.mcgru.hidden_dim // 16 if cfg.model.mcgru.hidden_dim >= 16 else 8,
+                    dropout=cfg.model.mcgru.dropout,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.mc_gru import MCGRUModel
+
+        return BuiltModel(
+            model=MCGRUModel(
+                input_dim=input_dim,
+                static_dim=static_dim,
+                hidden_dim=cfg.model.mcgru.hidden_dim,
+                feat_dim=cfg.model.mcgru.hidden_dim // 16 if cfg.model.mcgru.hidden_dim >= 16 else 8,
+                dropout=cfg.model.mcgru.dropout,
             ),
             kind="dl",
         )
