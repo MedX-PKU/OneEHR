@@ -21,8 +21,13 @@ class PreprocessConfig:
     bin_size: str = "1d"  # e.g. 1h, 6h, 1d
     numeric_strategy: str = "mean"  # mean | last
     categorical_strategy: str = "count"  # count
-    top_k_codes: int = 500
+    code_selection: str = "frequency"  # frequency | all | list | importance
+    top_k_codes: int | None = 500
     min_code_count: int = 1
+    code_list: list[str] = field(default_factory=list)
+    importance_file: Path | None = None
+    importance_code_col: str = "code"
+    importance_value_col: str = "importance"
 
 
 @dataclass(frozen=True)
@@ -141,6 +146,7 @@ class ExperimentConfig:
     task: TaskConfig
     split: SplitConfig
     model: ModelConfig
+    models: list[ModelConfig] = field(default_factory=list)
     labels: LabelsConfig = field(default_factory=LabelsConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
     hpo: HPOConfig = field(default_factory=HPOConfig)

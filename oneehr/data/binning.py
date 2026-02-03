@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,54 @@ def _infer_value_type(series: pd.Series) -> str:
     coerced = pd.to_numeric(series, errors="coerce")
     numeric_ratio = float(coerced.notna().mean())
     return "numeric" if numeric_ratio >= 0.9 else "categorical"
+
+
+def _load_importance_table(path: Path) -> pd.DataFrame:
+    if path.suffix.lower() == ".csv":
+        return pd.read_csv(path)
+    if path.suffix.lower() in {".xlsx", ".xls"}:
+        return pd.read_excel(path)
+    if path.suffix.lower() in {".parquet", ".pq"}:
+        return pd.read_parquet(path)
+    raise ValueError(f"Unsupported importance file type: {path.suffix}")
+
+
+def _select_code_vocab(
+    df: pd.DataFrame,
+    preprocess: PreprocessConfig,
+) -> list[str]:
+    code_counts = df["code"].value_counts()
+    code_counts = code_counts[code_counts >= preprocess.min_code_count]
+
+    selection = preprocess.code_selection
+    if selection == "all":
+        return list(code_counts.index.astype(str))
+    if selection == "frequency":
+        top_k = preprocess.top_k_codes
+        if top_k is None:
+            return list(code_counts.index.astype(str))
+        return list(code_counts.head(top_k).index.astype(str))
+    if selection == "list":
+        if not preprocess.code_list:
+            raise ValueError("preprocess.code_list must be provided when code_selection='list'.")
+        return [str(c) for c in preprocess.code_list]
+    if selection == "importance":
+        if preprocess.importance_file is None:
+            raise ValueError("preprocess.importance_file is required for code_selection='importance'.")
+        imp = _load_importance_table(preprocess.importance_file)
+        code_col = preprocess.importance_code_col
+        val_col = preprocess.importance_value_col
+        if code_col not in imp.columns or val_col not in imp.columns:
+            raise ValueError(
+                f"importance_file must contain columns {code_col!r} and {val_col!r}."
+            )
+        top_k = preprocess.top_k_codes
+        imp = imp[[code_col, val_col]].copy()
+        imp = imp.sort_values(val_col, ascending=False)
+        if top_k is not None:
+            imp = imp.head(top_k)
+        return [str(c) for c in imp[code_col].tolist()]
+    raise ValueError(f"Unsupported preprocess.code_selection={selection!r}")
 
 
 def bin_events(
@@ -55,16 +104,19 @@ def bin_events(
     freq = parse_bin_size(preprocess.bin_size)
     df["bin_time"] = df["event_time"].dt.floor(freq)
 
-    # Build code vocab using overall frequency.
-    code_counts = df["code"].value_counts()
-    code_counts = code_counts[code_counts >= preprocess.min_code_count]
-    code_vocab = list(code_counts.head(preprocess.top_k_codes).index.astype(str))
+    # Build code vocab based on selection strategy.
+    code_vocab = _select_code_vocab(df, preprocess)
+    if preprocess.code_selection != "list":
+        # ensure min count filter still applied for non-list strategies
+        code_counts = df["code"].value_counts()
+        code_counts = code_counts[code_counts >= preprocess.min_code_count]
+        code_vocab = [c for c in code_vocab if c in code_counts.index.astype(str)]
     df = df[df["code"].isin(code_vocab)].copy()
 
     if df.empty:
         raise ValueError(
             "No events left after applying code vocab filters. "
-            "Try increasing `top_k_codes` or decreasing `min_code_count`."
+            "Try adjusting `code_selection`, increasing `top_k_codes`, or decreasing `min_code_count`."
         )
 
     # Infer type per code.

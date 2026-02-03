@@ -28,16 +28,23 @@ oneehr benchmark --config examples/experiment.toml
 `oneehr benchmark` writes per-split metrics to `summary.csv`, and aggregated paper-style tables
 including 95% CI to `paper_table.csv`.
 
-## GRU (baseline)
+When multiple models are configured, metrics are grouped by `model` in the output tables and
+predictions/HPO artifacts are written under `logs/<run_name>/preds/<model>` and
+`logs/<run_name>/hpo/<model>`.
 
-For a quick GRU baseline, set in TOML:
+## Models
+
+You can configure one or more models in a single TOML:
 
 ```toml
-[model]
+[[models]]
 name = "gru"
+
+[[models]]
+name = "xgboost"
 ```
 
-## RNN / Transformer
+Single-model config also works:
 
 ```toml
 [model]
@@ -57,3 +64,12 @@ OneEHR will internally align it to `bin_time` using `preprocess.bin_size`.
 ## Outputs
 
 By default, run artifacts are written under `logs/`.
+
+## Code Selection
+
+Use `preprocess.code_selection` to control the code vocabulary:
+
+- `frequency`: use `top_k_codes` by frequency (default)
+- `all`: use all codes (set `top_k_codes = "all"` or omit)
+- `list`: provide `code_list = ["A", "B"]`
+- `importance`: load top-k from `importance_file` (e.g., SHAP importance)

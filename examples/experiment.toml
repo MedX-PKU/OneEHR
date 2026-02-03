@@ -11,8 +11,15 @@ label_col = "label"
 bin_size = "1d"
 numeric_strategy = "mean"
 categorical_strategy = "count"
-top_k_codes = 100
+code_selection = "frequency" # frequency | all | list | importance
+top_k_codes = 100 # or "all"
 min_code_count = 1
+# For code_selection = "list"
+# code_list = ["A", "B", "C"]
+# For code_selection = "importance" (e.g., SHAP outputs)
+# importance_file = "examples/importance.csv"
+# importance_code_col = "code"
+# importance_value_col = "importance"
 
 [task]
 kind = "binary"
@@ -31,8 +38,11 @@ n_splits = 3
 seed = 42
 val_size = 0.2
 
-[model]
+[[models]]
 name = "gru"
+
+[[models]]
+name = "xgboost"
 
 [hpo]
 enabled = true
