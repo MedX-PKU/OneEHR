@@ -32,6 +32,9 @@ When multiple models are configured, metrics are grouped by `model` in the outpu
 predictions/HPO artifacts are written under `logs/<run_name>/preds/<model>` and
 `logs/<run_name>/hpo/<model>`.
 
+`oneehr hpo` currently supports `model.name = "xgboost"` and writes
+`logs/<run_name>/hpo_best_<model>.json` per model.
+
 ## Models
 
 You can configure one or more models in a single TOML:

@@ -978,47 +978,63 @@ def _run_hpo(cfg_path: str) -> None:
         else:
             labels_df = normalize_time_labels(labels_res.df, cfg0)
 
-    if cfg0.task.prediction_mode == "patient":
-        X, y0 = make_patient_tabular(binned)
-        if labels_df is not None:
-            y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
-        else:
-            y = y0
-        train_mask = X.index.astype(str).isin(sp.train_patients)
-        val_mask = X.index.astype(str).isin(sp.val_patients)
-        X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()
-        X_val, y_val = X.loc[val_mask], y.loc[val_mask].to_numpy()
-    else:
+    if cfg0.task.prediction_mode != "patient":
         raise SystemExit("hpo currently supports prediction_mode='patient' only")
 
-    best_overrides = None
-    best_val = None
+    X, y0 = make_patient_tabular(binned)
+    if labels_df is not None:
+        y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
+    else:
+        y = y0
+    train_mask = X.index.astype(str).isin(sp.train_patients)
+    val_mask = X.index.astype(str).isin(sp.val_patients)
+    X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()
+    X_val, y_val = X.loc[val_mask], y.loc[val_mask].to_numpy()
 
     def _better(mode: str, a: float, b: float) -> bool:
         return a < b if mode == "min" else a > b
 
-    for overrides in iter_grid(cfg0.hpo):
-        cfg = apply_overrides(cfg0, overrides)
-        if cfg.model.name != "xgboost":
-            continue
-        if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
-            continue
-        art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
-        y_val_score = predict_xgboost(art, X_val, cfg.task)
-        if cfg.task.kind == "binary":
-            vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
-            val_score = float(vm["auroc"]) if cfg.hpo.metric in {"val_auroc", "auroc"} else float(vm["auprc"])
-        else:
-            vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
-            val_score = float(vm["rmse"]) if cfg.hpo.metric in {"val_rmse", "rmse"} else float(vm["mae"])
-
-        if best_val is None or _better(cfg.hpo.mode, val_score, best_val):
-            best_val = val_score
-            best_overrides = dict(overrides)
-
+    models = cfg0.models or [cfg0.model]
     out_root = cfg0.output.root / cfg0.output.run_name
     ensure_dir(out_root)
-    write_json(out_root / "hpo_best.json", {"best_overrides": best_overrides, "best_val": best_val})
+
+    for model_cfg in models:
+        cfg_model = replace(cfg0, model=model_cfg, models=[model_cfg])
+        model_name = cfg_model.model.name
+        if model_name in cfg0.hpo_by_model:
+            cfg_model = replace(cfg_model, hpo=cfg0.hpo_by_model[model_name])
+
+        if cfg_model.model.name != "xgboost":
+            raise SystemExit("hpo currently supports model.name='xgboost' only.")
+
+        best_overrides = None
+        best_val = None
+
+        for overrides in iter_grid(cfg_model.hpo):
+            cfg = apply_overrides(cfg_model, overrides)
+            if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                continue
+            art = train_xgboost(X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost)
+            y_val_score = predict_xgboost(art, X_val, cfg.task)
+            if cfg.task.kind == "binary":
+                vm = binary_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                val_score = (
+                    float(vm["auroc"]) if cfg.hpo.metric in {"val_auroc", "auroc"} else float(vm["auprc"])
+                )
+            else:
+                vm = regression_metrics(y_val.astype(float), y_val_score.astype(float)).metrics
+                val_score = (
+                    float(vm["rmse"]) if cfg.hpo.metric in {"val_rmse", "rmse"} else float(vm["mae"])
+                )
+
+            if best_val is None or _better(cfg.hpo.mode, val_score, best_val):
+                best_val = val_score
+                best_overrides = dict(overrides)
+
+        write_json(
+            out_root / f"hpo_best_{model_name}.json",
+            {"best_overrides": best_overrides, "best_val": best_val},
+        )
 
 
 def main() -> None:
