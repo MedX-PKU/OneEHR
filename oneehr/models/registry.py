@@ -185,6 +185,37 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
+    if name == "adacare":
+        if cfg.task.prediction_mode == "time":
+            from oneehr.models.adacare import AdaCareTimeModel
+
+            return BuiltModel(
+                model=AdaCareTimeModel(
+                    input_dim=input_dim,
+                    hidden_dim=cfg.model.adacare.hidden_dim,
+                    kernel_size=cfg.model.adacare.kernel_size,
+                    kernel_num=cfg.model.adacare.kernel_num,
+                    r_v=cfg.model.adacare.r_v,
+                    r_c=cfg.model.adacare.r_c,
+                    dropout=cfg.model.adacare.dropout,
+                ),
+                kind="dl",
+            )
+        from oneehr.models.adacare import AdaCareModel
+
+        return BuiltModel(
+            model=AdaCareModel(
+                input_dim=input_dim,
+                hidden_dim=cfg.model.adacare.hidden_dim,
+                kernel_size=cfg.model.adacare.kernel_size,
+                kernel_num=cfg.model.adacare.kernel_num,
+                r_v=cfg.model.adacare.r_v,
+                r_c=cfg.model.adacare.r_c,
+                dropout=cfg.model.adacare.dropout,
+            ),
+            kind="dl",
+        )
+
     static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
 
     if name in {"dragent"}:
