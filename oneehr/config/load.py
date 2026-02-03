@@ -214,6 +214,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             grid=grid_items,
             metric=str(hpo_section.get("metric", "val_loss")),
             mode=str(hpo_section.get("mode", "min")),
+            scope=str(hpo_section.get("scope", "single")),
+            tune_split=hpo_section.get("tune_split"),
         )
 
     hpo = _load_hpo(hpo_raw)

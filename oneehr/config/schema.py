@@ -91,6 +91,8 @@ class HPOConfig:
     grid: list[tuple[str, list]] = field(default_factory=list)
     metric: str = "val_loss"
     mode: str = "min"  # min | max
+    scope: str = "single"  # single | per_split | select_best_split
+    tune_split: str | None = None  # split name, e.g. fold0, split0, time0
 
 
 @dataclass(frozen=True)

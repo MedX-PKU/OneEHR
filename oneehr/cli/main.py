@@ -437,6 +437,162 @@ def _run_benchmark(cfg_path: str) -> None:
 
         _warn_unused_hpo_overrides(model_name, list(iter_grid(cfg_model.hpo)))
 
+        # Optional: run HPO once on a selected split, then reuse best overrides across all splits.
+        reused_overrides: dict[str, object] | None = None
+        if cfg_model.hpo.enabled and cfg_model.hpo.scope in {"single", "select_best_split"}:
+            if cfg_model.hpo.tune_split is not None:
+                tune_splits = [sp for sp in splits if sp.name == cfg_model.hpo.tune_split]
+                if not tune_splits:
+                    raise SystemExit(
+                        f"hpo.tune_split={cfg_model.hpo.tune_split!r} not found in splits: "
+                        f"{[sp.name for sp in splits]}"
+                    )
+                tune_split = tune_splits[0]
+            else:
+                tune_split = splits[0]
+
+            def _make_masks(sp):
+                if cfg_model.task.prediction_mode == "patient":
+                    tr = X.index.astype(str).isin(sp.train_patients)
+                    va = X.index.astype(str).isin(sp.val_patients)
+                else:
+                    assert key is not None
+                    tr = key["patient_id"].astype(str).isin(sp.train_patients)
+                    va = key["patient_id"].astype(str).isin(sp.val_patients)
+                if global_mask is not None:
+                    tr = tr & global_mask
+                    va = va & global_mask
+                return tr, va
+
+            tr_m, va_m = _make_masks(tune_split)
+            X_train_h, y_train_h = X.loc[tr_m], y.loc[tr_m].to_numpy()
+            X_val_h, y_val_h = X.loc[va_m], y.loc[va_m].to_numpy()
+
+            def _eval_trial_once(cfg) -> tuple[float, dict[str, float]] | None:
+                hpo_metric = cfg.hpo.metric
+                if cfg.model.name != "xgboost":
+                    return None
+                if cfg.task.kind == "binary" and len(np.unique(y_train_h)) < 2:
+                    return None
+                art = train_xgboost(X_train_h, y_train_h, X_val_h, y_val_h, cfg.task, cfg.model.xgboost)
+                y_val_score = predict_xgboost(art, X_val_h, cfg.task)
+                if cfg.task.kind == "binary":
+                    vm = binary_metrics(y_val_h.astype(float), y_val_score.astype(float)).metrics
+                    if hpo_metric in {"val_auroc", "auroc"}:
+                        return float(vm["auroc"]), vm
+                    return float(vm["auprc"]), vm
+                vm = regression_metrics(y_val_h.astype(float), y_val_score.astype(float)).metrics
+                if hpo_metric in {"val_rmse", "rmse"}:
+                    return float(vm["rmse"]), vm
+                return float(vm["mae"]), vm
+
+            hpo_res_once = select_best_with_trials(cfg_model, _eval_trial_once)
+            reused_overrides = hpo_res_once.best.overrides if hpo_res_once.best is not None else {}
+            hpo_dir = ensure_dir(out_root / "hpo" / model_name)
+            write_json(
+                hpo_dir / "best_once.json",
+                {
+                    "split": tune_split.name,
+                    "metric": cfg_model.hpo.metric,
+                    "mode": cfg_model.hpo.mode,
+                    "scope": cfg_model.hpo.scope,
+                    "best": None if hpo_res_once.best is None else {
+                        "score": hpo_res_once.best.score,
+                        "overrides": hpo_res_once.best.overrides,
+                        "metrics": hpo_res_once.best.metrics,
+                    },
+                },
+            )
+
+        # Optional: run HPO across every split, choose the split whose *selected HPO score*
+        # is best on average, then reuse that split's overrides for all splits.
+        if cfg_model.hpo.enabled and cfg_model.hpo.scope == "select_best_split":
+            best_mean = None
+            best_split_name = None
+            best_split_overrides: dict[str, object] | None = None
+            split_scores: list[dict[str, object]] = []
+
+            for sp in splits:
+                # Create per-split eval fn to avoid loop variable capture issues.
+                def _eval_trial_for_split(sp0):
+                    def _fn(cfg):
+                        hpo_metric = cfg.hpo.metric
+
+                        if cfg.model.name == "xgboost":
+                            if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
+                                return None
+                            art = train_xgboost(
+                                X_train, y_train, X_val, y_val, cfg.task, cfg.model.xgboost
+                            )
+                            y_val_score = predict_xgboost(art, X_val, cfg.task)
+                            if cfg.task.kind == "binary":
+                                vm = binary_metrics(
+                                    y_val.astype(float), y_val_score.astype(float)
+                                ).metrics
+                                if hpo_metric in {"val_auroc", "auroc"}:
+                                    return float(vm["auroc"]), vm
+                                return float(vm["auprc"]), vm
+                            vm = regression_metrics(
+                                y_val.astype(float), y_val_score.astype(float)
+                            ).metrics
+                            if hpo_metric in {"val_rmse", "rmse"}:
+                                return float(vm["rmse"]), vm
+                            return float(vm["mae"]), vm
+
+                        return None
+
+                    return _fn
+
+                # Recompute masks/data for this split.
+                if cfg_model.task.prediction_mode == "patient":
+                    train_mask = X.index.astype(str).isin(sp.train_patients)
+                    val_mask = X.index.astype(str).isin(sp.val_patients)
+                else:
+                    assert key is not None
+                    train_mask = key["patient_id"].astype(str).isin(sp.train_patients)
+                    val_mask = key["patient_id"].astype(str).isin(sp.val_patients)
+                if global_mask is not None:
+                    train_mask = train_mask & global_mask
+                    val_mask = val_mask & global_mask
+                X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()
+                X_val, y_val = X.loc[val_mask], y.loc[val_mask].to_numpy()
+
+                hpo_res = select_best_with_trials(cfg_model, _eval_trial_for_split(sp))
+                score = None if hpo_res.best is None else float(hpo_res.best.score)
+                split_scores.append(
+                    {
+                        "split": sp.name,
+                        "best_score": score,
+                        "best_overrides": None if hpo_res.best is None else hpo_res.best.overrides,
+                    }
+                )
+                if score is None:
+                    continue
+                if best_mean is None:
+                    best_mean = score
+                    best_split_name = sp.name
+                    best_split_overrides = hpo_res.best.overrides
+                else:
+                    better = score < best_mean if cfg_model.hpo.mode == "min" else score > best_mean
+                    if better:
+                        best_mean = score
+                        best_split_name = sp.name
+                        best_split_overrides = hpo_res.best.overrides
+
+            hpo_dir = ensure_dir(out_root / "hpo" / model_name)
+            write_json(
+                hpo_dir / "select_best_split.json",
+                {
+                    "metric": cfg_model.hpo.metric,
+                    "mode": cfg_model.hpo.mode,
+                    "selected_split": best_split_name,
+                    "selected_best_score": best_mean,
+                    "selected_best_overrides": best_split_overrides,
+                    "per_split": split_scores,
+                },
+            )
+            reused_overrides = best_split_overrides or {}
+
         for sp in splits:
             test_key = None
             if cfg_model.task.prediction_mode == "patient":
@@ -667,7 +823,7 @@ def _run_benchmark(cfg_path: str) -> None:
 
                 return None
 
-            if cfg_model.hpo.enabled:
+            if cfg_model.hpo.enabled and cfg_model.hpo.scope == "per_split":
                 hpo_res = select_best_with_trials(cfg_model, _eval_trial)
                 best_overrides = hpo_res.best.overrides if hpo_res.best is not None else {}
 
@@ -705,9 +861,13 @@ def _run_benchmark(cfg_path: str) -> None:
                 hpo_best_score = None if hpo_res.best is None else hpo_res.best.score
                 hpo_best_str = str(best_overrides)
             else:
-                cfg = cfg_model
+                if reused_overrides is not None:
+                    cfg = apply_overrides(cfg_model, reused_overrides)
+                    hpo_best_str = str(reused_overrides)
+                else:
+                    cfg = cfg_model
+                    hpo_best_str = ""
                 hpo_best_score = None
-                hpo_best_str = ""
 
             # Train on this split using the selected hyperparameters, then evaluate on test.
             if cfg.model.name == "xgboost":

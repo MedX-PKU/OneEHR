@@ -48,6 +48,9 @@ name = "xgboost"
 enabled = true
 metric = "val_loss"
 mode = "min"
+scope = "single" # single | per_split | select_best_split
+# Optional: which split name to tune on (e.g. fold0 for kfold, split0 for random, time0 for time)
+# tune_split = "fold0"
 
 # Example DL HPO (grid over trainer hyperparameters). Benchmark selects best per split.
 grid = [
