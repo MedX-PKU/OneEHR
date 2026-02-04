@@ -473,6 +473,19 @@ def _run_train(cfg_path: str, force: bool) -> None:
     patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
     splits = make_splits(patient_index, cfg0.split)
 
+    out_root = cfg0.output.root / cfg0.output.run_name
+    if out_root.exists() and not force:
+        raise SystemExit(
+            f"Run directory already exists: {out_root}. "
+            "Choose a new output.run_name or pass --force to overwrite."
+        )
+    ensure_dir(out_root)
+
+    # Require preprocess-generated manifest (single source of truth for features/artifacts).
+    manifest = read_run_manifest(out_root)
+    if manifest is None:
+        raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+
     binned = bin_events(events, cfg0.dataset, cfg0.preprocess).table
 
     labels_res = run_label_fn(events, cfg0)
@@ -491,14 +504,6 @@ def _run_train(cfg_path: str, force: bool) -> None:
             raise SystemExit(
                 "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
             )
-
-    out_root = cfg0.output.root / cfg0.output.run_name
-    if out_root.exists() and not force:
-        raise SystemExit(
-            f"Run directory already exists: {out_root}. "
-            "Choose a new output.run_name or pass --force to overwrite."
-        )
-    ensure_dir(out_root)
 
     # Delegate to benchmark logic (supports multi-split + optional HPO) but keep command name `train`.
     # If HPO is disabled, it behaves like fixed-hyperparameter training.
@@ -524,6 +529,7 @@ def _run_test(
             f"Missing run_manifest.json under {run_root}. "
             "This version requires running `oneehr preprocess` first."
         )
+    dynamic_feature_columns = manifest.dynamic_feature_columns()
 
     # Resolve test dataset from CLI override or config.
     if test_dataset is not None:
@@ -619,7 +625,7 @@ def _run_test(
                 import json
                 import hashlib
 
-                feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+                feat_cols = list(dynamic_feature_columns)
                 exp_cols = (
                     (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns"))
                     or None
@@ -792,6 +798,12 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
     import pandas as pd
 
+    out_root = cfg0.output.root / cfg0.output.run_name
+    manifest = read_run_manifest(out_root)
+    if manifest is None:
+        raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+    dynamic_feature_columns = manifest.dynamic_feature_columns()
+
     models = cfg0.models or [cfg0.model]
     if any(m.name in {"gru", "rnn", "transformer"} for m in models):
         torch = optional_import("torch")
@@ -802,12 +814,11 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
     rows = []
     run_records: list[dict[str, object]] = []
-    out_root = cfg0.output.root / cfg0.output.run_name
     if out_root.exists() and force:
         import shutil
 
         shutil.rmtree(out_root)
-    ensure_dir(out_root)
+        ensure_dir(out_root)
 
     # Single-process only.
 
@@ -1077,9 +1088,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
                 from oneehr.data.sequence import build_patient_sequences, build_time_sequences, pad_sequences
 
-                feat_cols = [
-                    c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")
-                ]
+                feat_cols = list(dynamic_feature_columns)
 
                 if cfg.task.prediction_mode == "patient":
                     pids, seqs, lens = build_patient_sequences(binned, feat_cols)
@@ -1262,7 +1271,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 # Static features are persisted at preprocess time via run_manifest.json and
                 # features/static/static_all.parquet.
             else:
-                feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+                feat_cols = list(dynamic_feature_columns)
                 input_dim = len(feat_cols)
                 if cfg.model.name == "gru":
                     from oneehr.models.gru import GRUModel, GRUTimeModel
