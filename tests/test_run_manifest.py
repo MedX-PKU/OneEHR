@@ -21,10 +21,12 @@ def test_write_run_manifest(tmp_path: Path):
         cfg=cfg,
         dynamic_feature_columns=["num__A", "cat__DX__X"],
         static_raw_cols=["age", "sex"],
+        static_feature_columns=["num__age", "cat__sex__M"],
+        static_feature_columns_sha256=None,
+        static_postprocess_pipeline=[],
     )
 
     data = json.loads((out / "run_manifest.json").read_text(encoding="utf-8"))
     assert data["schema_version"] == 2
     assert data["features"]["dynamic"]["feature_columns"] == ["num__A", "cat__DX__X"]
     assert data["static_features"]["raw_cols"] == ["age", "sex"]
-

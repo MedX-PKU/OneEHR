@@ -417,17 +417,40 @@ def _run_preprocess(cfg_path: str) -> None:
     out_root = cfg.output.root / cfg.output.run_name
     ensure_dir(out_root)
     (out_root / "binned.parquet").write_bytes(binned.table.to_parquet(index=False))
-    (out_root / "code_vocab.txt").write_text("\n".join(binned.code_vocab), encoding="utf-8")
 
     feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
     ensure_dir(out_root / "features" / "dynamic")
     write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"columns": feat_cols})
     static_raw = build_static_features(events, cfg.dataset, cfg.static_features)
+    static_feat_cols = []
+    static_post_pipeline = None
+    if static_raw is not None and not static_raw.empty and cfg.static_features.enabled:
+        # Global (run-level) static feature space: fit on full dataset here for simplicity.
+        # This keeps static feature columns stable across splits.
+        from oneehr.data.static_postprocess import fit_transform_static_features
+
+        static_all, _, _, static_art = fit_transform_static_features(
+            raw_train=static_raw,
+            raw_val=None,
+            raw_test=None,
+            pipeline=cfg.preprocess.pipeline,
+        )
+        static_feat_cols = list(static_all.columns)
+        static_post_pipeline = None if static_art.fitted_postprocess is None else static_art.fitted_postprocess.pipeline
+        ensure_dir(out_root / "features" / "static")
+        write_json(
+            out_root / "features" / "static" / "feature_columns.json",
+            {"columns": static_feat_cols},
+        )
+
     write_run_manifest(
         out_root=out_root,
         cfg=cfg,
         dynamic_feature_columns=feat_cols,
         static_raw_cols=None if static_raw is None else list(static_raw.columns),
+        static_feature_columns=static_feat_cols,
+        static_feature_columns_sha256=None,
+        static_postprocess_pipeline=static_post_pipeline,
     )
 
     if labels_res is not None:
@@ -493,6 +516,11 @@ def _run_test(
     else:
         run_root = Path(run_dir)
     manifest = read_run_manifest(run_root)
+    if manifest is None:
+        raise SystemExit(
+            f"Missing run_manifest.json under {run_root}. "
+            "This version requires running `oneehr preprocess` first."
+        )
 
     # Resolve test dataset from CLI override or config.
     if test_dataset is not None:
@@ -589,30 +617,29 @@ def _run_test(
                 import hashlib
 
                 feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
-                if manifest is not None:
-                    exp_cols = (
-                        (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns"))
-                        or None
+                exp_cols = (
+                    (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns"))
+                    or None
+                )
+                exp_sha = (
+                    (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns_sha256"))
+                    or None
+                )
+                if isinstance(exp_cols, list) and exp_cols and exp_cols != feat_cols:
+                    raise SystemExit(
+                        "DL test dynamic feature_columns mismatch with run_manifest.json. "
+                        "Re-run preprocess/train with consistent features or use a different run dir."
                     )
-                    exp_sha = (
-                        (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns_sha256"))
-                        or None
-                    )
-                    if isinstance(exp_cols, list) and exp_cols and exp_cols != feat_cols:
+                if isinstance(exp_sha, str) and exp_sha:
+                    import hashlib
+
+                    norm = "\n".join([c.strip() for c in feat_cols]) + "\n"
+                    got_sha = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+                    if got_sha != exp_sha:
                         raise SystemExit(
-                            "DL test dynamic feature_columns mismatch with run_manifest.json. "
+                            "DL test dynamic feature_columns hash mismatch with run_manifest.json. "
                             "Re-run preprocess/train with consistent features or use a different run dir."
                         )
-                    if isinstance(exp_sha, str) and exp_sha:
-                        import hashlib
-
-                        norm = "\n".join([c.strip() for c in feat_cols]) + "\n"
-                        got_sha = hashlib.sha256(norm.encode("utf-8")).hexdigest()
-                        if got_sha != exp_sha:
-                            raise SystemExit(
-                                "DL test dynamic feature_columns hash mismatch with run_manifest.json. "
-                                "Re-run preprocess/train with consistent features or use a different run dir."
-                            )
 
                 meta_path = sp_dir / "model_meta.json"
                 if meta_path.exists():
@@ -1419,14 +1446,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
                 # Persist DL model artifacts for reproducible test-time loading.
                 model_out = ensure_dir(out_root / "models" / model_name / sp.name)
-                code_vocab_path = out_root / "code_vocab.txt"
                 code_vocab = None
-                if code_vocab_path.exists():
-                    code_vocab = [
-                        line.strip()
-                        for line in code_vocab_path.read_text(encoding="utf-8").splitlines()
-                        if line.strip()
-                    ]
                 write_dl_artifacts(
                     out_dir=model_out,
                     model=model,

@@ -33,16 +33,25 @@ def write_run_manifest(
     cfg: ExperimentConfig,
     dynamic_feature_columns: list[str] | None,
     static_raw_cols: list[str] | None,
+    static_feature_columns: list[str] | None,
+    static_feature_columns_sha256: str | None,
+    static_postprocess_pipeline: list[dict[str, object]] | None,
 ) -> None:
     """Write a run-level manifest describing data + features for reproducibility.
 
     This is a v2 schema that aims to unify tabular/DL pipelines and static/dynamic features.
+    It is intended as the single source of truth for a training run.
     """
 
     out_root = ensure_dir(out_root)
 
     dyn_cols = [] if not dynamic_feature_columns else list(dynamic_feature_columns)
     dyn_sha = None if not dyn_cols else _sha256_lines(dyn_cols)
+
+    st_cols = [] if not static_feature_columns else list(static_feature_columns)
+    st_sha = static_feature_columns_sha256
+    if st_cols and not st_sha:
+        st_sha = _sha256_lines(st_cols)
 
     manifest = {
         "schema_version": 2,
@@ -62,18 +71,23 @@ def write_run_manifest(
             "enabled": bool(cfg.static_features.enabled),
             "agg": str(cfg.static_features.agg),
             "raw_cols": [] if not static_raw_cols else list(static_raw_cols),
+            "postprocess_pipeline": [] if static_postprocess_pipeline is None else _as_jsonable(static_postprocess_pipeline),
         },
         "features": {
             "dynamic": {
                 "feature_columns": dyn_cols,
                 "feature_columns_sha256": dyn_sha,
                 "feature_columns_path": "features/dynamic/feature_columns.json",
-            }
+            },
+            "static": {
+                "feature_columns": st_cols,
+                "feature_columns_sha256": st_sha,
+                "feature_columns_path": "features/static/feature_columns.json",
+            },
         },
         "artifacts": {
             "binned_parquet": "binned.parquet",
             "labels_parquet": "labels.parquet",
-            "code_vocab_txt": "code_vocab.txt",
         },
     }
 
