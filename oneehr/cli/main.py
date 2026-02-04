@@ -369,6 +369,14 @@ def _build_parser() -> argparse.ArgumentParser:
         required=False,
         help="Override test dataset path (CSV/XLSX); requires datasets.test in config otherwise",
     )
+    p_test.add_argument(
+        "--out-dir",
+        required=False,
+        help=(
+            "Directory to write test outputs (metrics/preds). "
+            "Defaults to <run_dir>/test_runs/<dataset_stem>"
+        ),
+    )
 
     return parser
 
@@ -459,7 +467,13 @@ def _run_train(cfg_path: str, force: bool) -> None:
     return
 
 
-def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None, force: bool) -> None:
+def _run_test(
+    cfg_path: str,
+    run_dir: str | None,
+    test_dataset: str | None,
+    force: bool,
+    out_dir: str | None,
+) -> None:
     cfg0 = load_experiment_config(cfg_path)
     if run_dir is None:
         run_root = cfg0.output.root / cfg0.output.run_name
@@ -514,17 +528,16 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None, forc
     else:
         raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
 
-    out_dir = run_root / "test_runs" / ds.path.stem
-    if out_dir.exists() and not force:
-        raise SystemExit(
-            f"Test output directory already exists: {out_dir}. "
-            "Pass --force to overwrite."
-        )
-    if out_dir.exists() and force:
+    if out_dir is None:
+        out_path = run_root / "test_runs" / ds.path.stem
+    else:
+        out_path = Path(out_dir)
+
+    if out_path.exists() and force:
         import shutil
 
-        shutil.rmtree(out_dir)
-    out_dir = ensure_dir(out_dir)
+        shutil.rmtree(out_path)
+    out_dir = ensure_dir(out_path)
 
     rows = []
     for model_cfg in (cfg0.models or [cfg0.model]):
@@ -1753,6 +1766,12 @@ def main() -> None:
         _run_hpo(args.config)
         return
     if args.command == "test":
-        _run_test(args.config, args.run_dir, args.test_dataset, force=bool(args.force))
+        _run_test(
+            args.config,
+            args.run_dir,
+            args.test_dataset,
+            force=bool(args.force),
+            out_dir=args.out_dir,
+        )
         return
     raise SystemExit(f"Unknown command: {args.command}")
