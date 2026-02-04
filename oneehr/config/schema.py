@@ -53,7 +53,7 @@ class StaticFeaturesConfig:
 class PreprocessConfig:
     bin_size: str = "1d"  # e.g. 1h, 6h, 1d
     numeric_strategy: str = "mean"  # mean | last
-    categorical_strategy: str = "count"  # count
+    categorical_strategy: str = "onehot"  # onehot
     code_selection: str = "frequency"  # frequency | all | list | importance
     top_k_codes: int | None = 500
     min_code_count: int = 1

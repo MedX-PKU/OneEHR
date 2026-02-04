@@ -154,16 +154,24 @@ def bin_events(
         feats.append(wide)
 
     if categorical_codes:
+        if preprocess.categorical_strategy != "onehot":
+            raise ValueError(
+                f"Unsupported preprocess.categorical_strategy={preprocess.categorical_strategy!r}. "
+                "Expected 'onehot'."
+            )
+
         cat = df[df["code"].isin(categorical_codes)].copy()
-        # For MVP: per-bin count of events for that code.
-        agg = (
-            cat.groupby(["patient_id", "bin_time", "code"], sort=False)
-            .size()
-            .rename("count")
-            .reset_index()
+        # Represent categorical codes as one-hot presence per (patient_id, bin_time).
+        # If a categorical code appears multiple times in a bin, it is still 1.0.
+        cat["_present"] = 1.0
+        wide = cat.pivot_table(
+            index=["patient_id", "bin_time"],
+            columns="code",
+            values="_present",
+            aggfunc="max",
+            fill_value=0.0,
         )
-        wide = agg.pivot(index=["patient_id", "bin_time"], columns="code", values="count")
-        wide = wide.fillna(0.0).add_prefix("cat__").reset_index()
+        wide = wide.add_prefix("cat__").reset_index()
         feats.append(wide)
 
     # Merge numeric + categorical features.

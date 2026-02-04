@@ -109,7 +109,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     preprocess = PreprocessConfig(
         bin_size=preprocess_raw.get("bin_size", "1d"),
         numeric_strategy=preprocess_raw.get("numeric_strategy", "mean"),
-        categorical_strategy=preprocess_raw.get("categorical_strategy", "count"),
+        categorical_strategy=preprocess_raw.get("categorical_strategy", "onehot"),
         code_selection=str(preprocess_raw.get("code_selection", "frequency")),
         top_k_codes=(
             None
