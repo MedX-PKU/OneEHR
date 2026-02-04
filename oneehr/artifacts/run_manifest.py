@@ -67,6 +67,7 @@ def write_run_manifest(
             "dynamic": {
                 "feature_columns": dyn_cols,
                 "feature_columns_sha256": dyn_sha,
+                "feature_columns_path": "features/dynamic/feature_columns.json",
             }
         },
         "artifacts": {
@@ -77,4 +78,3 @@ def write_run_manifest(
     }
 
     write_json(out_root / "run_manifest.json", manifest)
-

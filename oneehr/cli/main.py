@@ -42,6 +42,7 @@ from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 from oneehr.models.registry import build_model
 from oneehr.modeling.persistence import write_dl_artifacts, write_static_artifacts
 from oneehr.artifacts.run_manifest import write_run_manifest
+from oneehr.artifacts.read import read_run_manifest
 
 
 def _train_sequence_patient_level(
@@ -419,6 +420,8 @@ def _run_preprocess(cfg_path: str) -> None:
     (out_root / "code_vocab.txt").write_text("\n".join(binned.code_vocab), encoding="utf-8")
 
     feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
+    ensure_dir(out_root / "features" / "dynamic")
+    write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"columns": feat_cols})
     static_raw = build_static_features(events, cfg.dataset, cfg.static_features)
     write_run_manifest(
         out_root=out_root,
@@ -489,6 +492,7 @@ def _run_test(
         run_root = cfg0.output.root / cfg0.output.run_name
     else:
         run_root = Path(run_dir)
+    manifest = read_run_manifest(run_root)
 
     # Resolve test dataset from CLI override or config.
     if test_dataset is not None:
@@ -585,6 +589,30 @@ def _run_test(
                 import hashlib
 
                 feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+                if manifest is not None:
+                    exp_cols = (
+                        (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns"))
+                        or None
+                    )
+                    exp_sha = (
+                        (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns_sha256"))
+                        or None
+                    )
+                    if isinstance(exp_cols, list) and exp_cols and exp_cols != feat_cols:
+                        raise SystemExit(
+                            "DL test dynamic feature_columns mismatch with run_manifest.json. "
+                            "Re-run preprocess/train with consistent features or use a different run dir."
+                        )
+                    if isinstance(exp_sha, str) and exp_sha:
+                        import hashlib
+
+                        norm = "\n".join([c.strip() for c in feat_cols]) + "\n"
+                        got_sha = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+                        if got_sha != exp_sha:
+                            raise SystemExit(
+                                "DL test dynamic feature_columns hash mismatch with run_manifest.json. "
+                                "Re-run preprocess/train with consistent features or use a different run dir."
+                            )
 
                 meta_path = sp_dir / "model_meta.json"
                 if meta_path.exists():
