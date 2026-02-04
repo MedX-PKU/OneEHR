@@ -15,7 +15,7 @@ def test_cli_smoke_preprocess_and_train(tmp_path: Path) -> None:
     cfg2.write_text(cfg_text, encoding="utf-8")
 
     subprocess.check_call(["oneehr", "preprocess", "--config", str(cfg2)])
-    subprocess.check_call(["oneehr", "train", "--config", str(cfg2)])
+    subprocess.check_call(["oneehr", "train", "--config", str(cfg2), "--force"])
 
     run_root = out / "example"
     assert (run_root / "summary.json").exists()

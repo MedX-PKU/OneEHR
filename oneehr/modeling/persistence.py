@@ -29,6 +29,18 @@ def _as_jsonable(v: Any) -> Any:
     return str(v)
 
 
+def _sha256_text(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _sha256_lines(lines: list[str]) -> str:
+    # Normalize newlines + whitespace to keep hashes stable.
+    norm = "\n".join([ln.strip() for ln in lines]) + "\n"
+    return _sha256_text(norm)
+
+
 def write_dl_artifacts(
     *,
     out_dir: Path,
@@ -69,6 +81,8 @@ def write_dl_artifacts(
             "static_dim": 0 if (not cfg.static_features.enabled) else int(len(cfg.static_features.cols)),
             "feature_columns": list(feature_columns),
             "code_vocab": None if code_vocab is None else list(code_vocab),
+            "feature_columns_sha256": _sha256_lines(list(feature_columns)),
+            "code_vocab_sha256": None if code_vocab is None else _sha256_lines(list(code_vocab)),
         },
         "preprocess": {
             "bin_size": str(cfg.preprocess.bin_size),
@@ -84,4 +98,3 @@ def read_dl_meta(run_dir: Path, model_name: str, split_name: str) -> dict[str, A
     if not meta_path.exists():
         raise FileNotFoundError(str(meta_path))
     return json.loads(meta_path.read_text(encoding="utf-8"))
-

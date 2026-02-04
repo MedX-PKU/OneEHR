@@ -347,6 +347,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_train = sub.add_parser("train", help="Train a model")
     p_train.add_argument("--config", required=True)
+    p_train.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing run directory if it exists",
+    )
 
     p_hpo = sub.add_parser("hpo", help="Run hyperparameter selection on validation")
     p_hpo.add_argument("--config", required=True)
@@ -354,6 +359,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_test = sub.add_parser("test", help="Evaluate a trained model on a test dataset")
     p_test.add_argument("--config", required=True)
     p_test.add_argument("--run-dir", required=False, help="Path to a training run directory")
+    p_test.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing test output directory if it exists",
+    )
     p_test.add_argument(
         "--test-dataset",
         required=False,
@@ -409,7 +419,7 @@ def _run_preprocess(cfg_path: str) -> None:
         (out_root / "labels.parquet").write_bytes(labels.to_parquet(index=False))
 
 
-def _run_train(cfg_path: str) -> None:
+def _run_train(cfg_path: str, force: bool) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     events = load_event_table(train_dataset)
@@ -436,15 +446,20 @@ def _run_train(cfg_path: str) -> None:
             )
 
     out_root = cfg0.output.root / cfg0.output.run_name
+    if out_root.exists() and not force:
+        raise SystemExit(
+            f"Run directory already exists: {out_root}. "
+            "Choose a new output.run_name or pass --force to overwrite."
+        )
     ensure_dir(out_root)
 
     # Delegate to benchmark logic (supports multi-split + optional HPO) but keep command name `train`.
     # If HPO is disabled, it behaves like fixed-hyperparameter training.
-    _run_benchmark(cfg_path)
+    _run_benchmark(cfg_path, force=force)
     return
 
 
-def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> None:
+def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None, force: bool) -> None:
     cfg0 = load_experiment_config(cfg_path)
     if run_dir is None:
         run_root = cfg0.output.root / cfg0.output.run_name
@@ -499,7 +514,17 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
     else:
         raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
 
-    out_dir = ensure_dir(run_root / "test_runs" / ds.path.stem)
+    out_dir = run_root / "test_runs" / ds.path.stem
+    if out_dir.exists() and not force:
+        raise SystemExit(
+            f"Test output directory already exists: {out_dir}. "
+            "Pass --force to overwrite."
+        )
+    if out_dir.exists() and force:
+        import shutil
+
+        shutil.rmtree(out_dir)
+    out_dir = ensure_dir(out_dir)
 
     rows = []
     for model_cfg in (cfg0.models or [cfg0.model]):
@@ -533,7 +558,29 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
                         "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
                     )
 
+                import json
+                import hashlib
+
                 feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+
+                meta_path = sp_dir / "model_meta.json"
+                if meta_path.exists():
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    exp_cols = (meta.get("input") or {}).get("feature_columns")
+                    exp_sha = (meta.get("input") or {}).get("feature_columns_sha256")
+                    if isinstance(exp_cols, list) and exp_cols and exp_cols != feat_cols:
+                        raise SystemExit(
+                            "DL test feature_columns mismatch with saved model_meta.json. "
+                            "Re-run preprocess/train with consistent features or use a different run dir."
+                        )
+                    if isinstance(exp_sha, str) and exp_sha:
+                        norm = "\n".join([c.strip() for c in feat_cols]) + "\n"
+                        got_sha = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+                        if got_sha != exp_sha:
+                            raise SystemExit(
+                                "DL test feature_columns hash mismatch with saved model_meta.json. "
+                                "Re-run preprocess/train with consistent features or use a different run dir."
+                            )
                 pids, seqs, lens = build_patient_sequences(binned, feat_cols)
                 from oneehr.data.sequence import pad_sequences, build_time_sequences
 
@@ -620,7 +667,7 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
     )
 
 
-def _run_benchmark(cfg_path: str) -> None:
+def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     events = load_event_table(train_dataset)
@@ -675,6 +722,10 @@ def _run_benchmark(cfg_path: str) -> None:
     rows = []
     run_records: list[dict[str, object]] = []
     out_root = cfg0.output.root / cfg0.output.run_name
+    if out_root.exists() and force:
+        import shutil
+
+        shutil.rmtree(out_root)
     ensure_dir(out_root)
 
     # Single-process only.
@@ -1696,12 +1747,12 @@ def main() -> None:
         _run_preprocess(args.config)
         return
     if args.command == "train":
-        _run_train(args.config)
+        _run_train(args.config, force=bool(args.force))
         return
     if args.command == "hpo":
         _run_hpo(args.config)
         return
     if args.command == "test":
-        _run_test(args.config, args.run_dir, args.test_dataset)
+        _run_test(args.config, args.run_dir, args.test_dataset, force=bool(args.force))
         return
     raise SystemExit(f"Unknown command: {args.command}")
