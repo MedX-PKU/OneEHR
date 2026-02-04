@@ -22,7 +22,14 @@ oneehr preprocess --config examples/experiment.toml
 oneehr train --config examples/experiment.toml
 ```
 
-`oneehr train` writes per-split metrics to `summary.csv`, and aggregated paper-style tables
+`oneehr preprocess` materializes a run directory under `output.root/output.run_name`, including:
+- `binned.parquet` (dynamic features in long format)
+- `features/dynamic/feature_columns.json` (dynamic feature space)
+- `features/static/static_all.parquet` (global static matrix, if enabled)
+- `views/patient_tabular.parquet` or `views/time_tabular.parquet` (tabular views)
+- `run_manifest.json` (single source of truth for artifacts + feature schema)
+
+`oneehr train` reads the above preprocess artifacts and writes per-split metrics to `summary.csv`, and aggregated paper-style tables
 including 95% CI to `paper_table.csv`.
 
 When multiple models are configured, metrics are grouped by `model` in the output tables and
