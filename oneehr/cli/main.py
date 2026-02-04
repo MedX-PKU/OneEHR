@@ -81,7 +81,11 @@ def _train_sequence_patient_level(
     if static is not None:
         from oneehr.data.sequence import align_static_features
 
-        S_all = align_static_features(pids, static, expected_feature_columns=list(static.columns))
+        S_all = align_static_features(
+            pids,
+            static,
+            expected_feature_columns=list(static.columns),
+        )
         if S_all is not None:
             S = torch.from_numpy(S_all)
             S_tr, S_va, S_te = S[train_m], S[val_m], S[test_m]
@@ -847,6 +851,23 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
         raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
     dynamic_feature_columns = manifest.dynamic_feature_columns()
 
+    static_all = None
+    static_feature_columns = None
+    if cfg0.static_features.enabled:
+        st_path = manifest.static_matrix_path()
+        if st_path is None:
+            raise SystemExit(
+                "Static features enabled but static matrix not found in run_manifest.json. "
+                "Re-run `oneehr preprocess`."
+            )
+        static_all = pd.read_parquet(out_root / st_path)
+        static_feature_columns = manifest.static_feature_columns()
+        if list(static_all.columns) != list(static_feature_columns):
+            raise SystemExit(
+                "Static feature_columns mismatch with run_manifest.json. "
+                "Re-run `oneehr preprocess`."
+            )
+
     models = cfg0.models or [cfg0.model]
     if any(m.name in {"gru", "rnn", "transformer"} for m in models):
         torch = optional_import("torch")
@@ -1080,20 +1101,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 pipeline=cfg0.preprocess.pipeline,
             )
 
-            static_train = None
-            if cfg0.static_features.enabled:
-                manifest = read_run_manifest(out_root)
-                if manifest is None:
-                    raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
-                st_path = (((manifest.data.get("features") or {}).get("static") or {}).get("matrix_parquet_path")) or None
-                if not isinstance(st_path, str) or not st_path:
-                    raise SystemExit(
-                        "Static features enabled but static matrix not found in run_manifest.json. "
-                        "Re-run `oneehr preprocess`."
-                    )
-                static_all = pd.read_parquet(out_root / st_path)
-                # Align to split; use train only inside training loop (val/test will be aligned later by patient ids).
-                static_train = static_all.reindex(sp.train_patients)
+            # Pass full static matrix; batch builders align to patient_id order.
+            static_train = static_all
 
             # Select best hyperparameters using validation.
             def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
