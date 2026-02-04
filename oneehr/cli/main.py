@@ -40,7 +40,7 @@ from oneehr.hpo.grid import apply_overrides, iter_grid
 from oneehr.hpo.runner import select_best_with_trials
 from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 from oneehr.models.registry import build_model
-from oneehr.modeling.persistence import write_dl_artifacts
+from oneehr.modeling.persistence import write_dl_artifacts, write_static_artifacts
 
 
 def _train_sequence_patient_level(
@@ -79,7 +79,7 @@ def _train_sequence_patient_level(
     if static is not None:
         from oneehr.data.sequence import align_static_features
 
-        S_all = align_static_features(pids, static)
+        S_all = align_static_features(pids, static, expected_feature_columns=list(static.columns))
         if S_all is not None:
             S = torch.from_numpy(S_all)
             S_tr, S_va, S_te = S[train_m], S[val_m], S[test_m]
@@ -185,7 +185,7 @@ def _train_sequence_time_level(
     if static is not None:
         from oneehr.data.sequence import align_static_features
 
-        S_all = align_static_features(pids, static)
+        S_all = align_static_features(pids, static, expected_feature_columns=list(static.columns))
         if S_all is not None:
             S = torch.from_numpy(S_all)
             S_tr, S_va, S_te = S[train_m], S[val_m], S[test_m]
@@ -684,7 +684,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     events = load_event_table(train_dataset)
-    static_df = build_static_features(events, cfg0.dataset, cfg0.static_features)
+    static_raw = build_static_features(events, cfg0.dataset, cfg0.static_features)
     patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
     splits = make_splits(patient_index, cfg0.split)
 
@@ -958,6 +958,21 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 pipeline=cfg0.preprocess.pipeline,
             )
 
+            static_train = static_val = static_test = None
+            static_art = None
+            if static_raw is not None and not static_raw.empty and cfg0.static_features.enabled:
+                from oneehr.data.static_postprocess import fit_transform_static_features
+
+                raw_train = static_raw.reindex(sp.train_patients)
+                raw_val = static_raw.reindex(sp.val_patients)
+                raw_test = static_raw.reindex(sp.test_patients)
+                static_train, static_val, static_test, static_art = fit_transform_static_features(
+                    raw_train=raw_train,
+                    raw_val=raw_val,
+                    raw_test=raw_test,
+                    pipeline=cfg0.preprocess.pipeline,
+                )
+
             # Select best hyperparameters using validation.
             def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
                 # If users configured HPO metric incompatible with current trial type,
@@ -1176,6 +1191,16 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 if fitted_post is not None:
                     pp_dir = ensure_dir(out_root / "preprocess" / sp.name)
                     write_json(pp_dir / "pipeline.json", {"pipeline": fitted_post.pipeline})
+                if static_art is not None:
+                    st_dir = ensure_dir(out_root / "static" / sp.name)
+                    write_static_artifacts(
+                        out_dir=st_dir,
+                        feature_columns=static_art.feature_columns,
+                        fitted_postprocess=None
+                        if static_art.fitted_postprocess is None
+                        else static_art.fitted_postprocess.pipeline,
+                        raw_cols=static_art.raw_cols,
+                    )
             else:
                 feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
                 input_dim = len(feat_cols)
@@ -1202,7 +1227,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             model=model,
                             binned=binned,
                             y=y,
-                            static=static_df,
+                            static=static_train,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1227,7 +1252,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
-                            static=static_df,
+                            static=static_train,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1259,7 +1284,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             model=model,
                             binned=binned,
                             y=y,
-                            static=static_df,
+                            static=static_train,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1286,7 +1311,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
-                            static=static_df,
+                            static=static_train,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1319,7 +1344,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             model=model,
                             binned=binned,
                             y=y,
-                            static=static_df,
+                            static=static_train,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1346,7 +1371,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             model=model,
                             binned=binned,
                             labels_df=labels_df,
-                            static=static_df,
+                            static=static_train,
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
@@ -1371,6 +1396,16 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     feature_columns=feat_cols,
                     code_vocab=code_vocab,
                 )
+                if static_art is not None:
+                    st_dir = ensure_dir(out_root / "static" / sp.name)
+                    write_static_artifacts(
+                        out_dir=st_dir,
+                        feature_columns=static_art.feature_columns,
+                        fitted_postprocess=None
+                        if static_art.fitted_postprocess is None
+                        else static_art.fitted_postprocess.pipeline,
+                        raw_cols=static_art.raw_cols,
+                    )
 
             # Optional calibration (fit on val split) + threshold selection.
             cal_extra = {}

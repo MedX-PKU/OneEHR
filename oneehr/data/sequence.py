@@ -43,6 +43,8 @@ def build_patient_sequences(binned: pd.DataFrame, feature_columns: list[str]):
 def align_static_features(
     patient_ids: list[str],
     static_df: pd.DataFrame | None,
+    *,
+    expected_feature_columns: list[str] | None = None,
 ) -> np.ndarray | None:
     """Align static (patient-level) features to a sequence batch.
 
@@ -54,12 +56,10 @@ def align_static_features(
     df = static_df.copy()
     df.index = df.index.astype(str)
     df = df.reindex(patient_ids)
+    if expected_feature_columns is not None:
+        df = df.reindex(columns=list(expected_feature_columns))
     if df.isna().any().any():
         df = df.fillna(0.0)
-    # Convert non-numeric to categorical codes (minimal default).
-    for c in df.columns:
-        if not np.issubdtype(df[c].dtype, np.number):
-            df[c] = df[c].astype("category").cat.codes.astype("float32")
     return df.to_numpy(dtype=np.float32)
 
 

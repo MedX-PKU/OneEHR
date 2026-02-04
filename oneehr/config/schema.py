@@ -71,15 +71,6 @@ class PreprocessConfig:
     #   ]
     pipeline: list[dict[str, object]] = field(default_factory=list)
 
-    # Post-merge preprocessing pipeline (applied after split on X).
-    # Each step is a dict describing a built-in operator.
-    # Example:
-    #   pipeline = [
-    #     {"op": "standardize", "cols": "num__*"},
-    #     {"op": "impute", "strategy": "mean", "cols": "num__*"},
-    #   ]
-    pipeline: list[dict[str, object]] = field(default_factory=list)
-
 
 @dataclass(frozen=True)
 class TaskConfig:

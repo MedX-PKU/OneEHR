@@ -79,6 +79,8 @@ def write_dl_artifacts(
         "input": {
             "input_dim": int(cfg.preprocess.top_k_codes or len(feature_columns)),
             "static_dim": 0 if (not cfg.static_features.enabled) else int(len(cfg.static_features.cols)),
+            "static_feature_columns": None,
+            "static_feature_columns_sha256": None,
             "feature_columns": list(feature_columns),
             "code_vocab": None if code_vocab is None else list(code_vocab),
             "feature_columns_sha256": _sha256_lines(list(feature_columns)),
@@ -91,6 +93,26 @@ def write_dl_artifacts(
     }
 
     write_json(out_dir / "model_meta.json", meta)
+
+
+def write_static_artifacts(
+    *,
+    out_dir: Path,
+    feature_columns: list[str],
+    fitted_postprocess: dict[str, object] | None,
+    raw_cols: list[str],
+) -> None:
+    out_dir = ensure_dir(out_dir)
+    write_json(
+        out_dir / "static_meta.json",
+        {
+            "schema_version": 1,
+            "raw_cols": list(raw_cols),
+            "feature_columns": list(feature_columns),
+            "feature_columns_sha256": _sha256_lines(list(feature_columns)),
+            "postprocess": None if fitted_postprocess is None else {"pipeline": fitted_postprocess},
+        },
+    )
 
 
 def read_dl_meta(run_dir: Path, model_name: str, split_name: str) -> dict[str, Any]:
