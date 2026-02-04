@@ -43,6 +43,7 @@ from oneehr.models.registry import build_model
 from oneehr.modeling.persistence import write_dl_artifacts
 from oneehr.artifacts.run_manifest import write_run_manifest
 from oneehr.artifacts.read import read_run_manifest
+from oneehr.artifacts.run_io import RunIO
 
 
 def _train_sequence_patient_level(
@@ -553,30 +554,10 @@ def _run_test(
         run_root = cfg0.output.root / cfg0.output.run_name
     else:
         run_root = Path(run_dir)
-    manifest = read_run_manifest(run_root)
-    if manifest is None:
-        raise SystemExit(
-            f"Missing run_manifest.json under {run_root}. "
-            "This version requires running `oneehr preprocess` first."
-        )
+    run = RunIO(run_root=Path(run_root))
+    manifest = run.require_manifest()
     dynamic_feature_columns = manifest.dynamic_feature_columns()
-    static_all = None
-    static_feature_columns = None
-    st_path = manifest.static_matrix_path()
-    if cfg0.static_features.enabled:
-        if st_path is None:
-            raise SystemExit(
-                "Static features enabled but static matrix not found in run_manifest.json. "
-                "Re-run `oneehr preprocess`."
-            )
-        static_all = pd.read_parquet(run_root / st_path)
-        static_feature_columns = manifest.static_feature_columns()
-        # Ensure columns match manifest exactly (fail fast).
-        if list(static_all.columns) != list(static_feature_columns):
-            raise SystemExit(
-                "Static feature_columns mismatch with run_manifest.json. "
-                "Re-run preprocess/train with consistent features or use a different run dir."
-            )
+    static_all, static_feature_columns = run.load_static_all(manifest)
 
     # Resolve test dataset from CLI override or config.
     if test_dataset is not None:
@@ -590,10 +571,7 @@ def _run_test(
         ds = cfg0.datasets.test
 
     events = load_event_table(ds)
-    binned_path = (manifest.data.get("artifacts") or {}).get("binned_parquet")
-    if not isinstance(binned_path, str) or not binned_path:
-        raise SystemExit("Missing binned_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
-    binned = pd.read_parquet(run_root / binned_path)
+    binned = run.load_binned(manifest)
 
     labels_res = run_label_fn(events, cfg0)
     labels_df = None
@@ -606,28 +584,11 @@ def _run_test(
     import pandas as pd
 
     if cfg0.task.prediction_mode == "patient":
-        pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet")
-        if not isinstance(pt_path, str) or not pt_path:
-            raise SystemExit("Missing patient_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
-        dfp = pd.read_parquet(run_root / pt_path)
-        if "patient_id" not in dfp.columns or "label" not in dfp.columns:
-            raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
-        X = dfp.drop(columns=["label"]).set_index("patient_id")
-        y = dfp["label"]
+        X, y = run.load_patient_view(manifest)
         key_df = None
         global_mask = None
     elif cfg0.task.prediction_mode == "time":
-        tm_path = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet")
-        if not isinstance(tm_path, str) or not tm_path:
-            raise SystemExit("Missing time_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
-        dft = pd.read_parquet(run_root / tm_path)
-        required = {"patient_id", "bin_time", "label"}
-        missing = [c for c in required if c not in dft.columns]
-        if missing:
-            raise SystemExit(f"Invalid time_tabular.parquet: missing columns {missing}")
-        key_df = dft[["patient_id", "bin_time"]].reset_index(drop=True)
-        y = dft["label"].reset_index(drop=True)
-        X = dft.drop(columns=["patient_id", "bin_time", "label"]).reset_index(drop=True)
+        X, y, key_df = run.load_time_view(manifest)
         global_mask = None
     else:
         raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
