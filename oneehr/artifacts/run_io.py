@@ -94,7 +94,15 @@ class RunIO:
         path = self.run_root / p
         if not path.exists():
             return None
-        return pd.read_parquet(path)
+        df = pd.read_parquet(path)
+        mode = str((manifest.data.get("task") or {}).get("prediction_mode", "patient"))
+        from oneehr.artifacts.labels import validate_patient_labels, validate_time_labels
+
+        if mode == "patient":
+            return validate_patient_labels(df)
+        if mode == "time":
+            return validate_time_labels(df)
+        raise ValueError(f"Unsupported prediction_mode in run_manifest.json: {mode!r}")
 
 
 def read_feature_columns_json(path: Path) -> list[str]:

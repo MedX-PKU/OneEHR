@@ -110,4 +110,12 @@ def materialize_preprocess_artifacts(
             labels = normalize_time_labels(labels_res.df, cfg)
         else:
             raise ValueError(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
+        # Ensure stable labels schema.
+        if cfg.task.prediction_mode == "patient":
+            labels = labels[["patient_id", "label"]].copy()
+        else:
+            cols = ["patient_id", "bin_time", "label"]
+            if "mask" in labels.columns:
+                cols.append("mask")
+            labels = labels[cols].copy()
         (out_root / "labels.parquet").write_bytes(labels.to_parquet(index=False))
