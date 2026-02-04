@@ -11,8 +11,6 @@ from oneehr.utils.imports import optional_import
 from oneehr.config.load import load_experiment_config
 from oneehr.data.patient_index import make_patient_index
 from oneehr.data.io import load_event_table
-from oneehr.data.static_features import build_static_features
-from oneehr.data.tabular import make_patient_tabular, make_time_tabular
 from oneehr.models.tabular import (
     load_tabular_model,
     predict_tabular,
@@ -41,7 +39,6 @@ from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 from oneehr.models.registry import build_model
 from oneehr.modeling.persistence import write_dl_artifacts
 from oneehr.artifacts.materialize import materialize_preprocess_artifacts
-from oneehr.artifacts.read import read_run_manifest
 from oneehr.artifacts.run_io import RunIO
 
 
@@ -433,14 +430,9 @@ def _run_train(cfg_path: str, force: bool) -> None:
         )
     ensure_dir(out_root)
 
-    # Require preprocess-generated manifest (single source of truth for features/artifacts).
-    manifest = read_run_manifest(out_root)
-    if manifest is None:
-        raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+    # Require preprocess-generated manifest (single source of truth for run artifacts).
     run = RunIO(run_root=out_root)
-    labels_df = run.load_labels(manifest)
-
-    # Labels are materialized at preprocess time (labels.parquet).
+    _ = run.require_manifest()
 
     # Unified training: run all splits by default (or a single fold if configured).
 
@@ -692,7 +684,6 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     events = load_event_table(train_dataset)
-    static_raw = build_static_features(events, cfg0.dataset, cfg0.static_features)
     patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
     splits = make_splits(patient_index, cfg0.split)
 
@@ -1498,6 +1489,9 @@ def _run_final_prospective_eval(
 ) -> None:
     import pandas as pd
 
+    run = RunIO(run_root=out_root)
+    manifest = run.require_manifest()
+
     if cfg0.trainer.final_model_source not in {"refit", "best_split"}:
         raise SystemExit("trainer.final_model_source must be 'refit' or 'best_split'")
 
@@ -1510,11 +1504,7 @@ def _run_final_prospective_eval(
     if cfg0.task.prediction_mode != "patient":
         raise SystemExit("final prospective eval currently supports prediction_mode='patient' only")
 
-    X, y0 = make_patient_tabular(binned)
-    if labels_df is not None:
-        y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
-    else:
-        y = y0
+    X, y = run.load_patient_view(manifest)
 
     pre_mask = X.index.astype(str).isin(pre_patients)
     post_mask = X.index.astype(str).isin(post_patients)
