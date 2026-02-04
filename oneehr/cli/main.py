@@ -40,6 +40,7 @@ from oneehr.hpo.grid import apply_overrides, iter_grid
 from oneehr.hpo.runner import select_best_with_trials
 from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 from oneehr.models.registry import build_model
+from oneehr.modeling.persistence import write_dl_artifacts
 
 
 def _train_sequence_patient_level(
@@ -472,16 +473,31 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
         else:
             labels_df = normalize_time_labels(labels_res.df, cfg0)
 
-    if cfg0.task.prediction_mode != "patient":
-        raise SystemExit("test currently supports prediction_mode='patient' only")
-
     import pandas as pd
 
-    X, y0 = make_patient_tabular(binned)
-    if labels_df is not None:
-        y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
+    if cfg0.task.prediction_mode == "patient":
+        X, y0 = make_patient_tabular(binned)
+        if labels_df is not None:
+            y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
+        else:
+            y = y0
+        key_df = None
+        global_mask = None
+    elif cfg0.task.prediction_mode == "time":
+        X0, y0, key0 = make_time_tabular(binned)
+        if labels_df is not None:
+            feat = key0.copy()
+            feat["_row"] = feat.index
+            lab = labels_df.merge(feat, on=["patient_id", "bin_time"], how="inner")
+            X = X0.loc[lab["_row"].to_numpy()].reset_index(drop=True)
+            y = lab["label"].reset_index(drop=True)
+            key_df = lab[["patient_id", "bin_time"]].reset_index(drop=True)
+            global_mask = lab["mask"].to_numpy().astype(bool)
+        else:
+            X, y, key_df = X0, y0, key0
+            global_mask = None
     else:
-        y = y0
+        raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
 
     out_dir = ensure_dir(run_root / "test_runs" / ds.path.stem)
 
@@ -492,11 +508,8 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
         if not model_dir.exists():
             raise SystemExit(f"Missing trained model artifacts: {model_dir}")
 
-        if model_name not in {"xgboost", "catboost", "rf", "dt", "gbdt"}:
-            raise SystemExit(
-                "test currently supports tabular models only: "
-                "model.name in {'xgboost','catboost','rf','dt','gbdt'}"
-            )
+        is_tabular = model_name in {"xgboost", "catboost", "rf", "dt", "gbdt"}
+        is_dl = not is_tabular
 
         # Evaluate all trained splits (folds) under this model.
         split_dirs = sorted([p for p in model_dir.iterdir() if p.is_dir()])
@@ -507,16 +520,88 @@ def _run_test(cfg_path: str, run_dir: str | None, test_dataset: str | None) -> N
             )
 
         for sp_dir in split_dirs:
-            cols_path = sp_dir / "feature_columns.json"
-            if not cols_path.exists():
-                continue
-            art = load_tabular_model(sp_dir, task=cfg0.task, kind=model_name)
-            y_pred = predict_tabular(art, X, cfg0.task)
+            if is_tabular:
+                cols_path = sp_dir / "feature_columns.json"
+                if not cols_path.exists():
+                    continue
+                art = load_tabular_model(sp_dir, task=cfg0.task, kind=model_name)
+                y_pred = predict_tabular(art, X, cfg0.task)
+            else:
+                torch = optional_import("torch")
+                if torch is None:
+                    raise SystemExit(
+                        "Missing optional dependency: torch. Install it first (e.g. `uv add torch`)."
+                    )
+
+                feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+                pids, seqs, lens = build_patient_sequences(binned, feat_cols)
+                from oneehr.data.sequence import pad_sequences, build_time_sequences
+
+                # Build model from config (ensures same architecture); then load weights.
+                built = build_model(replace(cfg0, model=model_cfg, models=[model_cfg]))
+                model = built.model
+                ckpt_path = sp_dir / "state_dict.ckpt"
+                if not ckpt_path.exists():
+                    raise SystemExit(f"Missing DL checkpoint: {ckpt_path}")
+                state = torch.load(ckpt_path, map_location="cpu")
+                model.load_state_dict(state)
+                model.eval()
+
+                if cfg0.task.prediction_mode == "patient":
+                    X_seq = pad_sequences(seqs, lens)
+                    lens_t = torch.from_numpy(lens)
+                    with torch.no_grad():
+                        logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                    if cfg0.task.kind == "binary":
+                        y_pred = 1.0 / (1.0 + np.exp(-logits))
+                    else:
+                        y_pred = logits
+                    # Align to X index order
+                    import pandas as pd
+
+                    pred_s = pd.Series(y_pred, index=pd.Index(np.array(pids, dtype=str), name="patient_id"))
+                    y_pred = pred_s.reindex(X.index.astype(str)).to_numpy()
+                else:
+                    if labels_df is None:
+                        raise SystemExit("DL test for prediction_mode='time' requires labels_df")
+                    pids2, time_seqs, seqs2, y_seqs, mask_seqs, lens2 = build_time_sequences(
+                        binned,
+                        labels_df,
+                        feat_cols,
+                        label_time_col="bin_time",
+                    )
+                    X_seq = pad_sequences(seqs2, lens2)
+                    lens_t = torch.from_numpy(lens2)
+                    with torch.no_grad():
+                        logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                    if cfg0.task.kind == "binary":
+                        probs = 1.0 / (1.0 + np.exp(-logits))
+                    else:
+                        probs = logits
+                    # Flatten by mask to match make_time_tabular(label-joined) ordering
+                    key_rows = []
+                    preds_flat = []
+                    for pid, t, m, pr in zip(pids2, time_seqs, mask_seqs, probs, strict=True):
+                        for tt, mm, vv in zip(t, m, pr, strict=True):
+                            if bool(mm):
+                                key_rows.append((str(pid), tt))
+                                preds_flat.append(float(vv))
+                    pred_df = pd.DataFrame(key_rows, columns=["patient_id", "bin_time"])
+                    pred_df["y_pred"] = np.array(preds_flat)
+                    if key_df is None:
+                        raise SystemExit("Internal error: missing key_df for time mode")
+                    merged = key_df.merge(pred_df, on=["patient_id", "bin_time"], how="left")
+                    y_pred = merged["y_pred"].to_numpy()
+
+            y_true_np = y.to_numpy().astype(float)
+            if global_mask is not None:
+                y_true_np = y_true_np.astype(float)
+                y_pred = np.asarray(y_pred)
 
             if cfg0.task.kind == "binary":
-                metrics = binary_metrics(y.to_numpy().astype(float), y_pred.astype(float)).metrics
+                metrics = binary_metrics(y_true_np.astype(float), np.asarray(y_pred).astype(float)).metrics
             else:
-                metrics = regression_metrics(y.to_numpy().astype(float), y_pred.astype(float)).metrics
+                metrics = regression_metrics(y_true_np.astype(float), np.asarray(y_pred).astype(float)).metrics
 
             tag = f"{model_name}__{sp_dir.name}"
             write_json(out_dir / f"metrics_{tag}.json", metrics)
@@ -1028,9 +1113,8 @@ def _run_benchmark(cfg_path: str) -> None:
                     pp_dir = ensure_dir(out_root / "preprocess" / sp.name)
                     write_json(pp_dir / "pipeline.json", {"pipeline": fitted_post.pipeline})
             else:
-                input_dim = len(
-                    [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
-                )
+                feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
+                input_dim = len(feat_cols)
                 if cfg.model.name == "gru":
                     from oneehr.models.gru import GRUModel, GRUTimeModel
 
@@ -1205,6 +1289,24 @@ def _run_benchmark(cfg_path: str) -> None:
                         )
                         test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
                         test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
+
+                # Persist DL model artifacts for reproducible test-time loading.
+                model_out = ensure_dir(out_root / "models" / model_name / sp.name)
+                code_vocab_path = out_root / "code_vocab.txt"
+                code_vocab = None
+                if code_vocab_path.exists():
+                    code_vocab = [
+                        line.strip()
+                        for line in code_vocab_path.read_text(encoding="utf-8").splitlines()
+                        if line.strip()
+                    ]
+                write_dl_artifacts(
+                    out_dir=model_out,
+                    model=model,
+                    cfg=cfg,
+                    feature_columns=feat_cols,
+                    code_vocab=code_vocab,
+                )
 
             # Optional calibration (fit on val split) + threshold selection.
             cal_extra = {}
