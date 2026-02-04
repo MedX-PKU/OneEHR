@@ -71,6 +71,13 @@ def _select_code_vocab(
     raise ValueError(f"Unsupported preprocess.code_selection={selection!r}")
 
 
+def _normalize_cat_value(v: object) -> str:
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return "__nan__"
+    s = str(v).strip()
+    return s if s else "__nan__"
+
+
 def bin_events(
     events: pd.DataFrame,
     dataset: DatasetConfig,
@@ -156,17 +163,20 @@ def bin_events(
     if categorical_codes:
         cat = df[df["code"].isin(categorical_codes)].copy()
         if preprocess.categorical_strategy == "onehot":
-            # Represent categorical codes as one-hot presence per (patient_id, bin_time).
-            # If a categorical code appears multiple times in a bin, it is still 1.0.
+            # Represent categorical events as one-hot over (code, value) per bin:
+            #   cat__{code}__{value} in {0,1}
+            # If a (code,value) appears multiple times in a bin, it is still 1.0.
             cat["_present"] = 1.0
+            cat["cat_key"] = cat["code"].astype(str) + "__" + cat["value"].map(_normalize_cat_value)
             wide = cat.pivot_table(
                 index=["patient_id", "bin_time"],
-                columns="code",
+                columns="cat_key",
                 values="_present",
                 aggfunc="max",
                 fill_value=0.0,
             )
-            wide = wide.add_prefix("cat__").reset_index()
+            wide.columns = [f"cat__{c}" for c in wide.columns.astype(str)]
+            wide = wide.reset_index()
             feats.append(wide)
         elif preprocess.categorical_strategy == "count":
             # Per-bin count of events for that code.

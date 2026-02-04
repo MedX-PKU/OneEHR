@@ -11,7 +11,7 @@ label_col = "label"
 bin_size = "1d"
 numeric_strategy = "mean"
 ## categorical codes are represented as:
-## - "onehot": presence per bin (0/1)
+## - "onehot": (code, value) one-hot per bin (0/1)
 ## - "count":  per-bin counts
 categorical_strategy = "onehot"
 code_selection = "frequency" # frequency | all | list | importance

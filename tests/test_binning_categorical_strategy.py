@@ -34,10 +34,12 @@ def test_binning_categorical_onehot_presence():
         pipeline=[],
     )
     out = bin_events(events, ds, pp).table
-    assert "cat__DX" in out.columns
-    # p1 has DX in both days -> presence 1.0
+    assert "cat__DX__A" in out.columns
+    assert "cat__DX__B" in out.columns
+    # p1 day1 has A; day2 has B
     p1 = out[out["patient_id"] == "p1"].sort_values("bin_time")
-    assert p1["cat__DX"].tolist() == [1.0, 1.0]
+    assert p1["cat__DX__A"].tolist() == [1.0, 0.0]
+    assert p1["cat__DX__B"].tolist() == [0.0, 1.0]
 
 
 def test_binning_categorical_count():
