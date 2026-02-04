@@ -83,6 +83,7 @@ def write_run_manifest(
                 "feature_columns": st_cols,
                 "feature_columns_sha256": st_sha,
                 "feature_columns_path": "features/static/feature_columns.json",
+                "matrix_parquet_path": None if not st_cols else "features/static/static_all.parquet",
             },
         },
         "artifacts": {

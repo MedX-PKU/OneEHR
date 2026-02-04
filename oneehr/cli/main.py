@@ -40,7 +40,7 @@ from oneehr.hpo.grid import apply_overrides, iter_grid
 from oneehr.hpo.runner import select_best_with_trials
 from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 from oneehr.models.registry import build_model
-from oneehr.modeling.persistence import write_dl_artifacts, write_static_artifacts
+from oneehr.modeling.persistence import write_dl_artifacts
 from oneehr.artifacts.run_manifest import write_run_manifest
 from oneehr.artifacts.read import read_run_manifest
 
@@ -441,6 +441,9 @@ def _run_preprocess(cfg_path: str) -> None:
         write_json(
             out_root / "features" / "static" / "feature_columns.json",
             {"columns": static_feat_cols},
+        )
+        (out_root / "features" / "static" / "static_all.parquet").write_bytes(
+            static_all.to_parquet(index=True)
         )
 
     write_run_manifest(
@@ -1023,20 +1026,20 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 pipeline=cfg0.preprocess.pipeline,
             )
 
-            static_train = static_val = static_test = None
-            static_art = None
-            if static_raw is not None and not static_raw.empty and cfg0.static_features.enabled:
-                from oneehr.data.static_postprocess import fit_transform_static_features
-
-                raw_train = static_raw.reindex(sp.train_patients)
-                raw_val = static_raw.reindex(sp.val_patients)
-                raw_test = static_raw.reindex(sp.test_patients)
-                static_train, static_val, static_test, static_art = fit_transform_static_features(
-                    raw_train=raw_train,
-                    raw_val=raw_val,
-                    raw_test=raw_test,
-                    pipeline=cfg0.preprocess.pipeline,
-                )
+            static_train = None
+            if cfg0.static_features.enabled:
+                manifest = read_run_manifest(out_root)
+                if manifest is None:
+                    raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+                st_path = (((manifest.data.get("features") or {}).get("static") or {}).get("matrix_parquet_path")) or None
+                if not isinstance(st_path, str) or not st_path:
+                    raise SystemExit(
+                        "Static features enabled but static matrix not found in run_manifest.json. "
+                        "Re-run `oneehr preprocess`."
+                    )
+                static_all = pd.read_parquet(out_root / st_path)
+                # Align to split; use train only inside training loop (val/test will be aligned later by patient ids).
+                static_train = static_all.reindex(sp.train_patients)
 
             # Select best hyperparameters using validation.
             def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
@@ -1256,16 +1259,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 if fitted_post is not None:
                     pp_dir = ensure_dir(out_root / "preprocess" / sp.name)
                     write_json(pp_dir / "pipeline.json", {"pipeline": fitted_post.pipeline})
-                if static_art is not None:
-                    st_dir = ensure_dir(out_root / "static" / sp.name)
-                    write_static_artifacts(
-                        out_dir=st_dir,
-                        feature_columns=static_art.feature_columns,
-                        fitted_postprocess=None
-                        if static_art.fitted_postprocess is None
-                        else static_art.fitted_postprocess.pipeline,
-                        raw_cols=static_art.raw_cols,
-                    )
+                # Static features are persisted at preprocess time via run_manifest.json and
+                # features/static/static_all.parquet.
             else:
                 feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
                 input_dim = len(feat_cols)
@@ -1454,16 +1449,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     feature_columns=feat_cols,
                     code_vocab=code_vocab,
                 )
-                if static_art is not None:
-                    st_dir = ensure_dir(out_root / "static" / sp.name)
-                    write_static_artifacts(
-                        out_dir=st_dir,
-                        feature_columns=static_art.feature_columns,
-                        fitted_postprocess=None
-                        if static_art.fitted_postprocess is None
-                        else static_art.fitted_postprocess.pipeline,
-                        raw_cols=static_art.raw_cols,
-                    )
+                # Static features are persisted at preprocess time via run_manifest.json and
+                # features/static/static_all.parquet.
 
             # Optional calibration (fit on val split) + threshold selection.
             cal_extra = {}
