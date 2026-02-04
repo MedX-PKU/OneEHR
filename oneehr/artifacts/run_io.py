@@ -26,15 +26,15 @@ class RunIO:
         return manifest
 
     def load_binned(self, manifest) -> pd.DataFrame:
-        p = (manifest.data.get("artifacts") or {}).get("binned_parquet")
+        p = (manifest.data.get("artifacts") or {}).get("binned_parquet_path")
         if not isinstance(p, str) or not p:
-            raise SystemExit("Missing binned_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+            raise SystemExit("Missing binned_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
         return pd.read_parquet(self.run_root / p)
 
     def load_patient_view(self, manifest) -> tuple[pd.DataFrame, pd.Series]:
-        p = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet")
+        p = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet_path")
         if not isinstance(p, str) or not p:
-            raise SystemExit("Missing patient_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+            raise SystemExit("Missing patient_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
         df = pd.read_parquet(self.run_root / p)
         if "patient_id" not in df.columns or "label" not in df.columns:
             raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
@@ -49,9 +49,9 @@ class RunIO:
         return X, y
 
     def load_time_view(self, manifest) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
-        p = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet")
+        p = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet_path")
         if not isinstance(p, str) or not p:
-            raise SystemExit("Missing time_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+            raise SystemExit("Missing time_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
         df = pd.read_parquet(self.run_root / p)
         required = {"patient_id", "bin_time", "label"}
         missing = [c for c in required if c not in df.columns]

@@ -733,15 +733,15 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     if manifest is None:
         raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
     import pandas as pd
-    binned_path = (manifest.data.get("artifacts") or {}).get("binned_parquet")
+    binned_path = (manifest.data.get("artifacts") or {}).get("binned_parquet_path")
     if not isinstance(binned_path, str) or not binned_path:
-        raise SystemExit("Missing binned_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+        raise SystemExit("Missing binned_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
     binned = pd.read_parquet(out_root / binned_path)
 
     if cfg0.task.prediction_mode == "patient":
-        pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet")
+        pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet_path")
         if not isinstance(pt_path, str) or not pt_path:
-            raise SystemExit("Missing patient_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+            raise SystemExit("Missing patient_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
         dfp = pd.read_parquet(out_root / pt_path)
         if "patient_id" not in dfp.columns or "label" not in dfp.columns:
             raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
@@ -751,9 +751,9 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
         key = None
         global_mask = None
     elif cfg0.task.prediction_mode == "time":
-        tm_path = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet")
+        tm_path = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet_path")
         if not isinstance(tm_path, str) or not tm_path:
-            raise SystemExit("Missing time_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+            raise SystemExit("Missing time_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
         dft = pd.read_parquet(out_root / tm_path)
         required = {"patient_id", "bin_time", "label"}
         missing = [c for c in required if c not in dft.columns]
@@ -1753,9 +1753,9 @@ def _run_hpo(cfg_path: str) -> None:
         raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
     import pandas as pd
 
-    binned_path = (manifest.data.get("artifacts") or {}).get("binned_parquet")
+    binned_path = (manifest.data.get("artifacts") or {}).get("binned_parquet_path")
     if not isinstance(binned_path, str) or not binned_path:
-        raise SystemExit("Missing binned_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+        raise SystemExit("Missing binned_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
     binned = pd.read_parquet(out_root / binned_path)
 
     labels_res = run_label_fn(events, cfg0)
@@ -1769,9 +1769,9 @@ def _run_hpo(cfg_path: str) -> None:
     if cfg0.task.prediction_mode != "patient":
         raise SystemExit("hpo currently supports prediction_mode='patient' only")
 
-    pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet")
+    pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet_path")
     if not isinstance(pt_path, str) or not pt_path:
-        raise SystemExit("Missing patient_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+        raise SystemExit("Missing patient_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
     dfp = pd.read_parquet(out_root / pt_path).dropna(subset=["label"]).reset_index(drop=True)
     X = dfp.drop(columns=["label"]).set_index("patient_id")
     y = dfp["label"]

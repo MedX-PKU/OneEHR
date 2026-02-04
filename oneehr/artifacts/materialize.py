@@ -36,10 +36,15 @@ def materialize_preprocess_artifacts(
     out_root = ensure_dir(out_root)
 
     binned = bin_events(events, cfg.dataset, cfg.preprocess)
-    (out_root / "binned.parquet").write_bytes(binned.table.to_parquet(index=False))
+    # Standard binned column order: keys -> label -> features
+    binned_df = binned.table.copy()
+    base_cols = [c for c in ["patient_id", "bin_time", "label"] if c in binned_df.columns]
+    feat_cols = [c for c in binned_df.columns if c.startswith("num__") or c.startswith("cat__")]
+    other_cols = [c for c in binned_df.columns if c not in set(base_cols + feat_cols)]
+    binned_df = binned_df[base_cols + other_cols + feat_cols]
+    (out_root / "binned.parquet").write_bytes(binned_df.to_parquet(index=False))
 
     # Dynamic feature space
-    feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
     ensure_dir(out_root / "features" / "dynamic")
     write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"feature_columns": feat_cols})
 
@@ -48,7 +53,7 @@ def materialize_preprocess_artifacts(
     pt_path = None
     tm_path = None
     if cfg.task.prediction_mode == "patient":
-        Xp, yp = make_patient_tabular(binned.table)
+        Xp, yp = make_patient_tabular(binned_df)
         dfp = Xp.reset_index()
         dfp["label"] = yp.to_numpy()
         # Standard column order: keys -> label -> features
@@ -56,7 +61,7 @@ def materialize_preprocess_artifacts(
         (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
         pt_path = "views/patient_tabular.parquet"
     elif cfg.task.prediction_mode == "time":
-        Xt, yt, key = make_time_tabular(binned.table)
+        Xt, yt, key = make_time_tabular(binned_df)
         dft = key.copy().reset_index(drop=True)
         dft["label"] = yt.to_numpy()
         for c in feat_cols:

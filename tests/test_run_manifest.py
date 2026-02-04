@@ -31,3 +31,4 @@ def test_write_run_manifest(tmp_path: Path):
     assert data["schema_version"] == 2
     assert data["features"]["dynamic"]["feature_columns"] == ["num__A", "cat__DX__X"]
     assert data["static_features"]["raw_cols"] == ["age", "sex"]
+    assert (data["artifacts"] or {}).get("binned_parquet_path") == "binned.parquet"

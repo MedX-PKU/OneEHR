@@ -72,19 +72,19 @@ def write_run_manifest(
         "features": {
             "dynamic": {
                 "feature_columns": dyn_cols,
-                "feature_columns_path": "features/dynamic/feature_columns.json",
+                "feature_columns_json_path": "features/dynamic/feature_columns.json",
             },
             "static": {
                 "feature_columns": st_cols,
-                "feature_columns_path": "features/static/feature_columns.json",
+                "feature_columns_json_path": "features/static/feature_columns.json",
                 "matrix_parquet_path": None if not st_cols else "features/static/static_all.parquet",
             },
         },
         "artifacts": {
-            "binned_parquet": "binned.parquet",
-            "labels_parquet": "labels.parquet",
-            "patient_tabular_parquet": patient_tabular_path,
-            "time_tabular_parquet": time_tabular_path,
+            "binned_parquet_path": "binned.parquet",
+            "labels_parquet_path": "labels.parquet",
+            "patient_tabular_parquet_path": patient_tabular_path,
+            "time_tabular_parquet_path": time_tabular_path,
         },
     }
 
