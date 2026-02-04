@@ -41,6 +41,7 @@ from oneehr.hpo.runner import select_best_with_trials
 from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 from oneehr.models.registry import build_model
 from oneehr.modeling.persistence import write_dl_artifacts, write_static_artifacts
+from oneehr.artifacts.run_manifest import write_run_manifest
 
 
 def _train_sequence_patient_level(
@@ -416,6 +417,15 @@ def _run_preprocess(cfg_path: str) -> None:
     ensure_dir(out_root)
     (out_root / "binned.parquet").write_bytes(binned.table.to_parquet(index=False))
     (out_root / "code_vocab.txt").write_text("\n".join(binned.code_vocab), encoding="utf-8")
+
+    feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
+    static_raw = build_static_features(events, cfg.dataset, cfg.static_features)
+    write_run_manifest(
+        out_root=out_root,
+        cfg=cfg,
+        dynamic_feature_columns=feat_cols,
+        static_raw_cols=None if static_raw is None else list(static_raw.columns),
+    )
 
     if labels_res is not None:
         if cfg.task.prediction_mode == "patient":
