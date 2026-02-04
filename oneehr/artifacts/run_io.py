@@ -39,7 +39,12 @@ class RunIO:
         if "patient_id" not in df.columns or "label" not in df.columns:
             raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
         df = df.dropna(subset=["label"]).reset_index(drop=True)
-        X = df.drop(columns=["label"]).set_index("patient_id")
+        feat_cols = manifest.dynamic_feature_columns()
+        missing = [c for c in ["patient_id", "label", *feat_cols] if c not in df.columns]
+        if missing:
+            raise SystemExit(f"Invalid patient_tabular.parquet: missing columns {missing}")
+        df = df[["patient_id", "label", *feat_cols]]
+        X = df[["patient_id", *feat_cols]].set_index("patient_id")
         y = df["label"]
         return X, y
 
@@ -52,9 +57,14 @@ class RunIO:
         missing = [c for c in required if c not in df.columns]
         if missing:
             raise SystemExit(f"Invalid time_tabular.parquet: missing columns {missing}")
-        key = df[["patient_id", "bin_time"]].reset_index(drop=True)
-        y = df["label"].reset_index(drop=True)
-        X = df.drop(columns=["patient_id", "bin_time", "label"]).reset_index(drop=True)
+        feat_cols = manifest.dynamic_feature_columns()
+        missing2 = [c for c in feat_cols if c not in df.columns]
+        if missing2:
+            raise SystemExit(f"Invalid time_tabular.parquet: missing feature columns {missing2}")
+        df = df[["patient_id", "bin_time", "label", *feat_cols]].reset_index(drop=True)
+        key = df[["patient_id", "bin_time"]]
+        y = df["label"]
+        X = df[feat_cols]
         return X, y, key
 
     def load_static_all(self, manifest) -> tuple[pd.DataFrame | None, list[str] | None]:

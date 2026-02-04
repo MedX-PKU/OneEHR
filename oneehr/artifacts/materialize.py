@@ -51,14 +51,17 @@ def materialize_preprocess_artifacts(
         Xp, yp = make_patient_tabular(binned.table)
         dfp = Xp.reset_index()
         dfp["label"] = yp.to_numpy()
+        # Standard column order: keys -> label -> features
+        dfp = dfp[["patient_id", "label", *feat_cols]]
         (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
         pt_path = "views/patient_tabular.parquet"
     elif cfg.task.prediction_mode == "time":
         Xt, yt, key = make_time_tabular(binned.table)
         dft = key.copy().reset_index(drop=True)
         dft["label"] = yt.to_numpy()
-        for c in Xt.columns:
+        for c in feat_cols:
             dft[c] = Xt[c].to_numpy()
+        dft = dft[["patient_id", "bin_time", "label", *feat_cols]]
         (out_root / "views" / "time_tabular.parquet").write_bytes(dft.to_parquet(index=False))
         tm_path = "views/time_tabular.parquet"
     else:
