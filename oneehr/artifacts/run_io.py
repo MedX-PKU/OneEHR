@@ -29,7 +29,23 @@ class RunIO:
         p = (manifest.data.get("artifacts") or {}).get("binned_parquet_path")
         if not isinstance(p, str) or not p:
             raise SystemExit("Missing binned_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
-        return pd.read_parquet(self.run_root / p)
+        df = pd.read_parquet(self.run_root / p)
+        required = {"patient_id", "bin_time"}
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            raise SystemExit(f"Invalid binned.parquet: missing columns {missing}")
+
+        feat_cols = manifest.dynamic_feature_columns()
+        missing_feat = [c for c in feat_cols if c not in df.columns]
+        if missing_feat:
+            raise SystemExit(f"Invalid binned.parquet: missing feature columns {missing_feat}")
+
+        # Standardize column order: keys -> (optional label) -> features
+        base = ["patient_id", "bin_time"]
+        if "label" in df.columns:
+            base.append("label")
+        df = df[base + feat_cols]
+        return df
 
     def load_patient_view(self, manifest) -> tuple[pd.DataFrame, pd.Series]:
         p = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet_path")
