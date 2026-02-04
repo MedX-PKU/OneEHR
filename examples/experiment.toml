@@ -10,7 +10,9 @@ label_col = "label"
 [preprocess]
 bin_size = "1d"
 numeric_strategy = "mean"
-## categorical codes are represented as one-hot presence per bin (0/1)
+## categorical codes are represented as:
+## - "onehot": presence per bin (0/1)
+## - "count":  per-bin counts
 categorical_strategy = "onehot"
 code_selection = "frequency" # frequency | all | list | importance
 top_k_codes = 100 # or "all"

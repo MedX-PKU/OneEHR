@@ -20,12 +20,9 @@ uv pip install -e .
 ```bash
 oneehr preprocess --config examples/experiment.toml
 oneehr train --config examples/experiment.toml
-oneehr benchmark --config examples/experiment.toml
 ```
 
-
-
-`oneehr benchmark` writes per-split metrics to `summary.csv`, and aggregated paper-style tables
+`oneehr train` writes per-split metrics to `summary.csv`, and aggregated paper-style tables
 including 95% CI to `paper_table.csv`.
 
 When multiple models are configured, metrics are grouped by `model` in the output tables and
