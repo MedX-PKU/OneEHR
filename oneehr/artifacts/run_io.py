@@ -85,6 +85,17 @@ class RunIO:
             )
         return static_all, cols
 
+    def load_labels(self, manifest) -> pd.DataFrame | None:
+        p = (manifest.data.get("artifacts") or {}).get("labels_parquet_path")
+        if p is None:
+            return None
+        if not isinstance(p, str) or not p:
+            raise SystemExit("Invalid labels_parquet_path in run_manifest.json.")
+        path = self.run_root / p
+        if not path.exists():
+            return None
+        return pd.read_parquet(path)
+
 
 def read_feature_columns_json(path: Path) -> list[str]:
     """Read a feature_columns.json file.

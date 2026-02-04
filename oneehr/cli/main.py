@@ -21,7 +21,6 @@ from oneehr.models.tabular import (
     train_tabular_model,
 )
 from oneehr.data.binning import bin_events
-from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.eval.metrics import binary_metrics, regression_metrics
 from oneehr.eval.calibration import (
     binary_brier,
@@ -418,18 +417,6 @@ def _run_preprocess(cfg_path: str) -> None:
     out_root = cfg.output.root / cfg.output.run_name
     materialize_preprocess_artifacts(events=events, cfg=cfg, out_root=out_root)
 
-    labels_res = run_label_fn(events, cfg)
-
-    if labels_res is not None:
-        if cfg.task.prediction_mode == "patient":
-            labels = normalize_patient_labels(labels_res.df)
-        elif cfg.task.prediction_mode == "time":
-            labels = normalize_time_labels(labels_res.df, cfg)
-        else:
-            raise SystemExit(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
-        ensure_dir(out_root)
-        (out_root / "labels.parquet").write_bytes(labels.to_parquet(index=False))
-
 
 def _run_train(cfg_path: str, force: bool) -> None:
     cfg0 = load_experiment_config(cfg_path)
@@ -450,14 +437,10 @@ def _run_train(cfg_path: str, force: bool) -> None:
     manifest = read_run_manifest(out_root)
     if manifest is None:
         raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+    run = RunIO(run_root=out_root)
+    labels_df = run.load_labels(manifest)
 
-    labels_res = run_label_fn(events, cfg0)
-    labels_df = None
-    if labels_res is not None:
-        if cfg0.task.prediction_mode == "patient":
-            labels_df = normalize_patient_labels(labels_res.df)
-        elif cfg0.task.prediction_mode == "time":
-            labels_df = normalize_time_labels(labels_res.df, cfg0)
+    # Labels are materialized at preprocess time (labels.parquet).
 
     # Unified training: run all splits by default (or a single fold if configured).
 
@@ -504,14 +487,7 @@ def _run_test(
 
     events = load_event_table(ds)
     binned = run.load_binned(manifest)
-
-    labels_res = run_label_fn(events, cfg0)
-    labels_df = None
-    if labels_res is not None:
-        if cfg0.task.prediction_mode == "patient":
-            labels_df = normalize_patient_labels(labels_res.df)
-        else:
-            labels_df = normalize_time_labels(labels_res.df, cfg0)
+    labels_df = run.load_labels(manifest)
 
     import pandas as pd
 
@@ -720,48 +696,19 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
     splits = make_splits(patient_index, cfg0.split)
 
-    labels_res = run_label_fn(events, cfg0)
-    labels_df = None
-    if labels_res is not None:
-        if cfg0.task.prediction_mode == "patient":
-            labels_df = normalize_patient_labels(labels_res.df)
-        elif cfg0.task.prediction_mode == "time":
-            labels_df = normalize_time_labels(labels_res.df, cfg0)
-
     out_root = cfg0.output.root / cfg0.output.run_name
-    manifest = read_run_manifest(out_root)
-    if manifest is None:
-        raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+    run = RunIO(run_root=out_root)
+    manifest = run.require_manifest()
+    labels_df = run.load_labels(manifest)
     import pandas as pd
-    binned_path = (manifest.data.get("artifacts") or {}).get("binned_parquet_path")
-    if not isinstance(binned_path, str) or not binned_path:
-        raise SystemExit("Missing binned_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
-    binned = pd.read_parquet(out_root / binned_path)
+    binned = run.load_binned(manifest)
 
     if cfg0.task.prediction_mode == "patient":
-        pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet_path")
-        if not isinstance(pt_path, str) or not pt_path:
-            raise SystemExit("Missing patient_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
-        dfp = pd.read_parquet(out_root / pt_path)
-        if "patient_id" not in dfp.columns or "label" not in dfp.columns:
-            raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
-        dfp = dfp.dropna(subset=["label"]).reset_index(drop=True)
-        X = dfp.drop(columns=["label"]).set_index("patient_id")
-        y = dfp["label"]
+        X, y = run.load_patient_view(manifest)
         key = None
         global_mask = None
     elif cfg0.task.prediction_mode == "time":
-        tm_path = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet_path")
-        if not isinstance(tm_path, str) or not tm_path:
-            raise SystemExit("Missing time_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
-        dft = pd.read_parquet(out_root / tm_path)
-        required = {"patient_id", "bin_time", "label"}
-        missing = [c for c in required if c not in dft.columns]
-        if missing:
-            raise SystemExit(f"Invalid time_tabular.parquet: missing columns {missing}")
-        key = dft[["patient_id", "bin_time"]].reset_index(drop=True)
-        y = dft["label"].reset_index(drop=True)
-        X = dft.drop(columns=["patient_id", "bin_time", "label"]).reset_index(drop=True)
+        X, y, key = run.load_time_view(manifest)
         global_mask = None
     else:
         raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
@@ -1748,33 +1695,17 @@ def _run_hpo(cfg_path: str) -> None:
     sp = splits[0]
 
     out_root = cfg0.output.root / cfg0.output.run_name
-    manifest = read_run_manifest(out_root)
-    if manifest is None:
-        raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+    run = RunIO(run_root=out_root)
+    manifest = run.require_manifest()
     import pandas as pd
 
-    binned_path = (manifest.data.get("artifacts") or {}).get("binned_parquet_path")
-    if not isinstance(binned_path, str) or not binned_path:
-        raise SystemExit("Missing binned_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
-    binned = pd.read_parquet(out_root / binned_path)
-
-    labels_res = run_label_fn(events, cfg0)
-    labels_df = None
-    if labels_res is not None:
-        if cfg0.task.prediction_mode == "patient":
-            labels_df = normalize_patient_labels(labels_res.df)
-        else:
-            labels_df = normalize_time_labels(labels_res.df, cfg0)
+    binned = run.load_binned(manifest)
+    labels_df = run.load_labels(manifest)
 
     if cfg0.task.prediction_mode != "patient":
         raise SystemExit("hpo currently supports prediction_mode='patient' only")
 
-    pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet_path")
-    if not isinstance(pt_path, str) or not pt_path:
-        raise SystemExit("Missing patient_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
-    dfp = pd.read_parquet(out_root / pt_path).dropna(subset=["label"]).reset_index(drop=True)
-    X = dfp.drop(columns=["label"]).set_index("patient_id")
-    y = dfp["label"]
+    X, y = run.load_patient_view(manifest)
     train_mask = X.index.astype(str).isin(sp.train_patients)
     val_mask = X.index.astype(str).isin(sp.val_patients)
     X_train, y_train = X.loc[train_mask], y.loc[train_mask].to_numpy()

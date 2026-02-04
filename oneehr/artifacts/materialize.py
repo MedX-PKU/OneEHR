@@ -7,6 +7,7 @@ import pandas as pd
 from oneehr.artifacts.run_manifest import write_run_manifest
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.binning import bin_events
+from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.data.static_features import build_static_features
 from oneehr.data.static_postprocess import fit_transform_static_features
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
@@ -31,6 +32,7 @@ def materialize_preprocess_artifacts(
     - features/static/feature_columns.json + features/static/static_all.parquet (if enabled)
     - views/patient_tabular.parquet or views/time_tabular.parquet
     - run_manifest.json
+    - labels.parquet (if labels.fn provided)
     """
 
     out_root = ensure_dir(out_root)
@@ -99,3 +101,13 @@ def materialize_preprocess_artifacts(
         patient_tabular_path=pt_path,
         time_tabular_path=tm_path,
     )
+
+    labels_res = run_label_fn(events, cfg)
+    if labels_res is not None:
+        if cfg.task.prediction_mode == "patient":
+            labels = normalize_patient_labels(labels_res.df)
+        elif cfg.task.prediction_mode == "time":
+            labels = normalize_time_labels(labels_res.df, cfg)
+        else:
+            raise ValueError(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
+        (out_root / "labels.parquet").write_bytes(labels.to_parquet(index=False))
