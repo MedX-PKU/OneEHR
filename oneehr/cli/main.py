@@ -41,7 +41,7 @@ from oneehr.hpo.runner import select_best_with_trials
 from oneehr.modeling.trainer import fit_sequence_model, fit_sequence_model_time
 from oneehr.models.registry import build_model
 from oneehr.modeling.persistence import write_dl_artifacts
-from oneehr.artifacts.run_manifest import write_run_manifest
+from oneehr.artifacts.materialize import materialize_preprocess_artifacts
 from oneehr.artifacts.read import read_run_manifest
 from oneehr.artifacts.run_io import RunIO
 
@@ -415,79 +415,10 @@ def _warn_unused_hpo_overrides(model_name: str, overrides: list[dict[str, object
 def _run_preprocess(cfg_path: str) -> None:
     cfg = load_experiment_config(cfg_path)
     events = load_event_table(cfg.dataset)
-    binned = bin_events(events, cfg.dataset, cfg.preprocess)
+    out_root = cfg.output.root / cfg.output.run_name
+    materialize_preprocess_artifacts(events=events, cfg=cfg, out_root=out_root)
 
     labels_res = run_label_fn(events, cfg)
-
-    out_root = cfg.output.root / cfg.output.run_name
-    ensure_dir(out_root)
-    (out_root / "binned.parquet").write_bytes(binned.table.to_parquet(index=False))
-
-    feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
-    ensure_dir(out_root / "features" / "dynamic")
-    write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"columns": feat_cols})
-
-    # Precompute tabular views (avoid re-aggregation drift in train/test).
-    ensure_dir(out_root / "views")
-    if cfg.task.prediction_mode == "patient":
-        Xp, yp = make_patient_tabular(binned.table)
-        # Drop unlabeled patients to keep downstream metrics stable.
-        keep = yp.notna()
-        Xp = Xp.loc[keep]
-        yp = yp.loc[keep]
-        dfp = Xp.reset_index()
-        dfp["label"] = yp.to_numpy()
-        (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
-    elif cfg.task.prediction_mode == "time":
-        Xt, yt, key = make_time_tabular(binned.table)
-        dft = key.copy().reset_index(drop=True)
-        dft["label"] = yt.to_numpy()
-        for c in Xt.columns:
-            dft[c] = Xt[c].to_numpy()
-        (out_root / "views" / "time_tabular.parquet").write_bytes(dft.to_parquet(index=False))
-    static_raw = build_static_features(events, cfg.dataset, cfg.static_features)
-    static_feat_cols = []
-    static_post_pipeline = None
-    if static_raw is not None and not static_raw.empty and cfg.static_features.enabled:
-        # Global (run-level) static feature space: fit on full dataset here for simplicity.
-        # This keeps static feature columns stable across splits.
-        from oneehr.data.static_postprocess import fit_transform_static_features
-
-        static_all, _, _, static_art = fit_transform_static_features(
-            raw_train=static_raw,
-            raw_val=None,
-            raw_test=None,
-            pipeline=cfg.preprocess.pipeline,
-        )
-        static_feat_cols = list(static_all.columns)
-        static_post_pipeline = None if static_art.fitted_postprocess is None else static_art.fitted_postprocess.pipeline
-        ensure_dir(out_root / "features" / "static")
-        write_json(
-            out_root / "features" / "static" / "feature_columns.json",
-            {"columns": static_feat_cols},
-        )
-        (out_root / "features" / "static" / "static_all.parquet").write_bytes(
-            static_all.to_parquet(index=True)
-        )
-
-    pt_path = None
-    tm_path = None
-    if cfg.task.prediction_mode == "patient":
-        pt_path = "views/patient_tabular.parquet"
-    elif cfg.task.prediction_mode == "time":
-        tm_path = "views/time_tabular.parquet"
-
-    write_run_manifest(
-        out_root=out_root,
-        cfg=cfg,
-        dynamic_feature_columns=feat_cols,
-        static_raw_cols=None if static_raw is None else list(static_raw.columns),
-        static_feature_columns=static_feat_cols,
-        static_feature_columns_sha256=None,
-        static_postprocess_pipeline=static_post_pipeline,
-        patient_tabular_path=pt_path,
-        time_tabular_path=tm_path,
-    )
 
     if labels_res is not None:
         if cfg.task.prediction_mode == "patient":
@@ -496,6 +427,7 @@ def _run_preprocess(cfg_path: str) -> None:
             labels = normalize_time_labels(labels_res.df, cfg)
         else:
             raise SystemExit(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
+        ensure_dir(out_root)
         (out_root / "labels.parquet").write_bytes(labels.to_parquet(index=False))
 
 

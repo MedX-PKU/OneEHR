@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+
+from oneehr.artifacts.run_manifest import write_run_manifest
+from oneehr.config.schema import ExperimentConfig
+from oneehr.data.binning import bin_events
+from oneehr.data.static_features import build_static_features
+from oneehr.data.static_postprocess import fit_transform_static_features
+from oneehr.data.tabular import make_patient_tabular, make_time_tabular
+from oneehr.utils.io import ensure_dir, write_json
+
+
+def materialize_preprocess_artifacts(
+    *,
+    events: pd.DataFrame,
+    cfg: ExperimentConfig,
+    out_root: Path,
+) -> None:
+    """Materialize run artifacts used by train/test/hpo.
+
+    Output conventions (MVP, schema_version=2):
+    - Parquet for tables/matrices: `*.parquet`
+    - JSON for schemas/metadata: `*.json`
+
+    Writes:
+    - binned.parquet
+    - features/dynamic/feature_columns.json
+    - features/static/feature_columns.json + features/static/static_all.parquet (if enabled)
+    - views/patient_tabular.parquet or views/time_tabular.parquet
+    - run_manifest.json
+    """
+
+    out_root = ensure_dir(out_root)
+
+    binned = bin_events(events, cfg.dataset, cfg.preprocess)
+    (out_root / "binned.parquet").write_bytes(binned.table.to_parquet(index=False))
+
+    # Dynamic feature space
+    feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
+    ensure_dir(out_root / "features" / "dynamic")
+    write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"columns": feat_cols})
+
+    # Views (tabular)
+    ensure_dir(out_root / "views")
+    pt_path = None
+    tm_path = None
+    if cfg.task.prediction_mode == "patient":
+        Xp, yp = make_patient_tabular(binned.table)
+        dfp = Xp.reset_index()
+        dfp["label"] = yp.to_numpy()
+        (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
+        pt_path = "views/patient_tabular.parquet"
+    elif cfg.task.prediction_mode == "time":
+        Xt, yt, key = make_time_tabular(binned.table)
+        dft = key.copy().reset_index(drop=True)
+        dft["label"] = yt.to_numpy()
+        for c in Xt.columns:
+            dft[c] = Xt[c].to_numpy()
+        (out_root / "views" / "time_tabular.parquet").write_bytes(dft.to_parquet(index=False))
+        tm_path = "views/time_tabular.parquet"
+    else:
+        raise ValueError(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
+
+    # Static
+    static_raw = build_static_features(events, cfg.dataset, cfg.static_features)
+    static_feat_cols: list[str] = []
+    static_post_pipeline = None
+    if static_raw is not None and not static_raw.empty and cfg.static_features.enabled:
+        static_all, _, _, static_art = fit_transform_static_features(
+            raw_train=static_raw,
+            raw_val=None,
+            raw_test=None,
+            pipeline=cfg.preprocess.pipeline,
+        )
+        static_feat_cols = list(static_all.columns)
+        static_post_pipeline = None if static_art.fitted_postprocess is None else static_art.fitted_postprocess.pipeline
+        ensure_dir(out_root / "features" / "static")
+        write_json(out_root / "features" / "static" / "feature_columns.json", {"columns": static_feat_cols})
+        (out_root / "features" / "static" / "static_all.parquet").write_bytes(static_all.to_parquet(index=True))
+
+    write_run_manifest(
+        out_root=out_root,
+        cfg=cfg,
+        dynamic_feature_columns=feat_cols,
+        static_raw_cols=None if static_raw is None else list(static_raw.columns),
+        static_feature_columns=static_feat_cols,
+        static_feature_columns_sha256=None,
+        static_postprocess_pipeline=static_post_pipeline,
+        patient_tabular_path=pt_path,
+        time_tabular_path=tm_path,
+    )
+
