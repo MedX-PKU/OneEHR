@@ -530,6 +530,23 @@ def _run_test(
             "This version requires running `oneehr preprocess` first."
         )
     dynamic_feature_columns = manifest.dynamic_feature_columns()
+    static_all = None
+    static_feature_columns = None
+    st_path = manifest.static_matrix_path()
+    if cfg0.static_features.enabled:
+        if st_path is None:
+            raise SystemExit(
+                "Static features enabled but static matrix not found in run_manifest.json. "
+                "Re-run `oneehr preprocess`."
+            )
+        static_all = pd.read_parquet(run_root / st_path)
+        static_feature_columns = manifest.static_feature_columns()
+        # Ensure columns match manifest exactly (fail fast).
+        if list(static_all.columns) != list(static_feature_columns):
+            raise SystemExit(
+                "Static feature_columns mismatch with run_manifest.json. "
+                "Re-run preprocess/train with consistent features or use a different run dir."
+            )
 
     # Resolve test dataset from CLI override or config.
     if test_dataset is not None:
@@ -684,8 +701,21 @@ def _run_test(
                 if cfg0.task.prediction_mode == "patient":
                     X_seq = pad_sequences(seqs, lens)
                     lens_t = torch.from_numpy(lens)
+                    S = None
+                    if static_all is not None:
+                        from oneehr.data.sequence import align_static_features
+
+                        S_np = align_static_features(
+                            pids,
+                            static_all,
+                            expected_feature_columns=list(static_feature_columns or []),
+                        )
+                        S = None if S_np is None else torch.from_numpy(S_np)
                     with torch.no_grad():
-                        logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                        if S is None:
+                            logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                        else:
+                            logits = model(X_seq, lens_t, S).squeeze(-1).detach().cpu().numpy()
                     if cfg0.task.kind == "binary":
                         y_pred = 1.0 / (1.0 + np.exp(-logits))
                     else:
@@ -706,8 +736,21 @@ def _run_test(
                     )
                     X_seq = pad_sequences(seqs2, lens2)
                     lens_t = torch.from_numpy(lens2)
+                    S = None
+                    if static_all is not None:
+                        from oneehr.data.sequence import align_static_features
+
+                        S_np = align_static_features(
+                            pids2,
+                            static_all,
+                            expected_feature_columns=list(static_feature_columns or []),
+                        )
+                        S = None if S_np is None else torch.from_numpy(S_np)
                     with torch.no_grad():
-                        logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                        if S is None:
+                            logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                        else:
+                            logits = model(X_seq, lens_t, S).squeeze(-1).detach().cpu().numpy()
                     if cfg0.task.kind == "binary":
                         probs = 1.0 / (1.0 + np.exp(-logits))
                     else:
