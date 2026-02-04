@@ -425,6 +425,21 @@ def _run_preprocess(cfg_path: str) -> None:
     feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
     ensure_dir(out_root / "features" / "dynamic")
     write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"columns": feat_cols})
+
+    # Precompute tabular views (avoid re-aggregation drift in train/test).
+    ensure_dir(out_root / "views")
+    if cfg.task.prediction_mode == "patient":
+        Xp, yp = make_patient_tabular(binned.table)
+        dfp = Xp.reset_index()
+        dfp["label"] = yp.to_numpy()
+        (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
+    elif cfg.task.prediction_mode == "time":
+        Xt, yt, key = make_time_tabular(binned.table)
+        dft = key.copy().reset_index(drop=True)
+        dft["label"] = yt.to_numpy()
+        for c in Xt.columns:
+            dft[c] = Xt[c].to_numpy()
+        (out_root / "views" / "time_tabular.parquet").write_bytes(dft.to_parquet(index=False))
     static_raw = build_static_features(events, cfg.dataset, cfg.static_features)
     static_feat_cols = []
     static_post_pipeline = None
@@ -450,6 +465,13 @@ def _run_preprocess(cfg_path: str) -> None:
             static_all.to_parquet(index=True)
         )
 
+    pt_path = None
+    tm_path = None
+    if cfg.task.prediction_mode == "patient":
+        pt_path = "views/patient_tabular.parquet"
+    elif cfg.task.prediction_mode == "time":
+        tm_path = "views/time_tabular.parquet"
+
     write_run_manifest(
         out_root=out_root,
         cfg=cfg,
@@ -458,6 +480,8 @@ def _run_preprocess(cfg_path: str) -> None:
         static_feature_columns=static_feat_cols,
         static_feature_columns_sha256=None,
         static_postprocess_pipeline=static_post_pipeline,
+        patient_tabular_path=pt_path,
+        time_tabular_path=tm_path,
     )
 
     if labels_res is not None:
@@ -577,26 +601,29 @@ def _run_test(
     import pandas as pd
 
     if cfg0.task.prediction_mode == "patient":
-        X, y0 = make_patient_tabular(binned)
-        if labels_df is not None:
-            y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
-        else:
-            y = y0
+        pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet")
+        if not isinstance(pt_path, str) or not pt_path:
+            raise SystemExit("Missing patient_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+        dfp = pd.read_parquet(run_root / pt_path)
+        if "patient_id" not in dfp.columns or "label" not in dfp.columns:
+            raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
+        X = dfp.drop(columns=["label"]).set_index("patient_id")
+        y = dfp["label"]
         key_df = None
         global_mask = None
     elif cfg0.task.prediction_mode == "time":
-        X0, y0, key0 = make_time_tabular(binned)
-        if labels_df is not None:
-            feat = key0.copy()
-            feat["_row"] = feat.index
-            lab = labels_df.merge(feat, on=["patient_id", "bin_time"], how="inner")
-            X = X0.loc[lab["_row"].to_numpy()].reset_index(drop=True)
-            y = lab["label"].reset_index(drop=True)
-            key_df = lab[["patient_id", "bin_time"]].reset_index(drop=True)
-            global_mask = lab["mask"].to_numpy().astype(bool)
-        else:
-            X, y, key_df = X0, y0, key0
-            global_mask = None
+        tm_path = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet")
+        if not isinstance(tm_path, str) or not tm_path:
+            raise SystemExit("Missing time_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+        dft = pd.read_parquet(run_root / tm_path)
+        required = {"patient_id", "bin_time", "label"}
+        missing = [c for c in required if c not in dft.columns]
+        if missing:
+            raise SystemExit(f"Invalid time_tabular.parquet: missing columns {missing}")
+        key_df = dft[["patient_id", "bin_time"]].reset_index(drop=True)
+        y = dft["label"].reset_index(drop=True)
+        X = dft.drop(columns=["patient_id", "bin_time", "label"]).reset_index(drop=True)
+        global_mask = None
     else:
         raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
 

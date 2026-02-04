@@ -36,6 +36,8 @@ def write_run_manifest(
     static_feature_columns: list[str] | None,
     static_feature_columns_sha256: str | None,
     static_postprocess_pipeline: list[dict[str, object]] | None,
+    patient_tabular_path: str | None,
+    time_tabular_path: str | None,
 ) -> None:
     """Write a run-level manifest describing data + features for reproducibility.
 
@@ -89,6 +91,8 @@ def write_run_manifest(
         "artifacts": {
             "binned_parquet": "binned.parquet",
             "labels_parquet": "labels.parquet",
+            "patient_tabular_parquet": patient_tabular_path,
+            "time_tabular_parquet": time_tabular_path,
         },
     }
 

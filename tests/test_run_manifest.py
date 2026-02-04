@@ -24,6 +24,8 @@ def test_write_run_manifest(tmp_path: Path):
         static_feature_columns=["num__age", "cat__sex__M"],
         static_feature_columns_sha256=None,
         static_postprocess_pipeline=[],
+        patient_tabular_path="views/patient_tabular.parquet",
+        time_tabular_path=None,
     )
 
     data = json.loads((out / "run_manifest.json").read_text(encoding="utf-8"))
