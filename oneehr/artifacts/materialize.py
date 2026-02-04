@@ -87,9 +87,7 @@ def materialize_preprocess_artifacts(
         dynamic_feature_columns=feat_cols,
         static_raw_cols=None if static_raw is None else list(static_raw.columns),
         static_feature_columns=static_feat_cols,
-        static_feature_columns_sha256=None,
         static_postprocess_pipeline=static_post_pipeline,
         patient_tabular_path=pt_path,
         time_tabular_path=tm_path,
     )
-

@@ -34,7 +34,6 @@ def write_run_manifest(
     dynamic_feature_columns: list[str] | None,
     static_raw_cols: list[str] | None,
     static_feature_columns: list[str] | None,
-    static_feature_columns_sha256: str | None,
     static_postprocess_pipeline: list[dict[str, object]] | None,
     patient_tabular_path: str | None,
     time_tabular_path: str | None,
@@ -48,12 +47,7 @@ def write_run_manifest(
     out_root = ensure_dir(out_root)
 
     dyn_cols = [] if not dynamic_feature_columns else list(dynamic_feature_columns)
-    dyn_sha = None if not dyn_cols else _sha256_lines(dyn_cols)
-
     st_cols = [] if not static_feature_columns else list(static_feature_columns)
-    st_sha = static_feature_columns_sha256
-    if st_cols and not st_sha:
-        st_sha = _sha256_lines(st_cols)
 
     manifest = {
         "schema_version": 2,
@@ -78,12 +72,10 @@ def write_run_manifest(
         "features": {
             "dynamic": {
                 "feature_columns": dyn_cols,
-                "feature_columns_sha256": dyn_sha,
                 "feature_columns_path": "features/dynamic/feature_columns.json",
             },
             "static": {
                 "feature_columns": st_cols,
-                "feature_columns_sha256": st_sha,
                 "feature_columns_path": "features/static/feature_columns.json",
                 "matrix_parquet_path": None if not st_cols else "features/static/static_all.parquet",
             },

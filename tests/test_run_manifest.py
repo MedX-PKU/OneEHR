@@ -22,7 +22,6 @@ def test_write_run_manifest(tmp_path: Path):
         dynamic_feature_columns=["num__A", "cat__DX__X"],
         static_raw_cols=["age", "sex"],
         static_feature_columns=["num__age", "cat__sex__M"],
-        static_feature_columns_sha256=None,
         static_postprocess_pipeline=[],
         patient_tabular_path="views/patient_tabular.parquet",
         time_tabular_path=None,

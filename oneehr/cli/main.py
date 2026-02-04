@@ -576,25 +576,11 @@ def _run_test(
                     (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns"))
                     or None
                 )
-                exp_sha = (
-                    (((manifest.data.get("features") or {}).get("dynamic") or {}).get("feature_columns_sha256"))
-                    or None
-                )
                 if isinstance(exp_cols, list) and exp_cols and exp_cols != feat_cols:
                     raise SystemExit(
                         "DL test dynamic feature_columns mismatch with run_manifest.json. "
                         "Re-run preprocess/train with consistent features or use a different run dir."
                     )
-                if isinstance(exp_sha, str) and exp_sha:
-                    import hashlib
-
-                    norm = "\n".join([c.strip() for c in feat_cols]) + "\n"
-                    got_sha = hashlib.sha256(norm.encode("utf-8")).hexdigest()
-                    if got_sha != exp_sha:
-                        raise SystemExit(
-                            "DL test dynamic feature_columns hash mismatch with run_manifest.json. "
-                            "Re-run preprocess/train with consistent features or use a different run dir."
-                        )
 
                 meta_path = sp_dir / "model_meta.json"
                 if meta_path.exists():
