@@ -41,7 +41,7 @@ def materialize_preprocess_artifacts(
     # Dynamic feature space
     feat_cols = [c for c in binned.table.columns if c.startswith("num__") or c.startswith("cat__")]
     ensure_dir(out_root / "features" / "dynamic")
-    write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"columns": feat_cols})
+    write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"feature_columns": feat_cols})
 
     # Views (tabular)
     ensure_dir(out_root / "views")
@@ -78,7 +78,7 @@ def materialize_preprocess_artifacts(
         static_feat_cols = list(static_all.columns)
         static_post_pipeline = None if static_art.fitted_postprocess is None else static_art.fitted_postprocess.pipeline
         ensure_dir(out_root / "features" / "static")
-        write_json(out_root / "features" / "static" / "feature_columns.json", {"columns": static_feat_cols})
+        write_json(out_root / "features" / "static" / "feature_columns.json", {"feature_columns": static_feat_cols})
         (out_root / "features" / "static" / "static_all.parquet").write_bytes(static_all.to_parquet(index=True))
 
     write_run_manifest(
