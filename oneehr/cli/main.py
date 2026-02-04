@@ -430,6 +430,10 @@ def _run_preprocess(cfg_path: str) -> None:
     ensure_dir(out_root / "views")
     if cfg.task.prediction_mode == "patient":
         Xp, yp = make_patient_tabular(binned.table)
+        # Drop unlabeled patients to keep downstream metrics stable.
+        keep = yp.notna()
+        Xp = Xp.loc[keep]
+        yp = yp.loc[keep]
         dfp = Xp.reset_index()
         dfp["label"] = yp.to_numpy()
         (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
@@ -846,36 +850,39 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
         elif cfg0.task.prediction_mode == "time":
             labels_df = normalize_time_labels(labels_res.df, cfg0)
 
-    if cfg0.task.prediction_mode == "patient":
-        X, y0 = make_patient_tabular(binned)
-        if labels_df is not None:
-            y = labels_df.set_index("patient_id")["label"].reindex(X.index.astype(str))
-        else:
-            y = y0
-        key = None
-        global_mask = None
-    elif cfg0.task.prediction_mode == "time":
-        X0, y0, key0 = make_time_tabular(binned)
-        if labels_df is not None:
-            feat = key0.copy()
-            feat["_row"] = feat.index
-            lab = labels_df.merge(feat, on=["patient_id", "bin_time"], how="inner")
-            X = X0.loc[lab["_row"].to_numpy()].reset_index(drop=True)
-            y = lab["label"].reset_index(drop=True)
-            key = lab[["patient_id", "bin_time"]].reset_index(drop=True)
-            global_mask = lab["mask"].to_numpy().astype(bool)
-        else:
-            X, y, key = X0, y0, key0
-            global_mask = None
-    else:
-        raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
-
-    import pandas as pd
-
     out_root = cfg0.output.root / cfg0.output.run_name
     manifest = read_run_manifest(out_root)
     if manifest is None:
         raise SystemExit("Missing run_manifest.json; run `oneehr preprocess` first.")
+    import pandas as pd
+
+    if cfg0.task.prediction_mode == "patient":
+        pt_path = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet")
+        if not isinstance(pt_path, str) or not pt_path:
+            raise SystemExit("Missing patient_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+        dfp = pd.read_parquet(out_root / pt_path)
+        if "patient_id" not in dfp.columns or "label" not in dfp.columns:
+            raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
+        dfp = dfp.dropna(subset=["label"]).reset_index(drop=True)
+        X = dfp.drop(columns=["label"]).set_index("patient_id")
+        y = dfp["label"]
+        key = None
+        global_mask = None
+    elif cfg0.task.prediction_mode == "time":
+        tm_path = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet")
+        if not isinstance(tm_path, str) or not tm_path:
+            raise SystemExit("Missing time_tabular_parquet in run_manifest.json. Re-run `oneehr preprocess`.")
+        dft = pd.read_parquet(out_root / tm_path)
+        required = {"patient_id", "bin_time", "label"}
+        missing = [c for c in required if c not in dft.columns]
+        if missing:
+            raise SystemExit(f"Invalid time_tabular.parquet: missing columns {missing}")
+        key = dft[["patient_id", "bin_time"]].reset_index(drop=True)
+        y = dft["label"].reset_index(drop=True)
+        X = dft.drop(columns=["patient_id", "bin_time", "label"]).reset_index(drop=True)
+        global_mask = None
+    else:
+        raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
     dynamic_feature_columns = manifest.dynamic_feature_columns()
 
     static_all = None
@@ -1113,6 +1120,14 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             X_train, y_train = X.loc[train_mask2], y.loc[train_mask2].to_numpy()
             X_val, y_val = X.loc[val_mask2], y.loc[val_mask2].to_numpy()
             X_test, y_test = X.loc[test_mask2], y.loc[test_mask2].to_numpy()
+            # Ensure no NaNs in labels (can happen if split includes unlabeled patients).
+            if cfg_model.task.prediction_mode == "patient":
+                keep_tr = ~np.isnan(y_train.astype(float))
+                keep_va = ~np.isnan(y_val.astype(float))
+                keep_te = ~np.isnan(y_test.astype(float))
+                X_train, y_train = X_train.iloc[keep_tr], y_train[keep_tr]
+                X_val, y_val = X_val.iloc[keep_va], y_val[keep_va]
+                X_test, y_test = X_test.iloc[keep_te], y_test[keep_te]
             if cfg_model.task.prediction_mode == "time":
                 assert key is not None
                 test_key = key.loc[test_mask2].reset_index(drop=True)
@@ -1558,10 +1573,17 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     y_test_logits=test_logits,
                 )
 
+            # Guard against any remaining unlabeled rows in test (should be rare).
+            finite_mask = np.isfinite(y_test.astype(float))
+            y_test_eval = y_test[finite_mask]
+            y_score_eval = np.asarray(y_score)[finite_mask]
+            if y_test_eval.size == 0:
+                # No labeled samples in this split/test partition.
+                continue
             if cfg.task.kind == "binary":
-                metrics = binary_metrics(y_test.astype(float), y_score.astype(float)).metrics
+                metrics = binary_metrics(y_test_eval.astype(float), y_score_eval.astype(float)).metrics
             else:
-                metrics = regression_metrics(y_test.astype(float), y_score.astype(float)).metrics
+                metrics = regression_metrics(y_test_eval.astype(float), y_score_eval.astype(float)).metrics
             metrics = {**metrics, **cal_extra}
 
             model_out = ensure_dir(out_root / "models" / model_name / sp.name)
