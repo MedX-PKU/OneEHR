@@ -40,6 +40,7 @@ from oneehr.models.registry import build_model
 from oneehr.modeling.persistence import write_dl_artifacts
 from oneehr.artifacts.materialize import materialize_preprocess_artifacts
 from oneehr.artifacts.run_io import RunIO
+from oneehr.data.overview import build_dataset_overview
 
 
 def _train_sequence_patient_level(
@@ -348,6 +349,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_pre = sub.add_parser("preprocess", help="Preprocess raw event table into model-ready artifacts")
     p_pre.add_argument("--config", required=True)
 
+    p_over = sub.add_parser("overview", help="Show a dataset overview (like describe) from config")
+    p_over.add_argument("--config", required=True)
+    p_over.add_argument("--top-k-codes", type=int, default=20)
+
     p_train = sub.add_parser("train", help="Train a model")
     p_train.add_argument("--config", required=True)
     p_train.add_argument(
@@ -413,6 +418,17 @@ def _run_preprocess(cfg_path: str) -> None:
     events = load_event_table(cfg.dataset)
     out_root = cfg.output.root / cfg.output.run_name
     materialize_preprocess_artifacts(events=events, cfg=cfg, out_root=out_root)
+
+    # Persist a lightweight dataset overview for quick inspection.
+    overview = build_dataset_overview(events, cfg.dataset)
+    write_json(out_root / "dataset_overview.json", overview.__dict__)
+
+
+def _run_overview(cfg_path: str, *, top_k_codes: int) -> None:
+    cfg = load_experiment_config(cfg_path)
+    events = load_event_table(cfg.dataset)
+    ov = build_dataset_overview(events, cfg.dataset, top_k_codes=top_k_codes)
+    print(json.dumps(ov.__dict__, indent=2, ensure_ascii=False))
 
 
 def _run_train(cfg_path: str, force: bool) -> None:
@@ -1761,6 +1777,9 @@ def main() -> None:
 
     if args.command == "preprocess":
         _run_preprocess(args.config)
+        return
+    if args.command == "overview":
+        _run_overview(args.config, top_k_codes=int(args.top_k_codes))
         return
     if args.command == "train":
         _run_train(args.config, force=bool(args.force))
