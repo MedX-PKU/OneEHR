@@ -28,6 +28,10 @@ Patient-level table (one row per patient). Minimal requirement:
 
 Other columns are treated as static covariates (e.g., sex, age).
 
+If `dataset.static` is provided, OneEHR will automatically materialize the static
+matrix and make it available to models that accept static covariates (no extra
+`[static_features]` config required).
+
 ## 3) `label.csv` (Optional, Recommended)
 
 Task-agnostic label event table (long format). Required columns (configurable via `[dataset.label]`):
@@ -95,4 +99,3 @@ def build_labels(dynamic, static, label, cfg) -> pd.DataFrame:
 Return:
 - patient mode (N-1): columns `patient_id`, `label`
 - time mode (N-N): `patient_id`, plus `bin_time` or `label_time` (and optional `mask`)
-

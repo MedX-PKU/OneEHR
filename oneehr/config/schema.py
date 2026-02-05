@@ -81,6 +81,8 @@ class StaticFeaturesConfig:
     OneEHR does not derive static features by aggregating the dynamic event table.
     """
 
+    # Deprecated: kept for backward compatibility.
+    # Static features are enabled automatically when `dataset.static` is provided.
     enabled: bool = False
 
 

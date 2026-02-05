@@ -77,12 +77,7 @@ def materialize_preprocess_artifacts(
 
     # Static (only from static.csv)
     static_raw = None
-    if cfg.static_features.enabled:
-        if static is None:
-            raise ValueError(
-                "static_features.enabled=true requires dataset.static.path (static.csv). "
-                "OneEHR does not derive static features from dynamic events."
-            )
+    if static is not None:
         static_raw = static
         # Normalize patient_id name to match pipeline expectations.
         pid_col = cfg.dataset.static.patient_id_col if cfg.dataset.static is not None else "patient_id"
@@ -90,7 +85,7 @@ def materialize_preprocess_artifacts(
             static_raw = static_raw.rename(columns={pid_col: "patient_id"})
     static_feat_cols: list[str] = []
     static_post_pipeline = None
-    if static_raw is not None and not static_raw.empty and cfg.static_features.enabled:
+    if static_raw is not None and not static_raw.empty:
         static_all, _, _, static_art = fit_transform_static_features(
             raw_train=static_raw,
             raw_val=None,

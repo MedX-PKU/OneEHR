@@ -731,13 +731,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
     static_all = None
     static_feature_columns = None
-    if cfg0.static_features.enabled:
-        st_path = manifest.static_matrix_path()
-        if st_path is None:
-            raise SystemExit(
-                "Static features enabled but static matrix not found in run_manifest.json. "
-                "Re-run `oneehr preprocess`."
-            )
+    st_path = manifest.static_matrix_path()
+    if st_path is not None:
         static_all = pd.read_parquet(out_root / st_path)
         static_feature_columns = manifest.static_feature_columns()
         if list(static_all.columns) != list(static_feature_columns):

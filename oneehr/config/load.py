@@ -184,9 +184,10 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         pipeline=list(preprocess_raw.get("pipeline", []) or []),
     )
 
-    static_features = StaticFeaturesConfig(
-        enabled=bool(static_raw.get("enabled", False)),
-    )
+    # Static is enabled implicitly by providing dataset.static (static.csv).
+    # Keep `static_features.enabled` only for backward compatibility with older configs.
+    static_enabled = bool(static_raw.get("enabled", False)) or (static is not None and static.path is not None)
+    static_features = StaticFeaturesConfig(enabled=static_enabled)
 
     task = TaskConfig(
         kind=_require(task_raw, "kind"),

@@ -14,9 +14,6 @@ pipeline = [
   { op = "impute", strategy = "mean", cols = "num__*" },
 ]
 
-[static_features]
-enabled = true
-
 [dataset.static]
 # Export a patient-level `static.csv` and point to it here.
 path = "/path/to/static.csv"

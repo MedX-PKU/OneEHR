@@ -64,7 +64,7 @@ def write_run_manifest(
             "pipeline": _as_jsonable(list(cfg.preprocess.pipeline)),
         },
         "static_features": {
-            "enabled": bool(cfg.static_features.enabled),
+            "enabled": bool(static_feature_columns),
             "raw_cols": [] if not static_raw_cols else list(static_raw_cols),
             "postprocess_pipeline": [] if static_postprocess_pipeline is None else _as_jsonable(static_postprocess_pipeline),
         },
