@@ -1,0 +1,48 @@
+[dataset]
+name = "tjh"
+root = "/home/yhzhu/projects/pyehr/datasets/tjh"
+file_type = "xlsx"
+patient_id_col = "patient_id"
+time_col = "event_time"
+code_col = "code"
+value_col = "value"
+label_col = "Outcome"
+
+[preprocess]
+bin_size = "1d"
+numeric_strategy = "mean"
+categorical_strategy = "onehot"
+code_selection = "frequency"
+top_k_codes = 200
+min_code_count = 1
+pipeline = [
+  { op = "standardize", cols = "num__*" },
+  { op = "impute", strategy = "mean", cols = "num__*" },
+]
+
+[static_features]
+enabled = true
+cols = ["Sex", "Age"]
+agg = "first"
+
+[task]
+kind = "binary"
+prediction_mode = "patient"
+
+[split]
+kind = "kfold"
+n_splits = 5
+seed = 42
+val_size = 0.2
+
+[[models]]
+name = "xgboost"
+
+[[models]]
+name = "gru"
+
+[output]
+root = "logs"
+run_name = "tjh_outcome"
+save_preds = true
+
