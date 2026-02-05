@@ -4,12 +4,12 @@ import json
 from pathlib import Path
 
 from oneehr.artifacts.run_manifest import write_run_manifest
-from oneehr.config.schema import DatasetConfig, ExperimentConfig, ModelConfig, SplitConfig, TaskConfig
+from oneehr.config.schema import DatasetConfig, DynamicTableConfig, ExperimentConfig, ModelConfig, SplitConfig, TaskConfig
 
 
 def test_write_run_manifest(tmp_path: Path):
     cfg = ExperimentConfig(
-        dataset=DatasetConfig(path=Path("x.csv")),
+        dataset=DatasetConfig(dynamic=DynamicTableConfig(path=Path("x.csv"))),
         task=TaskConfig(kind="binary", prediction_mode="patient"),
         split=SplitConfig(kind="kfold"),
         model=ModelConfig(name="xgboost"),

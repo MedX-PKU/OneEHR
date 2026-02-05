@@ -2,7 +2,7 @@ import pandas as pd
 
 from pathlib import Path
 
-from oneehr.config.schema import DatasetConfig, PreprocessConfig
+from oneehr.config.schema import DatasetConfig, DynamicTableConfig, PreprocessConfig
 from oneehr.data.binning import bin_events
 
 
@@ -22,7 +22,7 @@ def _events_df():
 
 def test_binning_categorical_onehot_presence():
     events = _events_df()
-    ds = DatasetConfig(path=Path("unused"))  # path not used by bin_events
+    ds = DatasetConfig(dynamic=DynamicTableConfig(path=Path("unused")))  # path not used by bin_events
     pp = PreprocessConfig(
         bin_size="1d",
         numeric_strategy="mean",
@@ -33,7 +33,7 @@ def test_binning_categorical_onehot_presence():
         code_list=["DX"],
         pipeline=[],
     )
-    out = bin_events(events, ds, pp).table
+    out = bin_events(events, ds.dynamic, pp).table
     assert "cat__DX__A" in out.columns
     assert "cat__DX__B" in out.columns
     # p1 day1 has A; day2 has B
@@ -44,7 +44,7 @@ def test_binning_categorical_onehot_presence():
 
 def test_binning_categorical_count():
     events = _events_df()
-    ds = DatasetConfig(path=Path("unused"))
+    ds = DatasetConfig(dynamic=DynamicTableConfig(path=Path("unused")))
     pp = PreprocessConfig(
         bin_size="1d",
         numeric_strategy="mean",
@@ -55,7 +55,7 @@ def test_binning_categorical_count():
         code_list=["DX"],
         pipeline=[],
     )
-    out = bin_events(events, ds, pp).table
+    out = bin_events(events, ds.dynamic, pp).table
     assert "cat__DX" in out.columns
     p1 = out[out["patient_id"] == "p1"].sort_values("bin_time")
     # day1 has 2 events, day2 has 1

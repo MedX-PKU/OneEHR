@@ -1,11 +1,10 @@
-[dataset]
+[dataset.dynamic]
 path = "examples/example_events.csv"
 file_type = "csv"
 patient_id_col = "patient_id"
 time_col = "event_time"
 code_col = "code"
 value_col = "value"
-label_col = "label"
 
 [preprocess]
 bin_size = "1d"

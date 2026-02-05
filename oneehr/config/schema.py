@@ -17,26 +17,54 @@ class CalibrationConfig:
 
 
 @dataclass(frozen=True)
-class DatasetConfig:
+class DynamicTableConfig:
     path: Path | None = None
     file_type: str = "csv"  # csv | xlsx (ignored when converter_fn is set)
     patient_id_col: str = "patient_id"
     time_col: str = "event_time"
     code_col: str = "code"
     value_col: str = "value"
-    label_col: str = "label"
     time_format: str | None = None
+
     # Optional: dataset-specific converter invoked after file load.
     # Format: "path/to/converter.py:convert"
-    # Signature: convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame
-    #
-    # Design note:
-    # - Converters should be treated as *external* glue code that adapts arbitrary raw formats
-    #   into the OneEHR unified event table schema.
-    # - OneEHR does not require registering dataset names/types; it only consumes the unified
-    #   schema described by (patient_id_col, time_col, code_col, value_col).
-    #
+    # Signature: convert(df_raw: pd.DataFrame, cfg: DynamicTableConfig) -> pd.DataFrame | ConvertedDataset
     converter_fn: str | None = None
+
+
+@dataclass(frozen=True)
+class StaticTableConfig:
+    path: Path | None = None
+    file_type: str = "csv"  # csv | xlsx
+    patient_id_col: str = "patient_id"
+
+
+@dataclass(frozen=True)
+class LabelTableConfig:
+    path: Path | None = None
+    file_type: str = "csv"  # csv | xlsx
+    patient_id_col: str = "patient_id"
+    time_col: str = "label_time"
+    code_col: str = "label_code"
+    value_col: str = "label_value"
+    time_format: str | None = None
+
+
+@dataclass(frozen=True)
+class DatasetConfig:
+    """Three-table input spec.
+
+    - `dynamic`: longitudinal event table (required)
+    - `static`: patient-level table (optional)
+    - `label`: label event table (optional; task-agnostic long format)
+
+    OneEHR aims to keep dataset-specific raw formats out of the framework. Users
+    should convert raw datasets into these standard tables outside OneEHR.
+    """
+
+    dynamic: DynamicTableConfig
+    static: StaticTableConfig | None = None
+    label: LabelTableConfig | None = None
 
 
 @dataclass(frozen=True)

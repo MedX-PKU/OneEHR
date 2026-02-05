@@ -4,7 +4,7 @@ import pandas as pd
 
 from dataclasses import dataclass
 
-from oneehr.config.schema import DatasetConfig
+from oneehr.config.schema import DynamicTableConfig
 from oneehr.data.converters.schema import ConvertedDataset
 
 
@@ -14,7 +14,7 @@ class TJHConverted:
     labels: dict[str, pd.DataFrame]
 
 
-def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> TJHConverted:
+def convert(df_raw: pd.DataFrame, cfg: DynamicTableConfig) -> TJHConverted:
     """Convert TJH raw Excel (wide) to OneEHR unified event table (long).
 
     Output columns (minimum):
@@ -137,7 +137,7 @@ def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> TJHConverted:
     return TJHConverted(events=out, labels=labels)
 
 
-def convert_events(df_raw: pd.DataFrame, cfg: DatasetConfig) -> ConvertedDataset:
+def convert_events(df_raw: pd.DataFrame, cfg: DynamicTableConfig) -> ConvertedDataset:
     """Compatibility helper returning the generic ConvertedDataset.
 
     Recommended for external converters: return `ConvertedDataset(events=...)`.
@@ -150,7 +150,7 @@ def convert_events(df_raw: pd.DataFrame, cfg: DatasetConfig) -> ConvertedDataset
 def build_labels(events: pd.DataFrame, cfg) -> pd.DataFrame:
     """Select a label table from TJHConverted.labels.
 
-    Intended to be used as `labels.fn = "oneehr/data/converters/tjh.py:build_labels"`.
+    Intended to be used as `labels.fn = "oneehr/data/converters/tjh.py:build_labels_v2"`.
     Uses cfg.task.kind to choose:
     - binary -> outcome
     - regression -> los
@@ -158,8 +158,8 @@ def build_labels(events: pd.DataFrame, cfg) -> pd.DataFrame:
 
     # Note: `events` here is the converted event table (with Outcome/DischargeTime metadata).
     # We recompute using the same logic to avoid having to thread labels through RunIO.
-    pid_col = cfg.dataset.patient_id_col
-    time_col = cfg.dataset.time_col
+    pid_col = cfg.dataset.dynamic.patient_id_col
+    time_col = cfg.dataset.dynamic.time_col
 
     if cfg.task.kind == "binary":
         if "Outcome" not in events.columns:
@@ -190,3 +190,15 @@ def build_labels(events: pd.DataFrame, cfg) -> pd.DataFrame:
         return out[["patient_id", "label"]]
 
     raise ValueError(f"Unsupported task.kind for TJH build_labels: {cfg.task.kind!r}")
+
+
+def build_labels_v2(
+    dynamic: pd.DataFrame,
+    static: pd.DataFrame | None,
+    label: pd.DataFrame | None,
+    cfg,
+) -> pd.DataFrame:
+    """Backward-compatible adapter for the new label_fn signature."""
+
+    _ = static, label
+    return build_labels(dynamic, cfg)

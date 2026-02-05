@@ -72,9 +72,9 @@ def write_dl_artifacts(
         },
         "task": {"kind": str(cfg.task.kind), "prediction_mode": str(cfg.task.prediction_mode)},
         "dataset": {
-            "time_col": str(cfg.dataset.time_col),
-            "patient_id_col": str(cfg.dataset.patient_id_col),
-            "event_time_col": str(cfg.dataset.time_col),
+            "time_col": str(cfg.dataset.dynamic.time_col),
+            "patient_id_col": str(cfg.dataset.dynamic.patient_id_col),
+            "event_time_col": str(cfg.dataset.dynamic.time_col),
         },
         "input": {
             "input_dim": int(cfg.preprocess.top_k_codes or len(feature_columns)),

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from oneehr.config.schema import DatasetConfig, StaticFeaturesConfig
+from oneehr.config.schema import DynamicTableConfig, StaticFeaturesConfig
 
 
 def build_static_features(
     events: pd.DataFrame,
-    dataset: DatasetConfig,
+    dataset: DynamicTableConfig,
     cfg: StaticFeaturesConfig,
 ) -> pd.DataFrame | None:
     """Build patient-level static features from the raw event table.
@@ -51,4 +51,3 @@ def build_static_features(
     # Basic one-hot / numeric handling is deferred to existing postprocess pipeline;
     # here we keep raw columns and let tabular postprocess fit on train split.
     return out
-

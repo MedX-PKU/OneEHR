@@ -1,6 +1,6 @@
 import pandas as pd
 
-from oneehr.config.schema import DatasetConfig
+from oneehr.config.schema import DatasetConfig, DynamicTableConfig
 from oneehr.data.converters.tjh import convert
 
 
@@ -21,14 +21,16 @@ def test_tjh_converter_outputs_unified_schema():
         }
     )
     cfg = DatasetConfig(
-        path=__file__,
-        file_type="xlsx",
-        patient_id_col="patient_id",
-        time_col="event_time",
-        code_col="code",
-        value_col="value",
+        dynamic=DynamicTableConfig(
+            path=__file__,
+            file_type="xlsx",
+            patient_id_col="patient_id",
+            time_col="event_time",
+            code_col="code",
+            value_col="value",
+        )
     )
-    res = convert(df_raw, cfg)
+    res = convert(df_raw, cfg.dynamic)
     events = res.events
     assert set(["patient_id", "event_time", "code", "value"]).issubset(set(events.columns))
     assert events["patient_id"].nunique() == 2
@@ -49,24 +51,32 @@ def test_tjh_builtin_label_fns(tmp_path):
         }
     )
     cfg = DatasetConfig(
-        path=__file__,
-        file_type="xlsx",
-        patient_id_col="patient_id",
-        time_col="event_time",
-        code_col="code",
-        value_col="value",
+        dynamic=DynamicTableConfig(
+            path=__file__,
+            file_type="xlsx",
+            patient_id_col="patient_id",
+            time_col="event_time",
+            code_col="code",
+            value_col="value",
+        )
     )
-    events = convert(df_raw, cfg).events
+    events = convert(df_raw, cfg.dynamic).events
     from types import SimpleNamespace
 
     from oneehr.data.converters.tjh import build_labels
 
-    cfg_out = SimpleNamespace(dataset=SimpleNamespace(patient_id_col="patient_id", time_col="event_time"), task=SimpleNamespace(kind="binary"))
+    cfg_out = SimpleNamespace(
+        dataset=SimpleNamespace(dynamic=SimpleNamespace(patient_id_col="patient_id", time_col="event_time")),
+        task=SimpleNamespace(kind="binary"),
+    )
     y_out = build_labels(events, cfg_out)
     assert set(y_out.columns) == {"patient_id", "label"}
     assert int(y_out["label"].iloc[0]) == 1
 
-    cfg_los = SimpleNamespace(dataset=SimpleNamespace(patient_id_col="patient_id", time_col="event_time"), task=SimpleNamespace(kind="regression"))
+    cfg_los = SimpleNamespace(
+        dataset=SimpleNamespace(dynamic=SimpleNamespace(patient_id_col="patient_id", time_col="event_time")),
+        task=SimpleNamespace(kind="regression"),
+    )
     y_los = build_labels(events, cfg_los)
     assert set(y_los.columns) == {"patient_id", "label"}
     assert int(y_los["label"].iloc[0]) == 2

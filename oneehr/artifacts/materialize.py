@@ -16,7 +16,9 @@ from oneehr.utils.io import ensure_dir, write_json
 
 def materialize_preprocess_artifacts(
     *,
-    events: pd.DataFrame,
+    dynamic: pd.DataFrame,
+    static: pd.DataFrame | None,
+    label: pd.DataFrame | None,
     cfg: ExperimentConfig,
     out_root: Path,
 ) -> None:
@@ -37,7 +39,7 @@ def materialize_preprocess_artifacts(
 
     out_root = ensure_dir(out_root)
 
-    binned = bin_events(events, cfg.dataset, cfg.preprocess)
+    binned = bin_events(dynamic, cfg.dataset.dynamic, cfg.preprocess)
     # Standard binned column order: keys -> label -> features
     binned_df = binned.table.copy()
     base_cols = [c for c in ["patient_id", "bin_time", "label"] if c in binned_df.columns]
@@ -74,8 +76,16 @@ def materialize_preprocess_artifacts(
     else:
         raise ValueError(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
 
-    # Static
-    static_raw = build_static_features(events, cfg.dataset, cfg.static_features)
+    # Static (prefer explicit static table; otherwise fall back to legacy event-table aggregation)
+    static_raw = None
+    if static is not None:
+        static_raw = static
+        # Normalize patient_id name to match pipeline expectations.
+        pid_col = cfg.dataset.static.patient_id_col if cfg.dataset.static is not None else "patient_id"
+        if pid_col != "patient_id" and pid_col in static_raw.columns:
+            static_raw = static_raw.rename(columns={pid_col: "patient_id"})
+    else:
+        static_raw = build_static_features(dynamic, cfg.dataset.dynamic, cfg.static_features)
     static_feat_cols: list[str] = []
     static_post_pipeline = None
     if static_raw is not None and not static_raw.empty and cfg.static_features.enabled:
@@ -102,7 +112,7 @@ def materialize_preprocess_artifacts(
         time_tabular_path=tm_path,
     )
 
-    labels_res = run_label_fn(events, cfg)
+    labels_res = run_label_fn(dynamic, static, label, cfg)
     if labels_res is not None:
         if cfg.task.prediction_mode == "patient":
             labels = normalize_patient_labels(labels_res.df)

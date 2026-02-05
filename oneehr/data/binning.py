@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from oneehr.config.schema import DatasetConfig, PreprocessConfig
+from oneehr.config.schema import DynamicTableConfig, PreprocessConfig
 from oneehr.utils.time import parse_bin_size
 
 
@@ -80,7 +80,7 @@ def _normalize_cat_value(v: object) -> str:
 
 def bin_events(
     events: pd.DataFrame,
-    dataset: DatasetConfig,
+    dataset: DynamicTableConfig,
     preprocess: PreprocessConfig,
 ) -> BinnedTable:
     """Convert event-level table into bin-level table.
@@ -95,9 +95,6 @@ def bin_events(
         dataset.code_col,
         dataset.value_col,
     ]
-    has_label = dataset.label_col in events.columns
-    if has_label:
-        cols.append(dataset.label_col)
     df = events[cols].copy()
     df.rename(
         columns={
@@ -105,7 +102,6 @@ def bin_events(
             dataset.time_col: "event_time",
             dataset.code_col: "code",
             dataset.value_col: "value",
-            **({dataset.label_col: "label"} if has_label else {}),
         },
         inplace=True,
     )

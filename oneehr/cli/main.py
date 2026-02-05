@@ -10,7 +10,7 @@ from oneehr.utils.imports import optional_import
 
 from oneehr.config.load import load_experiment_config
 from oneehr.data.patient_index import make_patient_index
-from oneehr.data.io import load_event_table
+from oneehr.data.io import load_dynamic_table, load_label_table, load_static_table
 from oneehr.models.tabular import (
     load_tabular_model,
     predict_tabular,
@@ -421,23 +421,25 @@ def _warn_unused_hpo_overrides(model_name: str, overrides: list[dict[str, object
 
 def _run_preprocess(cfg_path: str, *, overview: bool, overview_top_k_codes: int) -> None:
     cfg = load_experiment_config(cfg_path)
-    events = load_event_table(cfg.dataset)
+    dynamic = load_dynamic_table(cfg.dataset.dynamic)
+    static = load_static_table(cfg.dataset.static)
+    label = load_label_table(cfg.dataset.label)
     out_root = cfg.output.root / cfg.output.run_name
-    materialize_preprocess_artifacts(events=events, cfg=cfg, out_root=out_root)
+    materialize_preprocess_artifacts(dynamic=dynamic, static=static, label=label, cfg=cfg, out_root=out_root)
     if overview:
         import json
 
         from oneehr.data.overview_light import build_dataset_overview
 
-        payload = build_dataset_overview(events, cfg.dataset, top_k_codes=overview_top_k_codes)
+        payload = build_dataset_overview(dynamic, cfg.dataset.dynamic, top_k_codes=overview_top_k_codes)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
 def _run_train(cfg_path: str, force: bool) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
-    events = load_event_table(train_dataset)
-    patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
+    dynamic = load_dynamic_table(train_dataset.dynamic)
+    patient_index = make_patient_index(dynamic, cfg0.dataset.dynamic.time_col, cfg0.dataset.dynamic.patient_id_col)
     splits = make_splits(patient_index, cfg0.split)
 
     out_root = cfg0.output.root / cfg0.output.run_name
@@ -488,14 +490,14 @@ def _run_test(
     if test_dataset is not None:
         ds = replace(
             cfg0.dataset,
-            path=Path(test_dataset),
+            dynamic=replace(cfg0.dataset.dynamic, path=Path(test_dataset)),
         )
     else:
         if cfg0.datasets is None or cfg0.datasets.test is None:
             raise SystemExit("Missing test dataset. Provide --test-dataset or set [datasets.test] in config.")
         ds = cfg0.datasets.test
 
-    events = load_event_table(ds)
+    dynamic = load_dynamic_table(ds.dynamic)
     binned = run.load_binned(manifest)
     labels_df = run.load_labels(manifest)
 
@@ -512,7 +514,7 @@ def _run_test(
         raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
 
     if out_dir is None:
-        out_path = run_root / "test_runs" / ds.path.stem
+        out_path = run_root / "test_runs" / ds.dynamic.path.stem
     else:
         out_path = Path(out_dir)
 
@@ -701,8 +703,12 @@ def _run_test(
 def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
-    events = load_event_table(train_dataset)
-    patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
+    dynamic = load_dynamic_table(train_dataset.dynamic)
+    patient_index = make_patient_index(
+        dynamic,
+        cfg0.dataset.dynamic.time_col,
+        cfg0.dataset.dynamic.patient_id_col,
+    )
     splits = make_splits(patient_index, cfg0.split)
 
     out_root = cfg0.output.root / cfg0.output.run_name
@@ -1697,8 +1703,12 @@ def _run_hpo(cfg_path: str) -> None:
     """
 
     cfg0 = load_experiment_config(cfg_path)
-    events = load_event_table(cfg0.dataset)
-    patient_index = make_patient_index(events, cfg0.dataset.time_col, cfg0.dataset.patient_id_col)
+    dynamic = load_dynamic_table(cfg0.dataset.dynamic)
+    patient_index = make_patient_index(
+        dynamic,
+        cfg0.dataset.dynamic.time_col,
+        cfg0.dataset.dynamic.patient_id_col,
+    )
     splits = make_splits(patient_index, cfg0.split)
     sp = splits[0]
 

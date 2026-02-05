@@ -7,14 +7,17 @@ import tomllib
 
 from oneehr.config.schema import (
     CalibrationConfig,
+    DynamicTableConfig,
     DatasetConfig,
     DatasetsConfig,
     ExperimentConfig,
     HPOConfig,
+    LabelTableConfig,
     LabelsConfig,
     ModelConfig,
     OutputConfig,
     PreprocessConfig,
+    StaticTableConfig,
     StaticFeaturesConfig,
     SplitConfig,
     TaskConfig,
@@ -66,19 +69,47 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     hpo_models_raw = raw.get("hpo_models", {})
     calibration_raw = raw.get("calibration", {})
 
-    dataset = DatasetConfig(
-        path=(None if dataset_raw.get("path") in {None, ""} else Path(dataset_raw.get("path"))),
-        file_type=dataset_raw.get("file_type", "csv"),
-        patient_id_col=dataset_raw.get("patient_id_col", "patient_id"),
-        time_col=dataset_raw.get("time_col", "event_time"),
-        code_col=dataset_raw.get("code_col", "code"),
-        value_col=dataset_raw.get("value_col", "value"),
-        label_col=dataset_raw.get("label_col", "label"),
-        time_format=dataset_raw.get("time_format"),
-        converter_fn=dataset_raw.get("converter_fn") or None,
+    dynamic_raw = dataset_raw.get("dynamic")
+    if dynamic_raw is None:
+        # Back-compat: allow legacy flat [dataset] for dynamic only.
+        dynamic_raw = dataset_raw
+
+    dynamic = DynamicTableConfig(
+        path=(None if dynamic_raw.get("path") in {None, ""} else Path(dynamic_raw.get("path"))),
+        file_type=dynamic_raw.get("file_type", "csv"),
+        patient_id_col=dynamic_raw.get("patient_id_col", "patient_id"),
+        time_col=dynamic_raw.get("time_col", "event_time"),
+        code_col=dynamic_raw.get("code_col", "code"),
+        value_col=dynamic_raw.get("value_col", "value"),
+        time_format=dynamic_raw.get("time_format"),
+        converter_fn=dynamic_raw.get("converter_fn") or None,
     )
-    if dataset.path is None:
-        raise ValueError("dataset.path is required.")
+    if dynamic.path is None:
+        raise ValueError("dataset.dynamic.path is required.")
+
+    static = None
+    if isinstance(dataset_raw.get("static"), dict):
+        static_raw = dataset_raw["static"]
+        static = StaticTableConfig(
+            path=(None if static_raw.get("path") in {None, ""} else Path(static_raw.get("path"))),
+            file_type=static_raw.get("file_type", "csv"),
+            patient_id_col=static_raw.get("patient_id_col", "patient_id"),
+        )
+
+    label = None
+    if isinstance(dataset_raw.get("label"), dict):
+        label_raw = dataset_raw["label"]
+        label = LabelTableConfig(
+            path=(None if label_raw.get("path") in {None, ""} else Path(label_raw.get("path"))),
+            file_type=label_raw.get("file_type", "csv"),
+            patient_id_col=label_raw.get("patient_id_col", "patient_id"),
+            time_col=label_raw.get("time_col", "label_time"),
+            code_col=label_raw.get("code_col", "label_code"),
+            value_col=label_raw.get("value_col", "label_value"),
+            time_format=label_raw.get("time_format"),
+        )
+
+    dataset = DatasetConfig(dynamic=dynamic, static=static, label=label)
 
     datasets = None
     if datasets_raw is not None:
@@ -89,17 +120,38 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             raise ValueError("datasets.train must be a table")
 
         def _load_dataset(ds_raw: dict[str, Any]) -> DatasetConfig:
-            return DatasetConfig(
-                path=(None if ds_raw.get("path") in {None, ""} else Path(ds_raw.get("path"))),
-                file_type=ds_raw.get("file_type", "csv"),
-                patient_id_col=ds_raw.get("patient_id_col", "patient_id"),
-                time_col=ds_raw.get("time_col", "event_time"),
-                code_col=ds_raw.get("code_col", "code"),
-                value_col=ds_raw.get("value_col", "value"),
-                label_col=ds_raw.get("label_col", "label"),
-                time_format=ds_raw.get("time_format"),
-                converter_fn=ds_raw.get("converter_fn") or None,
+            dyn_raw = ds_raw.get("dynamic") or ds_raw
+            dynamic = DynamicTableConfig(
+                path=(None if dyn_raw.get("path") in {None, ""} else Path(dyn_raw.get("path"))),
+                file_type=dyn_raw.get("file_type", "csv"),
+                patient_id_col=dyn_raw.get("patient_id_col", "patient_id"),
+                time_col=dyn_raw.get("time_col", "event_time"),
+                code_col=dyn_raw.get("code_col", "code"),
+                value_col=dyn_raw.get("value_col", "value"),
+                time_format=dyn_raw.get("time_format"),
+                converter_fn=dyn_raw.get("converter_fn") or None,
             )
+            static = None
+            if isinstance(ds_raw.get("static"), dict):
+                sraw = ds_raw["static"]
+                static = StaticTableConfig(
+                    path=(None if sraw.get("path") in {None, ""} else Path(sraw.get("path"))),
+                    file_type=sraw.get("file_type", "csv"),
+                    patient_id_col=sraw.get("patient_id_col", "patient_id"),
+                )
+            label = None
+            if isinstance(ds_raw.get("label"), dict):
+                lraw = ds_raw["label"]
+                label = LabelTableConfig(
+                    path=(None if lraw.get("path") in {None, ""} else Path(lraw.get("path"))),
+                    file_type=lraw.get("file_type", "csv"),
+                    patient_id_col=lraw.get("patient_id_col", "patient_id"),
+                    time_col=lraw.get("time_col", "label_time"),
+                    code_col=lraw.get("code_col", "label_code"),
+                    value_col=lraw.get("value_col", "label_value"),
+                    time_format=lraw.get("time_format"),
+                )
+            return DatasetConfig(dynamic=dynamic, static=static, label=label)
 
         train_ds = _load_dataset(train_raw)
         test_ds = None

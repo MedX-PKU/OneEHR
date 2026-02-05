@@ -1,4 +1,4 @@
-[dataset]
+[dataset.dynamic]
 path = "/home/yhzhu/projects/pyehr/datasets/tjh/raw/time_series_375_prerpocess_en.xlsx"
 converter_fn = "oneehr/data/converters/tjh.py:convert_events"
 
@@ -24,7 +24,7 @@ kind = "binary"
 prediction_mode = "patient"
 
 [labels]
-fn = "oneehr/data/converters/tjh.py:build_labels"
+fn = "oneehr/data/converters/tjh.py:build_labels_v2"
 
 [split]
 kind = "kfold"

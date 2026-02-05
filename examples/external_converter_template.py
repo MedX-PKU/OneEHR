@@ -13,7 +13,7 @@ def main(raw_path: str, out_path: str) -> None:
     # df_raw = pd.read_csv(raw_path)
     df_raw = pd.read_excel(raw_path)
 
-    # 2) Convert to the OneEHR unified event table schema (long format).
+    # 2) Convert to OneEHR `dynamic.csv` schema (long format).
     # Required columns: patient_id, event_time, code, value
     events = pd.DataFrame(
         {
@@ -24,7 +24,7 @@ def main(raw_path: str, out_path: str) -> None:
         }
     )
 
-    # 3) Save as a plain table. OneEHR can read it directly.
+    # 3) Save as a plain table. OneEHR can read it directly as `dynamic.csv`.
     events.to_csv(out_path, index=False)
 
 
@@ -33,7 +33,6 @@ if __name__ == "__main__":
 
     p = argparse.ArgumentParser(description="Convert a raw dataset to OneEHR unified schema.")
     p.add_argument("--raw", required=True, help="Path to raw dataset file")
-    p.add_argument("--out", required=True, help="Path to output events.csv")
+    p.add_argument("--out", required=True, help="Path to output dynamic.csv")
     args = p.parse_args()
     main(args.raw, args.out)
-
