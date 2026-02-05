@@ -347,6 +347,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_pre = sub.add_parser("preprocess", help="Preprocess raw event table into model-ready artifacts")
     p_pre.add_argument("--config", required=True)
+    p_pre.add_argument(
+        "--overview",
+        action="store_true",
+        help="Print a lightweight dataset overview during preprocess",
+    )
+    p_pre.add_argument(
+        "--overview-top-k-codes",
+        type=int,
+        default=20,
+        help="Top-k most frequent codes in overview output",
+    )
 
     p_train = sub.add_parser("train", help="Train a model")
     p_train.add_argument("--config", required=True)
@@ -408,11 +419,18 @@ def _warn_unused_hpo_overrides(model_name: str, overrides: list[dict[str, object
         )
 
 
-def _run_preprocess(cfg_path: str) -> None:
+def _run_preprocess(cfg_path: str, *, overview: bool, overview_top_k_codes: int) -> None:
     cfg = load_experiment_config(cfg_path)
     events = load_event_table(cfg.dataset)
     out_root = cfg.output.root / cfg.output.run_name
     materialize_preprocess_artifacts(events=events, cfg=cfg, out_root=out_root)
+    if overview:
+        import json
+
+        from oneehr.data.overview_light import build_dataset_overview
+
+        payload = build_dataset_overview(events, cfg.dataset, top_k_codes=overview_top_k_codes)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
 def _run_train(cfg_path: str, force: bool) -> None:
@@ -1760,7 +1778,11 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "preprocess":
-        _run_preprocess(args.config)
+        _run_preprocess(
+            args.config,
+            overview=bool(getattr(args, "overview", False)),
+            overview_top_k_codes=int(getattr(args, "overview_top_k_codes", 20)),
+        )
         return
     if args.command == "train":
         _run_train(args.config, force=bool(args.force))
