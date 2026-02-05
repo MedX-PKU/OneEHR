@@ -89,22 +89,17 @@ def bin_events(
     Features are expanded into columns using a limited code vocabulary.
     """
 
+    _ = dataset
     cols = [
-        dataset.patient_id_col,
-        dataset.time_col,
-        dataset.code_col,
-        dataset.value_col,
+        "patient_id",
+        "event_time",
+        "code",
+        "value",
     ]
+    missing = [c for c in cols if c not in events.columns]
+    if missing:
+        raise ValueError(f"dynamic.csv missing required columns for binning: {missing}")
     df = events[cols].copy()
-    df.rename(
-        columns={
-            dataset.patient_id_col: "patient_id",
-            dataset.time_col: "event_time",
-            dataset.code_col: "code",
-            dataset.value_col: "value",
-        },
-        inplace=True,
-    )
 
     # Determine bin start time.
     freq = parse_bin_size(preprocess.bin_size)

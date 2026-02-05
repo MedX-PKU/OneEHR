@@ -1,10 +1,5 @@
 [dataset.dynamic]
 path = "examples/example_events.csv"
-file_type = "csv"
-patient_id_col = "patient_id"
-time_col = "event_time"
-code_col = "code"
-value_col = "value"
 
 [preprocess]
 bin_size = "1d"
@@ -37,7 +32,6 @@ prediction_mode = "patient" # patient (N-1) | time (N-N)
 # Optional. If provided, used to generate labels from events.
 # Format: "path/to/label_fn.py:build_labels"
 fn = "examples/label_fn.py:build_labels"
-time_col = "label_time"
 bin_from_time_col = true
 
 [split]

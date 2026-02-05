@@ -25,40 +25,34 @@ def build_labels(
     _ = static  # not used in this example
 
     # Find last observed dynamic time per patient.
-    pid = cfg.dataset.dynamic.patient_id_col
-    tcol = cfg.dataset.dynamic.time_col
-    df = dynamic[[pid, tcol]].copy()
-    df[pid] = df[pid].astype(str)
-    df[tcol] = pd.to_datetime(df[tcol], errors="raise")
-    df = df.sort_values([pid, tcol], kind="stable")
-    last_time = df.groupby(pid, sort=False).tail(1).rename(columns={pid: "patient_id", tcol: "label_time"})
+    df = dynamic[["patient_id", "event_time"]].copy()
+    df["patient_id"] = df["patient_id"].astype(str)
+    df["event_time"] = pd.to_datetime(df["event_time"], errors="raise")
+    df = df.sort_values(["patient_id", "event_time"], kind="stable")
+    last_time = df.groupby("patient_id", sort=False).tail(1).rename(columns={"event_time": "label_time"})
 
     # If label.csv exists, pick one label_code for the task; else synthesize a dummy label.
     if label is not None and not label.empty:
-        lpid = cfg.dataset.label.patient_id_col if cfg.dataset.label is not None else "patient_id"
-        ltime = cfg.dataset.label.time_col if cfg.dataset.label is not None else "label_time"
-        lcode = cfg.dataset.label.code_col if cfg.dataset.label is not None else "label_code"
-        lval = cfg.dataset.label.value_col if cfg.dataset.label is not None else "label_value"
-
-        lab = label[[lpid, ltime, lcode, lval]].copy()
-        lab[lpid] = lab[lpid].astype(str)
-        lab[ltime] = pd.to_datetime(lab[ltime], errors="raise")
+        lab = label[["patient_id", "label_time", "label_code", "label_value"]].copy()
+        lab["patient_id"] = lab["patient_id"].astype(str)
+        lab["label_time"] = pd.to_datetime(lab["label_time"], errors="raise")
 
         # Example rule: use label_code="outcome" when binary, else "los".
         wanted = "outcome" if cfg.task.kind == "binary" else "los"
-        lab = lab.loc[lab[lcode].astype(str) == wanted].copy()
+        lab = lab.loc[lab["label_code"].astype(str) == wanted].copy()
         if lab.empty:
-            raise ValueError(f"label.csv has no rows with {lcode}={wanted!r}")
+            raise ValueError(f"label.csv has no rows with label_code={wanted!r}")
 
         # For each patient, take the last label at/before the last observed time.
-        merged = last_time.merge(lab, left_on="patient_id", right_on=lpid, how="left")
-        merged = merged.loc[merged[ltime] <= merged["label_time"]].copy()
-        merged = merged.sort_values(["patient_id", ltime], kind="stable").groupby("patient_id", sort=False).tail(1)
-        out = merged.rename(columns={lval: "label"})[["patient_id", "label_time", "label"]].copy()
+        merged = last_time.merge(lab, on="patient_id", how="left")
+        merged = merged.loc[merged["label_time_y"] <= merged["label_time_x"]].copy()
+        merged = merged.sort_values(["patient_id", "label_time_y"], kind="stable").groupby("patient_id", sort=False).tail(1)
+        out = merged.rename(columns={"label_value": "label", "label_time_x": "label_time"})[
+            ["patient_id", "label_time", "label"]
+        ].copy()
     else:
         out = last_time.copy()
         out["label"] = 1
 
     out["mask"] = 1
     return out[["patient_id", "label_time", "label", "mask"]]
-

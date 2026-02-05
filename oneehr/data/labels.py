@@ -63,13 +63,13 @@ def normalize_time_labels(labels: pd.DataFrame, cfg: ExperimentConfig) -> pd.Dat
     if "bin_time" not in out.columns:
         if not cfg.labels.bin_from_time_col:
             raise ValueError("N-N labels missing bin_time and bin_from_time_col is false")
-        if cfg.labels.time_col not in out.columns:
+        if "label_time" not in out.columns:
             raise ValueError(
-                f"N-N labels missing bin_time and time column {cfg.labels.time_col!r} for binning"
+                "N-N labels missing bin_time and required time column 'label_time' for binning"
             )
-        out[cfg.labels.time_col] = pd.to_datetime(out[cfg.labels.time_col], errors="raise")
+        out["label_time"] = pd.to_datetime(out["label_time"], errors="raise")
         freq = parse_bin_size(cfg.preprocess.bin_size)
-        out["bin_time"] = out[cfg.labels.time_col].dt.floor(freq)
+        out["bin_time"] = out["label_time"].dt.floor(freq)
 
     out["bin_time"] = pd.to_datetime(out["bin_time"], errors="raise")
 

@@ -4,11 +4,10 @@ An all-in-one EHR predictive modeling and analysis library in Python.
 
 ## Datasets
 
-OneEHR consumes a unified **three-table** format: `dynamic.csv` (required),
-`static.csv` (optional), and `label.csv` (optional). You generally do **not**
-need to “register” external datasets inside the framework—just convert/export
-raw data into these standard tables (recommended), or optionally use the
-`converter_fn` hook for `dynamic`.
+OneEHR consumes a unified **three-table** format (standard CSV only):
+`dynamic.csv` (required), `static.csv` (optional), and `label.csv` (optional).
+You do **not** need to “register” datasets inside the framework—just convert
+raw data into these standard tables.
 
 See `docs/datasets.md`.
 

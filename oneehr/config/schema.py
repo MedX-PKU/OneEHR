@@ -19,35 +19,19 @@ class CalibrationConfig:
 @dataclass(frozen=True)
 class DynamicTableConfig:
     path: Path | None = None
-    file_type: str = "csv"  # csv | xlsx (ignored when converter_fn is set)
-    patient_id_col: str = "patient_id"
-    time_col: str = "event_time"
-    code_col: str = "code"
-    value_col: str = "value"
-    time_format: str | None = None
-
-    # Optional: dataset-specific converter invoked after file load.
-    # Format: "path/to/converter.py:convert"
-    # Signature: convert(df_raw: pd.DataFrame, cfg: DynamicTableConfig) -> pd.DataFrame | ConvertedDataset
-    converter_fn: str | None = None
+    # OneEHR consumes standardized CSV only.
 
 
 @dataclass(frozen=True)
 class StaticTableConfig:
     path: Path | None = None
-    file_type: str = "csv"  # csv | xlsx
-    patient_id_col: str = "patient_id"
+    # OneEHR consumes standardized CSV only.
 
 
 @dataclass(frozen=True)
 class LabelTableConfig:
     path: Path | None = None
-    file_type: str = "csv"  # csv | xlsx
-    patient_id_col: str = "patient_id"
-    time_col: str = "label_time"
-    code_col: str = "label_code"
-    value_col: str = "label_value"
-    time_format: str | None = None
+    # OneEHR consumes standardized CSV only.
 
 
 @dataclass(frozen=True)
@@ -105,7 +89,6 @@ class TaskConfig:
 @dataclass(frozen=True)
 class LabelsConfig:
     fn: str | None = None  # e.g. path/to/label_fn.py:build_labels
-    time_col: str = "label_time"
     bin_from_time_col: bool = True
 
 

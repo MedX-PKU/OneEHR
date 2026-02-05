@@ -1,7 +1,7 @@
 # Datasets in OneEHR (Decoupled, Three-Table Input)
 
 OneEHR does **not** manage a registry of dataset names (e.g. TJH/MIMIC/etc).
-Instead, OneEHR consumes a fixed, unified **three-table** input:
+Instead, OneEHR consumes a fixed, unified **three-table** input (standard CSV only):
 
 - `dynamic.csv`: longitudinal event table (required)
 - `static.csv`: patient-level table (optional)
@@ -9,9 +9,9 @@ Instead, OneEHR consumes a fixed, unified **three-table** input:
 
 This keeps dataset-specific raw formats fully decoupled from the OneEHR framework.
 
-## 1) `dynamic.csv` (Required)
+## 1) `dynamic.csv` (Required, strict schema)
 
-Unified longitudinal event table (long format). Required columns (names are configurable via `[dataset.dynamic]`):
+Unified longitudinal event table (long format). Required columns (fixed names):
 
 - `patient_id`
 - `event_time` — must be parseable by `pandas.to_datetime`
@@ -20,20 +20,20 @@ Unified longitudinal event table (long format). Required columns (names are conf
 
 This table is the only source for binning / sequence modeling.
 
-## 2) `static.csv` (Optional)
+## 2) `static.csv` (Optional, strict schema)
 
 Patient-level table (one row per patient). Minimal requirement:
 
-- `patient_id` (name configurable via `[dataset.static]`)
+- `patient_id`
 
 Other columns are treated as static covariates (e.g., sex, age).
 
 If `dataset.static` is provided, OneEHR will automatically materialize the static
 matrix and make it available to models that accept static covariates.
 
-## 3) `label.csv` (Optional, Recommended)
+## 3) `label.csv` (Optional, Recommended, strict schema)
 
-Task-agnostic label event table (long format). Required columns (configurable via `[dataset.label]`):
+Task-agnostic label event table (long format). Required columns (fixed names):
 
 - `patient_id`
 - `label_time`
@@ -57,26 +57,6 @@ path = "/path/to/static.csv"   # optional
 [dataset.label]
 path = "/path/to/label.csv"    # optional
 ```
-
-## Optional hook: `converter_fn` for `dynamic`
-
-If you don’t want to materialize `dynamic.csv` on disk, you can point OneEHR at a raw
-file and provide a converter callable:
-
-```toml
-[dataset.dynamic]
-path = "/path/to/raw.xlsx"
-converter_fn = "path/to/converter.py:convert"
-```
-
-Converter signature:
-
-```python
-def convert(df_raw: pd.DataFrame, cfg: DynamicTableConfig) -> pd.DataFrame | ConvertedDataset:
-    ...
-```
-
-The converter must return the unified dynamic event table.
 
 ## Labels: `label_fn` defines the task
 

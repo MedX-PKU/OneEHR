@@ -1,6 +1,11 @@
 [dataset.dynamic]
-path = "/home/yhzhu/projects/pyehr/datasets/tjh/raw/time_series_375_prerpocess_en.xlsx"
-converter_fn = "oneehr/data/converters/tjh.py:convert_events"
+path = "/path/to/out/dynamic.csv"
+
+[dataset.static]
+path = "/path/to/out/static.csv"
+
+[dataset.label]
+path = "/path/to/out/label.csv"
 
 [preprocess]
 bin_size = "1d"
@@ -14,16 +19,13 @@ pipeline = [
   { op = "impute", strategy = "mean", cols = "num__*" },
 ]
 
-[dataset.static]
-# Export a patient-level `static.csv` and point to it here.
-path = "/path/to/static.csv"
-
 [task]
 kind = "binary"
 prediction_mode = "patient"
 
 [labels]
-fn = "oneehr/data/converters/tjh.py:build_labels_v2"
+fn = "examples/tjh_pipeline/label_fn.py:build_labels"
+bin_from_time_col = true
 
 [split]
 kind = "kfold"
@@ -39,5 +41,6 @@ name = "gru"
 
 [output]
 root = "logs"
-run_name = "tjh_outcome"
+run_name = "tjh_pipeline_example"
 save_preds = true
+

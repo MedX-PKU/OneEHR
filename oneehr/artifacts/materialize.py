@@ -80,9 +80,7 @@ def materialize_preprocess_artifacts(
     if static is not None:
         static_raw = static
         # Normalize patient_id name to match pipeline expectations.
-        pid_col = cfg.dataset.static.patient_id_col if cfg.dataset.static is not None else "patient_id"
-        if pid_col != "patient_id" and pid_col in static_raw.columns:
-            static_raw = static_raw.rename(columns={pid_col: "patient_id"})
+        # static.csv schema is fixed: must include patient_id.
     static_feat_cols: list[str] = []
     static_post_pipeline = None
     if static_raw is not None and not static_raw.empty:

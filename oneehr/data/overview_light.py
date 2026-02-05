@@ -12,12 +12,13 @@ def build_dataset_overview(
     *,
     top_k_codes: int = 20,
 ) -> dict[str, object]:
-    pid = cfg.patient_id_col
-    tcol = cfg.time_col
-    code = cfg.code_col
+    _ = cfg
+    pid = "patient_id"
+    tcol = "event_time"
+    code = "code"
 
     if pid not in dynamic.columns or tcol not in dynamic.columns or code not in dynamic.columns:
-        raise ValueError(f"dynamic missing required columns for overview: {[pid, tcol, code]}")
+        raise ValueError(f"dynamic.csv missing required columns for overview: {[pid, tcol, code]}")
 
     df = dynamic.copy()
     df[pid] = df[pid].astype(str)
@@ -46,4 +47,3 @@ def build_dataset_overview(
     vc = df[code].astype(str).value_counts().head(int(top_k_codes))
     out["top_codes"] = [{"code": str(c), "count": int(n)} for c, n in vc.items()]
     return out
-

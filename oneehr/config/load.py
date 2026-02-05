@@ -75,13 +75,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     dynamic = DynamicTableConfig(
         path=(None if dynamic_raw.get("path") in {None, ""} else Path(dynamic_raw.get("path"))),
-        file_type=dynamic_raw.get("file_type", "csv"),
-        patient_id_col=dynamic_raw.get("patient_id_col", "patient_id"),
-        time_col=dynamic_raw.get("time_col", "event_time"),
-        code_col=dynamic_raw.get("code_col", "code"),
-        value_col=dynamic_raw.get("value_col", "value"),
-        time_format=dynamic_raw.get("time_format"),
-        converter_fn=dynamic_raw.get("converter_fn") or None,
     )
     if dynamic.path is None:
         raise ValueError("dataset.dynamic.path is required.")
@@ -91,8 +84,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         static_raw = dataset_raw["static"]
         static = StaticTableConfig(
             path=(None if static_raw.get("path") in {None, ""} else Path(static_raw.get("path"))),
-            file_type=static_raw.get("file_type", "csv"),
-            patient_id_col=static_raw.get("patient_id_col", "patient_id"),
         )
 
     label = None
@@ -100,12 +91,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         label_raw = dataset_raw["label"]
         label = LabelTableConfig(
             path=(None if label_raw.get("path") in {None, ""} else Path(label_raw.get("path"))),
-            file_type=label_raw.get("file_type", "csv"),
-            patient_id_col=label_raw.get("patient_id_col", "patient_id"),
-            time_col=label_raw.get("time_col", "label_time"),
-            code_col=label_raw.get("code_col", "label_code"),
-            value_col=label_raw.get("value_col", "label_value"),
-            time_format=label_raw.get("time_format"),
         )
 
     dataset = DatasetConfig(dynamic=dynamic, static=static, label=label)
@@ -122,33 +107,18 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             dyn_raw = ds_raw.get("dynamic") or ds_raw
             dynamic = DynamicTableConfig(
                 path=(None if dyn_raw.get("path") in {None, ""} else Path(dyn_raw.get("path"))),
-                file_type=dyn_raw.get("file_type", "csv"),
-                patient_id_col=dyn_raw.get("patient_id_col", "patient_id"),
-                time_col=dyn_raw.get("time_col", "event_time"),
-                code_col=dyn_raw.get("code_col", "code"),
-                value_col=dyn_raw.get("value_col", "value"),
-                time_format=dyn_raw.get("time_format"),
-                converter_fn=dyn_raw.get("converter_fn") or None,
             )
             static = None
             if isinstance(ds_raw.get("static"), dict):
                 sraw = ds_raw["static"]
                 static = StaticTableConfig(
                     path=(None if sraw.get("path") in {None, ""} else Path(sraw.get("path"))),
-                    file_type=sraw.get("file_type", "csv"),
-                    patient_id_col=sraw.get("patient_id_col", "patient_id"),
                 )
             label = None
             if isinstance(ds_raw.get("label"), dict):
                 lraw = ds_raw["label"]
                 label = LabelTableConfig(
                     path=(None if lraw.get("path") in {None, ""} else Path(lraw.get("path"))),
-                    file_type=lraw.get("file_type", "csv"),
-                    patient_id_col=lraw.get("patient_id_col", "patient_id"),
-                    time_col=lraw.get("time_col", "label_time"),
-                    code_col=lraw.get("code_col", "label_code"),
-                    value_col=lraw.get("value_col", "label_value"),
-                    time_format=lraw.get("time_format"),
                 )
             return DatasetConfig(dynamic=dynamic, static=static, label=label)
 
@@ -190,7 +160,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     labels = LabelsConfig(
         fn=labels_raw.get("fn") or None,
-        time_col=labels_raw.get("time_col", "label_time"),
         bin_from_time_col=bool(labels_raw.get("bin_from_time_col", True)),
     )
 

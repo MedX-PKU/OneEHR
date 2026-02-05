@@ -439,7 +439,7 @@ def _run_train(cfg_path: str, force: bool) -> None:
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     dynamic = load_dynamic_table(train_dataset.dynamic)
-    patient_index = make_patient_index(dynamic, cfg0.dataset.dynamic.time_col, cfg0.dataset.dynamic.patient_id_col)
+    patient_index = make_patient_index(dynamic, "event_time", "patient_id")
     splits = make_splits(patient_index, cfg0.split)
 
     out_root = cfg0.output.root / cfg0.output.run_name
@@ -706,8 +706,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     dynamic = load_dynamic_table(train_dataset.dynamic)
     patient_index = make_patient_index(
         dynamic,
-        cfg0.dataset.dynamic.time_col,
-        cfg0.dataset.dynamic.patient_id_col,
+        "event_time",
+        "patient_id",
     )
     splits = make_splits(patient_index, cfg0.split)
 
@@ -1701,8 +1701,8 @@ def _run_hpo(cfg_path: str) -> None:
     dynamic = load_dynamic_table(cfg0.dataset.dynamic)
     patient_index = make_patient_index(
         dynamic,
-        cfg0.dataset.dynamic.time_col,
-        cfg0.dataset.dynamic.patient_id_col,
+        "event_time",
+        "patient_id",
     )
     splits = make_splits(patient_index, cfg0.split)
     sp = splits[0]
