@@ -22,24 +22,6 @@ oneehr preprocess --config examples/experiment.toml
 oneehr train --config examples/experiment.toml
 ```
 
-## Built-in datasets
-
-OneEHR can load either:
-- a file-based event table via `dataset.path` (CSV/XLSX), or
-- a built-in dataset adapter via `dataset.name` + `dataset.root`.
-
-### TJH
-
-Example configs:
-- `examples/tjh_outcome.toml` (binary `Outcome`)
-- `examples/tjh_los.toml` (regression `LOS`)
-
-```bash
-oneehr overview --config examples/tjh_outcome.toml
-oneehr preprocess --config examples/tjh_outcome.toml
-oneehr train --config examples/tjh_outcome.toml --force
-```
-
 `oneehr preprocess` materializes a run directory under `output.root/output.run_name`, including:
 - `binned.parquet` (dynamic features in long format)
 - `features/dynamic/feature_columns.json` (dynamic feature space)
