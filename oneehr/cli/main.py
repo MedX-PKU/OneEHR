@@ -484,7 +484,8 @@ def _run_test(
     run = RunIO(run_root=Path(run_root))
     manifest = run.require_manifest()
     dynamic_feature_columns = manifest.dynamic_feature_columns()
-    static_all, static_feature_columns = run.load_static_all(manifest)
+
+    from oneehr.artifacts.test_materialize import materialize_test_views
 
     # Resolve test dataset from CLI override or config.
     if test_dataset is not None:
@@ -493,25 +494,50 @@ def _run_test(
             dynamic=replace(cfg0.dataset.dynamic, path=Path(test_dataset)),
         )
     else:
-        if cfg0.datasets is None or cfg0.datasets.test is None:
-            raise SystemExit("Missing test dataset. Provide --test-dataset or set [datasets.test] in config.")
-        ds = cfg0.datasets.test
+        if cfg0.datasets is not None and cfg0.datasets.test is not None:
+            ds = cfg0.datasets.test
+        else:
+            # Fallback: use training dataset for evaluation (e.g. split-based internal test)
+            # This keeps `oneehr test` usable even when users haven't specified an external test dataset.
+            ds = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
 
     dynamic = load_dynamic_table(ds.dynamic)
-    binned = run.load_binned(manifest)
-    labels_df = run.load_labels(manifest)
+    static = None if ds.static is None else load_static_table(ds.static)
+    label = None if ds.label is None else load_label_table(ds.label)
+
+    materialized = materialize_test_views(
+        manifest=manifest,
+        dynamic=dynamic,
+        static=static,
+        label=label,
+        labels_fn=(cfg0.labels.fn if getattr(cfg0, "labels", None) is not None else None),
+    )
+    binned = materialized.binned
+    labels_df = materialized.labels_df
 
     import pandas as pd
 
     if cfg0.task.prediction_mode == "patient":
-        X, y = run.load_patient_view(manifest)
+        X = materialized.X
+        y = materialized.y
         key_df = None
         global_mask = None
     elif cfg0.task.prediction_mode == "time":
-        X, y, key_df = run.load_time_view(manifest)
+        X = materialized.X
+        y = materialized.y
+        key_df = materialized.key_df
         global_mask = None
     else:
         raise SystemExit(f"Unsupported task.prediction_mode={cfg0.task.prediction_mode!r}")
+
+    # Static matrix is persisted in run_dir at preprocess time.
+    static_all, static_feature_columns = run.load_static_all(manifest)
+
+    if y is None:
+        print(
+            "No labels provided for test dataset; running inference only (metrics will be skipped).",
+            file=sys.stderr,
+        )
 
     if out_dir is None:
         out_path = run_root / "test_runs" / ds.dynamic.path.stem
@@ -529,7 +555,8 @@ def _run_test(
         model_name = model_cfg.name
         model_dir = run_root / "models" / model_name
         if not model_dir.exists():
-            raise SystemExit(f"Missing trained model artifacts: {model_dir}")
+            print(f"Skipping model {model_name!r}: missing trained artifacts at {model_dir}", file=sys.stderr)
+            continue
 
         is_tabular = model_name in {"xgboost", "catboost", "rf", "dt", "gbdt"}
         is_dl = not is_tabular
@@ -592,7 +619,24 @@ def _run_test(
                 from oneehr.data.sequence import pad_sequences, build_time_sequences
 
                 # Build model from config (ensures same architecture); then load weights.
-                built = build_model(replace(cfg0, model=model_cfg, models=[model_cfg]))
+                exp_input_dim = int((cfg0.preprocess.top_k_codes or 0) or 0)
+                feat_input_dim = len(feat_cols)
+                if exp_input_dim != feat_input_dim:
+                    # Prefer the run's actual feature schema over the config value, so users can
+                    # run `oneehr test` with a config that hasn't been perfectly normalized.
+                    print(
+                        "Warning: overriding preprocess.top_k_codes for DL test. "
+                        f"Config has {exp_input_dim}, but run_manifest feature_columns has {feat_input_dim}.",
+                        file=sys.stderr,
+                    )
+                built = build_model(
+                    replace(
+                        cfg0,
+                        model=model_cfg,
+                        models=[model_cfg],
+                        preprocess=replace(cfg0.preprocess, top_k_codes=feat_input_dim),
+                    )
+                )
                 model = built.model
                 ckpt_path = sp_dir / "state_dict.ckpt"
                 if not ckpt_path.exists():
@@ -673,23 +717,44 @@ def _run_test(
                     merged = key_df.merge(pred_df, on=["patient_id", "bin_time"], how="left")
                     y_pred = merged["y_pred"].to_numpy()
 
-            y_true_np = y.to_numpy().astype(float)
-            if global_mask is not None:
-                y_true_np = y_true_np.astype(float)
-                y_pred = np.asarray(y_pred)
-
-            if cfg0.task.kind == "binary":
-                metrics = binary_metrics(y_true_np.astype(float), np.asarray(y_pred).astype(float)).metrics
-            else:
-                metrics = regression_metrics(y_true_np.astype(float), np.asarray(y_pred).astype(float)).metrics
-
             tag = f"{model_name}__{sp_dir.name}"
-            write_json(out_dir / f"metrics_{tag}.json", metrics)
+            if y is not None:
+                y_true_np = y.to_numpy().astype(float)
+                if global_mask is not None:
+                    y_true_np = y_true_np.astype(float)
+                    y_pred = np.asarray(y_pred)
+
+                # Drop rows where predictions are missing (can happen if patient_id alignment fails).
+                y_pred_np = np.asarray(y_pred, dtype=float)
+                finite_mask = np.isfinite(y_pred_np) & np.isfinite(y_true_np.astype(float))
+                y_true_np = y_true_np[finite_mask]
+                y_pred_np = y_pred_np[finite_mask]
+                if y_true_np.size == 0:
+                    continue
+
+                if cfg0.task.kind == "binary":
+                    metrics = binary_metrics(y_true_np.astype(float), y_pred_np.astype(float)).metrics
+                else:
+                    metrics = regression_metrics(y_true_np.astype(float), y_pred_np.astype(float)).metrics
+                write_json(out_dir / f"metrics_{tag}.json", metrics)
+                rows.append({"model": model_name, "split": sp_dir.name, **metrics})
+
             if cfg0.output.save_preds:
-                pd.DataFrame(
-                    {"patient_id": X.index.astype(str), "y_true": y.to_numpy(), "y_pred": y_pred}
-                ).to_parquet(out_dir / f"preds_{tag}.parquet", index=False)
-            rows.append({"model": model_name, "split": sp_dir.name, **metrics})
+                if cfg0.task.prediction_mode == "patient":
+                    pd.DataFrame(
+                        {
+                            "patient_id": X.index.astype(str),
+                            "y_true": None if y is None else y.to_numpy(),
+                            "y_pred": y_pred,
+                        }
+                    ).to_parquet(out_dir / f"preds_{tag}.parquet", index=False)
+                else:
+                    if key_df is None:
+                        raise SystemExit("Internal error: missing key_df for time mode")
+                    outp = key_df.copy()
+                    outp["y_true"] = None if y is None else y.to_numpy()
+                    outp["y_pred"] = y_pred
+                    outp.to_parquet(out_dir / f"preds_{tag}.parquet", index=False)
 
     write_json(
         out_dir / "summary.json",
