@@ -266,7 +266,9 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
-    static_dim = 0 if (not cfg.static_features.enabled) else len(cfg.static_features.cols)
+    # Static feature dimension is known from the materialized static matrix,
+    # not from config (static.csv is free-form).
+    static_dim = 0
 
     if name in {"dragent"}:
         if cfg.task.prediction_mode == "time":

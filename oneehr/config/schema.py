@@ -77,15 +77,11 @@ class DatasetsConfig:
 class StaticFeaturesConfig:
     """Static (patient-level) features.
 
-    Static features are constant across time steps for a patient (e.g., sex, age at baseline).
-    They can be used by models which accept extra patient-level covariates.
+    Static features are loaded exclusively from `static.csv` (dataset.static).
+    OneEHR does not derive static features by aggregating the dynamic event table.
     """
 
     enabled: bool = False
-    # Columns in the *event table* treated as static. We will aggregate per patient.
-    cols: list[str] = field(default_factory=list)
-    # How to aggregate when multiple rows exist per patient.
-    agg: str = "last"  # first | last
 
 
 @dataclass(frozen=True)

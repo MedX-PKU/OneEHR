@@ -186,8 +186,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     static_features = StaticFeaturesConfig(
         enabled=bool(static_raw.get("enabled", False)),
-        cols=[str(c) for c in static_raw.get("cols", [])],
-        agg=str(static_raw.get("agg", "last")),
     )
 
     task = TaskConfig(

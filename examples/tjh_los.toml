@@ -16,8 +16,10 @@ pipeline = [
 
 [static_features]
 enabled = true
-cols = ["Sex", "Age"]
-agg = "first"
+
+[dataset.static]
+# Export a patient-level `static.csv` and point to it here.
+path = "/path/to/static.csv"
 
 [task]
 kind = "regression"

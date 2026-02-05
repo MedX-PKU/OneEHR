@@ -78,7 +78,7 @@ def write_dl_artifacts(
         },
         "input": {
             "input_dim": int(cfg.preprocess.top_k_codes or len(feature_columns)),
-            "static_dim": 0 if (not cfg.static_features.enabled) else int(len(cfg.static_features.cols)),
+            "static_dim": 0,
             "static_feature_columns": None,
             "static_feature_columns_sha256": None,
             "feature_columns": list(feature_columns),

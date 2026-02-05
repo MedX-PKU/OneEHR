@@ -8,7 +8,6 @@ from oneehr.artifacts.run_manifest import write_run_manifest
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
-from oneehr.data.static_features import build_static_features
 from oneehr.data.static_postprocess import fit_transform_static_features
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
 from oneehr.utils.io import ensure_dir, write_json
@@ -76,16 +75,19 @@ def materialize_preprocess_artifacts(
     else:
         raise ValueError(f"Unsupported task.prediction_mode={cfg.task.prediction_mode!r}")
 
-    # Static (prefer explicit static table; otherwise fall back to legacy event-table aggregation)
+    # Static (only from static.csv)
     static_raw = None
-    if static is not None:
+    if cfg.static_features.enabled:
+        if static is None:
+            raise ValueError(
+                "static_features.enabled=true requires dataset.static.path (static.csv). "
+                "OneEHR does not derive static features from dynamic events."
+            )
         static_raw = static
         # Normalize patient_id name to match pipeline expectations.
         pid_col = cfg.dataset.static.patient_id_col if cfg.dataset.static is not None else "patient_id"
         if pid_col != "patient_id" and pid_col in static_raw.columns:
             static_raw = static_raw.rename(columns={pid_col: "patient_id"})
-    else:
-        static_raw = build_static_features(dynamic, cfg.dataset.dynamic, cfg.static_features)
     static_feat_cols: list[str] = []
     static_post_pipeline = None
     if static_raw is not None and not static_raw.empty and cfg.static_features.enabled:
