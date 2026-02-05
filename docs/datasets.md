@@ -48,14 +48,10 @@ Write a script that reads raw files and exports these standard tables.
 Then your experiment TOML only specifies paths:
 
 ```toml
-[dataset.dynamic]
-path = "/path/to/dynamic.csv"
-
-[dataset.static]
-path = "/path/to/static.csv"   # optional
-
-[dataset.label]
-path = "/path/to/label.csv"    # optional
+[dataset]
+dynamic = "/path/to/dynamic.csv"
+static = "/path/to/static.csv" # optional
+label = "/path/to/label.csv"   # optional
 ```
 
 ## Labels: `label_fn` defines the task

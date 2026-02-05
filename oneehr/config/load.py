@@ -68,30 +68,19 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     hpo_models_raw = raw.get("hpo_models", {})
     calibration_raw = raw.get("calibration", {})
 
-    dynamic_raw = dataset_raw.get("dynamic")
-    if dynamic_raw is None:
-        # Back-compat: allow legacy flat [dataset] for dynamic only.
-        dynamic_raw = dataset_raw
-
     dynamic = DynamicTableConfig(
-        path=(None if dynamic_raw.get("path") in {None, ""} else Path(dynamic_raw.get("path"))),
+        path=(None if dataset_raw.get("dynamic") in {None, ""} else Path(dataset_raw.get("dynamic"))),
     )
     if dynamic.path is None:
-        raise ValueError("dataset.dynamic.path is required.")
+        raise ValueError("dataset.dynamic is required.")
 
     static = None
-    if isinstance(dataset_raw.get("static"), dict):
-        static_raw = dataset_raw["static"]
-        static = StaticTableConfig(
-            path=(None if static_raw.get("path") in {None, ""} else Path(static_raw.get("path"))),
-        )
+    if dataset_raw.get("static") not in {None, ""}:
+        static = StaticTableConfig(path=Path(dataset_raw.get("static")))
 
     label = None
-    if isinstance(dataset_raw.get("label"), dict):
-        label_raw = dataset_raw["label"]
-        label = LabelTableConfig(
-            path=(None if label_raw.get("path") in {None, ""} else Path(label_raw.get("path"))),
-        )
+    if dataset_raw.get("label") not in {None, ""}:
+        label = LabelTableConfig(path=Path(dataset_raw.get("label")))
 
     dataset = DatasetConfig(dynamic=dynamic, static=static, label=label)
 
@@ -104,22 +93,20 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             raise ValueError("datasets.train must be a table")
 
         def _load_dataset(ds_raw: dict[str, Any]) -> DatasetConfig:
-            dyn_raw = ds_raw.get("dynamic") or ds_raw
             dynamic = DynamicTableConfig(
-                path=(None if dyn_raw.get("path") in {None, ""} else Path(dyn_raw.get("path"))),
+                path=(None if ds_raw.get("dynamic") in {None, ""} else Path(ds_raw.get("dynamic"))),
             )
+            if dynamic.path is None:
+                raise ValueError("datasets.<split>.dynamic is required.")
+
             static = None
-            if isinstance(ds_raw.get("static"), dict):
-                sraw = ds_raw["static"]
-                static = StaticTableConfig(
-                    path=(None if sraw.get("path") in {None, ""} else Path(sraw.get("path"))),
-                )
+            if ds_raw.get("static") not in {None, ""}:
+                static = StaticTableConfig(path=Path(ds_raw.get("static")))
+
             label = None
-            if isinstance(ds_raw.get("label"), dict):
-                lraw = ds_raw["label"]
-                label = LabelTableConfig(
-                    path=(None if lraw.get("path") in {None, ""} else Path(lraw.get("path"))),
-                )
+            if ds_raw.get("label") not in {None, ""}:
+                label = LabelTableConfig(path=Path(ds_raw.get("label")))
+
             return DatasetConfig(dynamic=dynamic, static=static, label=label)
 
         train_ds = _load_dataset(train_raw)

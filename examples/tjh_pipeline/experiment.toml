@@ -1,11 +1,7 @@
-[dataset.dynamic]
-path = "/path/to/out/dynamic.csv"
-
-[dataset.static]
-path = "/path/to/out/static.csv"
-
-[dataset.label]
-path = "/path/to/out/label.csv"
+[dataset]
+dynamic = "/path/to/out/dynamic.csv"
+static = "/path/to/out/static.csv"
+label = "/path/to/out/label.csv"
 
 [preprocess]
 bin_size = "1d"
@@ -43,4 +39,3 @@ name = "gru"
 root = "logs"
 run_name = "tjh_pipeline_example"
 save_preds = true
-
