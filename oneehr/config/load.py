@@ -75,6 +75,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         value_col=dataset_raw.get("value_col", "value"),
         label_col=dataset_raw.get("label_col", "label"),
         time_format=dataset_raw.get("time_format"),
+        converter_fn=dataset_raw.get("converter_fn") or None,
     )
 
     datasets = None
@@ -95,6 +96,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
                 value_col=ds_raw.get("value_col", "value"),
                 label_col=ds_raw.get("label_col", "label"),
                 time_format=ds_raw.get("time_format"),
+                converter_fn=ds_raw.get("converter_fn") or None,
             )
 
         train_ds = _load_dataset(train_raw)

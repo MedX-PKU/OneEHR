@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+from oneehr.config.schema import DatasetConfig
+
+
+def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
+    """Convert TJH raw Excel (wide format) to OneEHR unified event table.
+
+    The converter is intentionally *data-only*: it does not perform split,
+    feature scaling, forward-fill, or model-specific preprocessing. Those live in
+    the generic OneEHR pipeline (binning/postprocess/splits).
+    """
+
+    df = df_raw.rename(
+        columns={
+            "PATIENT_ID": "PatientID",
+            "outcome": "Outcome",
+            "gender": "Sex",
+            "age": "Age",
+            "RE_DATE": "RecordTime",
+            "Admission time": "AdmissionTime",
+            "Discharge time": "DischargeTime",
+        }
+    )
+
+    if "PatientID" not in df.columns:
+        raise ValueError("TJH raw file missing PATIENT_ID column.")
+    df["PatientID"] = df["PatientID"].ffill()
+
+    required = ["PatientID", "RecordTime", "DischargeTime"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"TJH raw file missing required columns: {missing}")
+
+    df = df.dropna(subset=["PatientID", "RecordTime", "DischargeTime"], how="any").copy()
+
+    # Normalize Sex coding: TJH uses 1 male, 2 female.
+    if "Sex" in df.columns:
+        df["Sex"] = df["Sex"].replace({2: 0})
+
+    # Compute LOS from discharge - record time (days), clamp negative to 0.
+    if "LOS" not in df.columns and "DischargeTime" in df.columns and "RecordTime" in df.columns:
+        los = (pd.to_datetime(df["DischargeTime"]) - pd.to_datetime(df["RecordTime"])).dt.days
+        df["LOS"] = los.clip(lower=0)
+
+    # Remove known constant column.
+    if "2019-nCoV nucleic acid detection" in df.columns:
+        df = df.drop(columns=["2019-nCoV nucleic acid detection"])
+
+    # Daily merge (same as legacy script): group by patient + record date (+ admission/discharge).
+    group_cols = [c for c in ["PatientID", "RecordTime", "AdmissionTime", "DischargeTime"] if c in df.columns]
+    df = df.sort_values(["PatientID", "RecordTime"], kind="stable")
+    numeric_cols = [c for c in df.columns if c not in group_cols and pd.api.types.is_numeric_dtype(df[c])]
+    non_numeric_cols = [c for c in df.columns if c not in group_cols and c not in numeric_cols]
+    df_num = df[group_cols + numeric_cols].groupby(group_cols, dropna=True, as_index=False).mean()
+    if non_numeric_cols:
+        df_cat = df[group_cols + non_numeric_cols].groupby(group_cols, dropna=True, as_index=False).last()
+        df = df_num.merge(df_cat, on=group_cols, how="left")
+    else:
+        df = df_num
+
+    # Label source: cfg.label_col may be "Outcome" or "LOS" for TJH.
+    label_source = cfg.label_col if cfg.label_col != "label" else "Outcome"
+    if label_source not in df.columns:
+        raise ValueError(
+            f"TJH converter: label source {label_source!r} not found in columns."
+        )
+
+    id_cols = [c for c in ["PatientID", "RecordTime", "AdmissionTime", "DischargeTime", label_source] if c in df.columns]
+    value_cols = [c for c in df.columns if c not in id_cols]
+    long = df.melt(id_vars=id_cols, value_vars=value_cols, var_name=cfg.code_col, value_name=cfg.value_col)
+    long = long.dropna(subset=[cfg.value_col], how="any").copy()
+
+    out = long.rename(
+        columns={
+            "PatientID": cfg.patient_id_col,
+            "RecordTime": cfg.time_col,
+            label_source: cfg.label_col,
+        }
+    )
+
+    out[cfg.patient_id_col] = out[cfg.patient_id_col].astype(str)
+    out[cfg.time_col] = pd.to_datetime(out[cfg.time_col], errors="raise")
+    out[cfg.code_col] = out[cfg.code_col].astype(str)
+
+    # Drop negative numeric measurements.
+    val_num = pd.to_numeric(out[cfg.value_col], errors="coerce")
+    neg_mask = val_num.notna() & (val_num < 0)
+    if bool(neg_mask.any()):
+        out = out.loc[~neg_mask].copy()
+
+    # Ensure label per patient is filled to all event rows.
+    out[cfg.label_col] = pd.to_numeric(out[cfg.label_col], errors="coerce")
+    out[cfg.label_col] = out.groupby(cfg.patient_id_col, sort=False)[cfg.label_col].transform(
+        lambda s: s.ffill().bfill()
+    )
+
+    return out
+

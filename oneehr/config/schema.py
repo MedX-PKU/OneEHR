@@ -26,6 +26,12 @@ class DatasetConfig:
     value_col: str = "value"
     label_col: str = "label"
     time_format: str | None = None
+    # Optional: dataset-specific converter invoked during preprocess to turn raw
+    # inputs into the unified OneEHR event table schema.
+    #
+    # Format: "path/to/converter.py:convert"
+    # Signature: convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame
+    converter_fn: str | None = None
 
 
 @dataclass(frozen=True)
