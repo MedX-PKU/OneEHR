@@ -1,11 +1,6 @@
 [dataset]
 path = "/home/yhzhu/projects/pyehr/datasets/tjh/raw/time_series_375_prerpocess_en.xlsx"
 file_type = "xlsx"
-patient_id_col = "patient_id"
-time_col = "event_time"
-code_col = "code"
-value_col = "value"
-label_col = "LOS"
 converter_fn = "oneehr/data/converters/tjh.py:convert"
 
 [preprocess]
@@ -29,6 +24,9 @@ agg = "first"
 kind = "regression"
 prediction_mode = "patient"
 
+[labels]
+fn = "tjh:los"
+
 [split]
 kind = "kfold"
 n_splits = 5
@@ -45,4 +43,3 @@ name = "gru"
 root = "logs"
 run_name = "tjh_los"
 save_preds = true
-

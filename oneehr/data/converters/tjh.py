@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from oneehr.config.schema import DatasetConfig
 
 
 def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
-    """Convert TJH raw Excel (wide format) to OneEHR unified event table.
+    """Convert TJH raw Excel (wide) to OneEHR unified event table (long).
 
-    The converter is intentionally *data-only*: it does not perform split,
-    feature scaling, forward-fill, or model-specific preprocessing. Those live in
-    the generic OneEHR pipeline (binning/postprocess/splits).
+    Output columns (minimum):
+    - patient_id (cfg.patient_id_col)
+    - event_time (cfg.time_col)
+    - code (cfg.code_col)
+    - value (cfg.value_col)
+
+    This converter intentionally does NOT create labels. Use label_fn instead.
     """
 
     df = df_raw.rename(
@@ -28,29 +31,22 @@ def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
 
     if "PatientID" not in df.columns:
         raise ValueError("TJH raw file missing PATIENT_ID column.")
+    if "RecordTime" not in df.columns:
+        raise ValueError("TJH raw file missing RE_DATE column.")
+
+    # TJH only records PatientID on first row of each patient.
     df["PatientID"] = df["PatientID"].ffill()
+    df = df.dropna(subset=["PatientID", "RecordTime"], how="any").copy()
 
-    required = ["PatientID", "RecordTime", "DischargeTime"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(f"TJH raw file missing required columns: {missing}")
-
-    df = df.dropna(subset=["PatientID", "RecordTime", "DischargeTime"], how="any").copy()
-
-    # Normalize Sex coding: TJH uses 1 male, 2 female.
+    # Normalize Sex: 1 male, 2 female -> 0.
     if "Sex" in df.columns:
         df["Sex"] = df["Sex"].replace({2: 0})
 
-    # Compute LOS from discharge - record time (days), clamp negative to 0.
-    if "LOS" not in df.columns and "DischargeTime" in df.columns and "RecordTime" in df.columns:
-        los = (pd.to_datetime(df["DischargeTime"]) - pd.to_datetime(df["RecordTime"])).dt.days
-        df["LOS"] = los.clip(lower=0)
-
-    # Remove known constant column.
+    # Drop known constant column.
     if "2019-nCoV nucleic acid detection" in df.columns:
         df = df.drop(columns=["2019-nCoV nucleic acid detection"])
 
-    # Daily merge (same as legacy script): group by patient + record date (+ admission/discharge).
+    # Daily merge as legacy preprocessing: group by patient + record time (+ admission/discharge if present).
     group_cols = [c for c in ["PatientID", "RecordTime", "AdmissionTime", "DischargeTime"] if c in df.columns]
     df = df.sort_values(["PatientID", "RecordTime"], kind="stable")
     numeric_cols = [c for c in df.columns if c not in group_cols and pd.api.types.is_numeric_dtype(df[c])]
@@ -62,41 +58,46 @@ def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     else:
         df = df_num
 
-    # Label source: cfg.label_col may be "Outcome" or "LOS" for TJH.
-    label_source = cfg.label_col if cfg.label_col != "label" else "Outcome"
-    if label_source not in df.columns:
-        raise ValueError(
-            f"TJH converter: label source {label_source!r} not found in columns."
-        )
+    # Exclude target columns from codes; label_fn will use them as metadata columns.
+    target_like = {"Outcome", "LOS"}
+    value_cols = [c for c in df.columns if c not in set(group_cols) and c not in target_like]
 
-    id_cols = [c for c in ["PatientID", "RecordTime", "AdmissionTime", "DischargeTime", label_source] if c in df.columns]
-    value_cols = [c for c in df.columns if c not in id_cols]
-    long = df.melt(id_vars=id_cols, value_vars=value_cols, var_name=cfg.code_col, value_name=cfg.value_col)
+    long = df.melt(
+        id_vars=group_cols,
+        value_vars=value_cols,
+        var_name=cfg.code_col,
+        value_name=cfg.value_col,
+    )
     long = long.dropna(subset=[cfg.value_col], how="any").copy()
 
     out = long.rename(
         columns={
             "PatientID": cfg.patient_id_col,
             "RecordTime": cfg.time_col,
-            label_source: cfg.label_col,
         }
     )
-
     out[cfg.patient_id_col] = out[cfg.patient_id_col].astype(str)
     out[cfg.time_col] = pd.to_datetime(out[cfg.time_col], errors="raise")
     out[cfg.code_col] = out[cfg.code_col].astype(str)
 
+    # Attach useful metadata columns (repeated per event row) for label_fn/static_features.
+    meta_cols = [c for c in ["AdmissionTime", "DischargeTime", "Sex", "Age", "Outcome"] if c in df.columns]
+    if meta_cols:
+        meta = df[["PatientID", "RecordTime", *meta_cols]].copy()
+        meta = meta.rename(columns={"PatientID": cfg.patient_id_col, "RecordTime": cfg.time_col})
+        meta[cfg.patient_id_col] = meta[cfg.patient_id_col].astype(str)
+        meta[cfg.time_col] = pd.to_datetime(meta[cfg.time_col], errors="raise")
+        # Ensure no duplicate columns in out before merge (avoid suffixes).
+        dup = [c for c in meta_cols if c in out.columns]
+        if dup:
+            out = out.drop(columns=dup)
+        out = out.merge(meta, on=[cfg.patient_id_col, cfg.time_col], how="left")
+
     # Drop negative numeric measurements.
     val_num = pd.to_numeric(out[cfg.value_col], errors="coerce")
-    neg_mask = val_num.notna() & (val_num < 0)
-    if bool(neg_mask.any()):
-        out = out.loc[~neg_mask].copy()
-
-    # Ensure label per patient is filled to all event rows.
-    out[cfg.label_col] = pd.to_numeric(out[cfg.label_col], errors="coerce")
-    out[cfg.label_col] = out.groupby(cfg.patient_id_col, sort=False)[cfg.label_col].transform(
-        lambda s: s.ffill().bfill()
-    )
+    neg = val_num.notna() & (val_num < 0)
+    if bool(neg.any()):
+        out = out.loc[~neg].copy()
 
     return out
 

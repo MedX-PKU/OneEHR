@@ -18,7 +18,7 @@ class CalibrationConfig:
 
 @dataclass(frozen=True)
 class DatasetConfig:
-    path: Path
+    path: Path | None = None
     file_type: str = "csv"  # csv | xlsx
     patient_id_col: str = "patient_id"
     time_col: str = "event_time"
@@ -26,11 +26,10 @@ class DatasetConfig:
     value_col: str = "value"
     label_col: str = "label"
     time_format: str | None = None
-    # Optional: dataset-specific converter invoked during preprocess to turn raw
-    # inputs into the unified OneEHR event table schema.
-    #
+    # Optional: dataset-specific converter invoked after file load.
     # Format: "path/to/converter.py:convert"
     # Signature: convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame
+    #
     converter_fn: str | None = None
 
 

@@ -14,6 +14,19 @@ class LabelFn(Protocol):
     def __call__(self, events: pd.DataFrame, cfg: ExperimentConfig) -> pd.DataFrame: ...
 
 
+def _load_builtin_label_fn(ref: str):
+    name = ref.strip().lower()
+    if name in {"tjh:outcome", "tjh_outcome"}:
+        from oneehr.data.label_fns.tjh import build_outcome_labels
+
+        return lambda events, cfg: build_outcome_labels(events)
+    if name in {"tjh:los", "tjh_los"}:
+        from oneehr.data.label_fns.tjh import build_los_labels
+
+        return lambda events, cfg: build_los_labels(events)
+    raise ValueError(f"Unknown built-in label_fn ref: {ref!r}")
+
+
 @dataclass(frozen=True)
 class LabelsResult:
     df: pd.DataFrame
@@ -22,7 +35,11 @@ class LabelsResult:
 def run_label_fn(events: pd.DataFrame, cfg: ExperimentConfig) -> LabelsResult | None:
     if cfg.labels.fn is None:
         return None
-    fn = load_callable(cfg.labels.fn)
+    ref = str(cfg.labels.fn)
+    if ref.startswith("tjh:") or ref.startswith("tjh_"):
+        fn = _load_builtin_label_fn(str(cfg.labels.fn))
+    else:
+        fn = load_callable(cfg.labels.fn)
     out = fn(events, cfg)
     if not isinstance(out, pd.DataFrame):
         raise TypeError("label_fn must return a pandas.DataFrame")
@@ -70,4 +87,3 @@ def normalize_time_labels(labels: pd.DataFrame, cfg: ExperimentConfig) -> pd.Dat
     out["mask"] = out["mask"].astype(int)
     out = out.drop_duplicates(subset=["patient_id", "bin_time"], keep="last")
     return out
-

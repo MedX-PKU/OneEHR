@@ -67,7 +67,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     calibration_raw = raw.get("calibration", {})
 
     dataset = DatasetConfig(
-        path=Path(_require(dataset_raw, "path")),
+        path=(None if dataset_raw.get("path") in {None, ""} else Path(dataset_raw.get("path"))),
         file_type=dataset_raw.get("file_type", "csv"),
         patient_id_col=dataset_raw.get("patient_id_col", "patient_id"),
         time_col=dataset_raw.get("time_col", "event_time"),
@@ -77,6 +77,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         time_format=dataset_raw.get("time_format"),
         converter_fn=dataset_raw.get("converter_fn") or None,
     )
+    if dataset.path is None:
+        raise ValueError("dataset.path is required.")
 
     datasets = None
     if datasets_raw is not None:
@@ -88,7 +90,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
         def _load_dataset(ds_raw: dict[str, Any]) -> DatasetConfig:
             return DatasetConfig(
-                path=Path(_require(ds_raw, "path")),
+                path=(None if ds_raw.get("path") in {None, ""} else Path(ds_raw.get("path"))),
                 file_type=ds_raw.get("file_type", "csv"),
                 patient_id_col=ds_raw.get("patient_id_col", "patient_id"),
                 time_col=ds_raw.get("time_col", "event_time"),
