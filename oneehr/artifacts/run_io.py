@@ -84,14 +84,9 @@ class RunIO:
         return X, y, key
 
     def load_static_all(self, manifest) -> tuple[pd.DataFrame | None, list[str] | None]:
-        if not bool(((manifest.data.get("static_features") or {}).get("enabled"))):
-            return None, None
         st_path = manifest.static_matrix_path()
         if st_path is None:
-            raise SystemExit(
-                "Static features enabled but static matrix not found in run_manifest.json. "
-                "Re-run `oneehr preprocess`."
-            )
+            return None, None
         static_all = pd.read_parquet(self.run_root / st_path)
         cols = manifest.static_feature_columns()
         if list(static_all.columns) != list(cols):

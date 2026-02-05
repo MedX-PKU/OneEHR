@@ -74,19 +74,6 @@ class DatasetsConfig:
 
 
 @dataclass(frozen=True)
-class StaticFeaturesConfig:
-    """Static (patient-level) features.
-
-    Static features are loaded exclusively from `static.csv` (dataset.static).
-    OneEHR does not derive static features by aggregating the dynamic event table.
-    """
-
-    # Deprecated: kept for backward compatibility.
-    # Static features are enabled automatically when `dataset.static` is provided.
-    enabled: bool = False
-
-
-@dataclass(frozen=True)
 class PreprocessConfig:
     bin_size: str = "1d"  # e.g. 1h, 6h, 1d
     numeric_strategy: str = "mean"  # mean | last
@@ -341,7 +328,6 @@ class ExperimentConfig:
     split: SplitConfig
     model: ModelConfig
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
-    static_features: StaticFeaturesConfig = field(default_factory=StaticFeaturesConfig)
     datasets: DatasetsConfig | None = None
     models: list[ModelConfig] = field(default_factory=list)
     labels: LabelsConfig = field(default_factory=LabelsConfig)

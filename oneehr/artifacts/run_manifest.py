@@ -63,11 +63,6 @@ def write_run_manifest(
             "min_code_count": int(cfg.preprocess.min_code_count),
             "pipeline": _as_jsonable(list(cfg.preprocess.pipeline)),
         },
-        "static_features": {
-            "enabled": bool(static_feature_columns),
-            "raw_cols": [] if not static_raw_cols else list(static_raw_cols),
-            "postprocess_pipeline": [] if static_postprocess_pipeline is None else _as_jsonable(static_postprocess_pipeline),
-        },
         "features": {
             "dynamic": {
                 "feature_columns": dyn_cols,

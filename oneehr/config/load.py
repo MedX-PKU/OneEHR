@@ -18,7 +18,6 @@ from oneehr.config.schema import (
     OutputConfig,
     PreprocessConfig,
     StaticTableConfig,
-    StaticFeaturesConfig,
     SplitConfig,
     TaskConfig,
     TrainerConfig,
@@ -55,7 +54,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     dataset_raw = _require(raw, "dataset")
     datasets_raw = raw.get("datasets")
     preprocess_raw = raw.get("preprocess", {})
-    static_raw = raw.get("static_features", {})
+    # Removed: [static_features]. Static is enabled by providing dataset.static only.
     task_raw = _require(raw, "task")
     split_raw = _require(raw, "split")
     model_raw = raw.get("model")
@@ -183,11 +182,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         importance_value_col=str(preprocess_raw.get("importance_value_col", "importance")),
         pipeline=list(preprocess_raw.get("pipeline", []) or []),
     )
-
-    # Static is enabled implicitly by providing dataset.static (static.csv).
-    # Keep `static_features.enabled` only for backward compatibility with older configs.
-    static_enabled = bool(static_raw.get("enabled", False)) or (static is not None and static.path is not None)
-    static_features = StaticFeaturesConfig(enabled=static_enabled)
 
     task = TaskConfig(
         kind=_require(task_raw, "kind"),
@@ -410,7 +404,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         dataset=dataset,
         datasets=datasets,
         preprocess=preprocess,
-        static_features=static_features,
         task=task,
         labels=labels,
         split=split,

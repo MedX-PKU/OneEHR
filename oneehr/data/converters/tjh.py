@@ -92,7 +92,7 @@ def convert(df_raw: pd.DataFrame, cfg: DynamicTableConfig) -> TJHConverted:
     out[cfg.time_col] = pd.to_datetime(out[cfg.time_col], errors="raise")
     out[cfg.code_col] = out[cfg.code_col].astype(str)
 
-    # Attach useful metadata columns (repeated per event row) for label_fn/static_features.
+    # Attach useful metadata columns (repeated per event row) for label_fn.
     meta_cols = [c for c in ["AdmissionTime", "DischargeTime", "Sex", "Age", "Outcome"] if c in df.columns]
     if meta_cols:
         meta = df[["PatientID", "RecordTime", *meta_cols]].copy()

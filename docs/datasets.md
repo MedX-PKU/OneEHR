@@ -29,8 +29,7 @@ Patient-level table (one row per patient). Minimal requirement:
 Other columns are treated as static covariates (e.g., sex, age).
 
 If `dataset.static` is provided, OneEHR will automatically materialize the static
-matrix and make it available to models that accept static covariates (no extra
-`[static_features]` config required).
+matrix and make it available to models that accept static covariates.
 
 ## 3) `label.csv` (Optional, Recommended)
 
