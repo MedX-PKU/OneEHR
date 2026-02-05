@@ -18,17 +18,7 @@ class CalibrationConfig:
 
 @dataclass(frozen=True)
 class DatasetConfig:
-    # If `name` is provided, OneEHR will load the dataset via a built-in adapter and
-    # ignore `path`/`file_type` (except where the adapter chooses to use them).
-    #
-    # This keeps full backward compatibility with the current examples which only
-    # use `path`.
-    name: str | None = None
-    # Dataset root directory used by adapters (e.g., TJH root containing `raw/`).
-    root: Path | None = None
-
-    # For file-based datasets (CSV/XLSX) or adapter-specific direct file usage.
-    path: Path | None = None
+    path: Path
     file_type: str = "csv"  # csv | xlsx
     patient_id_col: str = "patient_id"
     time_col: str = "event_time"

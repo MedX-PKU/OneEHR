@@ -8,15 +8,6 @@ from oneehr.config.schema import DatasetConfig
 
 
 def load_event_table(cfg: DatasetConfig) -> pd.DataFrame:
-    if cfg.name is not None:
-        from oneehr.datasets.registry import load_events
-
-        return load_events(cfg)
-    if cfg.path is None:
-        raise ValueError(
-            "dataset.path is required for file-based datasets. "
-            "If you want to use a built-in dataset adapter, set dataset.name and dataset.root."
-        )
     path = Path(cfg.path)
     if cfg.file_type.lower() == "csv":
         df = pd.read_csv(path)
@@ -38,3 +29,4 @@ def load_event_table(cfg: DatasetConfig) -> pd.DataFrame:
     df = df.copy()
     df[cfg.time_col] = pd.to_datetime(df[cfg.time_col], format=cfg.time_format, errors="raise")
     return df
+
