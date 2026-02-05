@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from oneehr.config.schema import DatasetConfig
+from oneehr.data.converters.schema import ConvertedDataset
 from oneehr.utils.imports import load_callable
 
 
@@ -40,6 +41,8 @@ def load_event_table(cfg: DatasetConfig) -> pd.DataFrame:
         # converter may return DataFrame (events) or an object/dict with events/labels.
         if isinstance(res, pd.DataFrame):
             events = res
+        elif isinstance(res, ConvertedDataset):
+            events = res.events
         elif isinstance(res, dict) and "events" in res:
             events = res["events"]
         elif hasattr(res, "events"):

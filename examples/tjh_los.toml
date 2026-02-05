@@ -1,6 +1,6 @@
 [dataset]
 path = "/home/yhzhu/projects/pyehr/datasets/tjh/raw/time_series_375_prerpocess_en.xlsx"
-converter_fn = "oneehr/data/converters/tjh.py:convert"
+converter_fn = "oneehr/data/converters/tjh.py:convert_events"
 
 [preprocess]
 bin_size = "1d"

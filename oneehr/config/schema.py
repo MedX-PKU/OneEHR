@@ -30,6 +30,12 @@ class DatasetConfig:
     # Format: "path/to/converter.py:convert"
     # Signature: convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame
     #
+    # Design note:
+    # - Converters should be treated as *external* glue code that adapts arbitrary raw formats
+    #   into the OneEHR unified event table schema.
+    # - OneEHR does not require registering dataset names/types; it only consumes the unified
+    #   schema described by (patient_id_col, time_col, code_col, value_col).
+    #
     converter_fn: str | None = None
 
 

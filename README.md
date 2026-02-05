@@ -2,6 +2,15 @@
 
 An all-in-one EHR predictive modeling and analysis library in Python.
 
+## Datasets
+
+OneEHR consumes a single unified **event table** format. You generally do **not**
+need to “register” external datasets inside the framework—just convert/export
+your raw data into the unified schema (recommended), or optionally provide a
+`converter_fn` hook.
+
+See `docs/datasets.md`.
+
 ## Status
 
 This repository is being rebuilt from scratch.

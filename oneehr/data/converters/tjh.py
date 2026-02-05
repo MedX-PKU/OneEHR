@@ -5,6 +5,7 @@ import pandas as pd
 from dataclasses import dataclass
 
 from oneehr.config.schema import DatasetConfig
+from oneehr.data.converters.schema import ConvertedDataset
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,16 @@ def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> TJHConverted:
         labels["los"] = los.rename("label").reset_index()[[cfg.patient_id_col, "label"]]
 
     return TJHConverted(events=out, labels=labels)
+
+
+def convert_events(df_raw: pd.DataFrame, cfg: DatasetConfig) -> ConvertedDataset:
+    """Compatibility helper returning the generic ConvertedDataset.
+
+    Recommended for external converters: return `ConvertedDataset(events=...)`.
+    """
+
+    res = convert(df_raw, cfg)
+    return ConvertedDataset(events=res.events, meta={"labels_keys": sorted(res.labels.keys())})
 
 
 def build_labels(events: pd.DataFrame, cfg) -> pd.DataFrame:
