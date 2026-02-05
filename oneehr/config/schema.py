@@ -19,7 +19,7 @@ class CalibrationConfig:
 @dataclass(frozen=True)
 class DatasetConfig:
     path: Path | None = None
-    file_type: str = "csv"  # csv | xlsx
+    file_type: str = "csv"  # csv | xlsx (ignored when converter_fn is set)
     patient_id_col: str = "patient_id"
     time_col: str = "event_time"
     code_col: str = "code"

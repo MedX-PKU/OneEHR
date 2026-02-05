@@ -37,28 +37,7 @@ def materialize_preprocess_artifacts(
 
     out_root = ensure_dir(out_root)
 
-    # If labels are generated via label_fn, attach them to events before binning.
-    labels_res0 = run_label_fn(events, cfg)
-    if labels_res0 is not None and cfg.task.prediction_mode == "patient":
-        labels0 = normalize_patient_labels(labels_res0.df)
-        ev2 = events.copy()
-        pid_col = cfg.dataset.patient_id_col
-        ev2[pid_col] = ev2[pid_col].astype(str)
-        ev2 = ev2.merge(labels0, left_on=pid_col, right_on="patient_id", how="left")
-        # Keep original pid column; drop helper column if it is not the configured pid column.
-        if pid_col != "patient_id" and "patient_id" in ev2.columns:
-            ev2 = ev2.drop(columns=["patient_id"])
-        # Mirror label into dataset.label_col so downstream code sees it.
-        if cfg.dataset.label_col != "label":
-            ev2[cfg.dataset.label_col] = ev2["label"]
-        events_for_binning = ev2
-    elif labels_res0 is not None and cfg.task.prediction_mode == "time":
-        # For time mode, we keep labels separate and rely on run.load_time_view.
-        events_for_binning = events
-    else:
-        events_for_binning = events
-
-    binned = bin_events(events_for_binning, cfg.dataset, cfg.preprocess)
+    binned = bin_events(events, cfg.dataset, cfg.preprocess)
     # Standard binned column order: keys -> label -> features
     binned_df = binned.table.copy()
     base_cols = [c for c in ["patient_id", "bin_time", "label"] if c in binned_df.columns]
@@ -123,7 +102,7 @@ def materialize_preprocess_artifacts(
         time_tabular_path=tm_path,
     )
 
-    labels_res = labels_res0
+    labels_res = run_label_fn(events, cfg)
     if labels_res is not None:
         if cfg.task.prediction_mode == "patient":
             labels = normalize_patient_labels(labels_res.df)

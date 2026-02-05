@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import pandas as pd
 
+from dataclasses import dataclass
+
 from oneehr.config.schema import DatasetConfig
 
 
-def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
+@dataclass(frozen=True)
+class TJHConverted:
+    events: pd.DataFrame
+    labels: dict[str, pd.DataFrame]
+
+
+def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> TJHConverted:
     """Convert TJH raw Excel (wide) to OneEHR unified event table (long).
 
     Output columns (minimum):
@@ -14,7 +22,10 @@ def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     - code (cfg.code_col)
     - value (cfg.value_col)
 
-    This converter intentionally does NOT create labels. Use label_fn instead.
+    In addition to `events`, this converter also prepares common labels for TJH
+    tasks (single-task per run):
+    - outcome (binary): columns [patient_id, label]
+    - los (regression): columns [patient_id, label]
     """
 
     df = df_raw.rename(
@@ -99,5 +110,72 @@ def convert(df_raw: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     if bool(neg.any()):
         out = out.loc[~neg].copy()
 
-    return out
+    # Built-in labels (patient-level)
+    # Outcome: one label per patient
+    labels: dict[str, pd.DataFrame] = {}
+    if "Outcome" in out.columns:
+        y = out[[cfg.patient_id_col, "Outcome"]].dropna(subset=["Outcome"]).drop_duplicates(
+            subset=[cfg.patient_id_col],
+            keep="last",
+        )
+        labels["outcome"] = y.rename(columns={"Outcome": "label"})[[cfg.patient_id_col, "label"]].copy()
 
+    # LOS: use date-level discharge - record date (match legacy behavior).
+    if "DischargeTime" in out.columns:
+        base = (
+            out[[cfg.patient_id_col, cfg.time_col, "DischargeTime"]]
+            .dropna(subset=[cfg.time_col, "DischargeTime"])
+            .sort_values([cfg.patient_id_col, cfg.time_col], kind="stable")
+            .groupby(cfg.patient_id_col, sort=False)
+            .first()
+        )
+        los = (pd.to_datetime(base["DischargeTime"]).dt.normalize() - pd.to_datetime(base[cfg.time_col]).dt.normalize()).dt.days
+        los = los.clip(lower=0)
+        labels["los"] = los.rename("label").reset_index()[[cfg.patient_id_col, "label"]]
+
+    return TJHConverted(events=out, labels=labels)
+
+
+def build_labels(events: pd.DataFrame, cfg) -> pd.DataFrame:
+    """Select a label table from TJHConverted.labels.
+
+    Intended to be used as `labels.fn = "oneehr/data/converters/tjh.py:build_labels"`.
+    Uses cfg.task.kind to choose:
+    - binary -> outcome
+    - regression -> los
+    """
+
+    # Note: `events` here is the converted event table (with Outcome/DischargeTime metadata).
+    # We recompute using the same logic to avoid having to thread labels through RunIO.
+    pid_col = cfg.dataset.patient_id_col
+    time_col = cfg.dataset.time_col
+
+    if cfg.task.kind == "binary":
+        if "Outcome" not in events.columns:
+            raise ValueError("TJH build_labels(binary) requires Outcome column on events")
+        y = events[[pid_col, "Outcome"]].dropna(subset=["Outcome"]).drop_duplicates(
+            subset=[pid_col],
+            keep="last",
+        )
+        out = y.rename(columns={"Outcome": "label"})[[pid_col, "label"]].copy()
+        out = out.rename(columns={pid_col: "patient_id"})
+        return out
+
+    if cfg.task.kind == "regression":
+        if "DischargeTime" not in events.columns:
+            raise ValueError("TJH build_labels(regression) requires DischargeTime column on events")
+        df = events[[pid_col, time_col, "DischargeTime"]].dropna(subset=[time_col, "DischargeTime"]).copy()
+        df[pid_col] = df[pid_col].astype(str)
+        df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
+        df["DischargeTime"] = pd.to_datetime(df["DischargeTime"], errors="coerce")
+        df = df.dropna(subset=[time_col, "DischargeTime"])
+        base = (
+            df.sort_values([pid_col, time_col], kind="stable")
+            .groupby(pid_col, sort=False)
+            .first()
+        )
+        los = (base["DischargeTime"].dt.normalize() - base[time_col].dt.normalize()).dt.days.clip(lower=0)
+        out = los.rename("label").reset_index().rename(columns={pid_col: "patient_id"})
+        return out[["patient_id", "label"]]
+
+    raise ValueError(f"Unsupported task.kind for TJH build_labels: {cfg.task.kind!r}")

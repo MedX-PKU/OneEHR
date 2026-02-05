@@ -1,6 +1,5 @@
 [dataset]
 path = "/home/yhzhu/projects/pyehr/datasets/tjh/raw/time_series_375_prerpocess_en.xlsx"
-file_type = "xlsx"
 converter_fn = "oneehr/data/converters/tjh.py:convert"
 
 [preprocess]
@@ -25,7 +24,7 @@ kind = "binary"
 prediction_mode = "patient"
 
 [labels]
-fn = "tjh:outcome"
+fn = "oneehr/data/converters/tjh.py:build_labels"
 
 [split]
 kind = "kfold"
