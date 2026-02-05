@@ -9,6 +9,8 @@ from oneehr.utils.imports import load_callable
 
 
 def load_event_table(cfg: DatasetConfig) -> pd.DataFrame:
+    if cfg.path is None:
+        raise ValueError("dataset.path is required for file-based datasets.")
     path = Path(cfg.path)
     if cfg.file_type.lower() == "csv":
         df = pd.read_csv(path)
@@ -23,7 +25,8 @@ def load_event_table(cfg: DatasetConfig) -> pd.DataFrame:
         fn = load_callable(cfg.converter_fn)
         df = fn(df, cfg)
     else:
-        required = [cfg.patient_id_col, cfg.code_col, cfg.value_col, cfg.label_col]
+        # Label column is optional: users can provide labels via labels.fn.
+        required = [cfg.patient_id_col, cfg.code_col, cfg.value_col]
         missing = [c for c in required if c not in df.columns]
         if missing:
             raise ValueError(f"Missing required columns: {missing}. Got columns={list(df.columns)}")
