@@ -20,11 +20,10 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
 
     name = cfg.model.name
 
-    # For tabular models, input_dim is derived from code selection / top_k_codes.
-    # For DL sequence models, the real input_dim is the number of binned feature
-    # columns (computed at runtime); callers should override cfg.preprocess.top_k_codes
-    # accordingly (the CLI does this).
-    input_dim = int(cfg.preprocess.top_k_codes or 0)
+    # For tabular models, input_dim is derived from the tabular view at runtime.
+    # For DL models, the real input_dim is the number of binned feature columns
+    # (computed at runtime); callers should set cfg._dynamic_input_dim accordingly.
+    input_dim = int(getattr(cfg, "_dynamic_input_dim", 0) or 0)
     out_dim = 1
 
     if name == "gru":
