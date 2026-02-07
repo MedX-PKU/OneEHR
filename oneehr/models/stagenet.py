@@ -12,7 +12,7 @@ def _last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
 
 
 class StageNetLayer(nn.Module):
-    """StageNet core layer (structure-clean port from PyEHR)."""
+    """StageNet core layer."""
 
     def __init__(
         self,
@@ -231,4 +231,3 @@ class StageNetTimeModel(nn.Module):
 class StageNetArtifacts:
     feature_columns: list[str]
     state_dict: dict
-

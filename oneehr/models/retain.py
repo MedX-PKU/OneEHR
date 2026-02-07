@@ -7,7 +7,7 @@ from torch import nn
 
 
 class RETAINLayer(nn.Module):
-    """RETAIN layer (structure-clean port from PyEHR)."""
+    """RETAIN layer."""
 
     def __init__(self, input_dim: int, hidden_dim: int, dropout: float = 0.1):
         super().__init__()
@@ -91,4 +91,3 @@ class RETAINTimeModel(nn.Module):
 class RETAINArtifacts:
     feature_columns: list[str]
     state_dict: dict
-

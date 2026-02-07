@@ -14,7 +14,6 @@ def _last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
 class MCGRUEncoder(nn.Module):
     """Multi-channel GRU encoder with optional static features.
 
-    Ported from PyEHR's `MCGRU` but rewritten to match OneEHR conventions.
     Dynamic input: x (B, T, D)
     Static input:  static (B, S)
     Output: hidden states per time step (B, T, H)
@@ -114,4 +113,3 @@ class MCGRUTimeModel(nn.Module):
 class MCGRUArtifacts:
     feature_columns: list[str]
     state_dict: dict
-

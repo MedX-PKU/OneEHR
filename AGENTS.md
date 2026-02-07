@@ -19,10 +19,6 @@ uv pip install -e .
 
 - Python version: **3.12** (see `.python-version`).
 
-## Scope / Direction
-
-OneEHR is being built from scratch (do not attempt to keep compatibility with legacy PyEHR).
-
 ## Architecture (pipeline)
 
 OneEHR modules should follow the workflow:
@@ -30,7 +26,7 @@ OneEHR modules should follow the workflow:
 1. Data Pre-processing
 2. Modeling
 3. Evaluation
-4. Analysis (future)
+4. Analysis
 
 Future modules may include interpretability, uncertainty, confidence, etc.
 
@@ -44,7 +40,7 @@ Future modules may include interpretability, uncertainty, confidence, etc.
 
 ### Tasks
 
-- Only **single-task** for MVP.
+- Only **single-task** currently.
 - Task types needed now: `binary` and `regression` (no multiclass yet).
 - Prediction modes:
   - **N-1** (`patient`): one prediction per patient.
@@ -53,7 +49,6 @@ Future modules may include interpretability, uncertainty, confidence, etc.
 
 ## Repository context
 
-- Put project-specific task descriptions and requirements under `.context/`.
 - Put longer-form architecture and design notes under `docs/`.
 
 ### Splits
@@ -68,4 +63,3 @@ Future modules may include interpretability, uncertainty, confidence, etc.
 
 - CLI command name: `oneehr`.
 - CLI should be driven primarily by **TOML configuration**.
-- MVP focus: make models trainable and benchmarkable; **no interpretability** for now.
