@@ -89,7 +89,6 @@ def bin_events(
     Features are expanded into columns using a limited code vocabulary.
     """
 
-    _ = dataset
     cols = [
         "patient_id",
         "event_time",

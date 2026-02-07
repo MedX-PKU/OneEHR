@@ -98,7 +98,6 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
                     num_layers=cfg.model.transformer.num_layers,
                     dim_feedforward=cfg.model.transformer.dim_feedforward,
                     dropout=cfg.model.transformer.dropout,
-                    pooling=cfg.model.transformer.pooling,
                 ),
                 kind="dl",
             )

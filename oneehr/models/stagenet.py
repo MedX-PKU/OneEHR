@@ -6,9 +6,7 @@ import torch
 from torch import nn
 
 
-def _last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    idx = (lengths - 1).clamp_min(0)
-    return x[torch.arange(x.shape[0], device=x.device), idx]
+from oneehr.models.utils import last_by_lengths
 
 
 class StageNetLayer(nn.Module):
@@ -159,7 +157,7 @@ class StageNetLayer(nn.Module):
             rnn_outputs = self.nn_dropout(rnn_outputs)
         output = rnn_outputs.contiguous().view(batch_size, time_step, self.hidden_dim)
 
-        last_output = _last_by_lengths(output, lengths)
+        last_output = last_by_lengths(output, lengths)
         return last_output, output
 
 

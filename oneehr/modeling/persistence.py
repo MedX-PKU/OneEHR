@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import asdict
 from pathlib import Path
 
+import torch
+
 from oneehr.config.schema import ExperimentConfig
-from oneehr.utils.imports import require_torch
 from oneehr.utils.io import as_jsonable, ensure_dir, sha256_lines, write_json
 
 
@@ -23,7 +24,6 @@ def write_dl_artifacts(
       - model_meta.json: metadata required to rebuild the model + align inputs
     """
 
-    torch = require_torch()
     out_dir = ensure_dir(out_dir)
 
     ckpt_path = out_dir / "state_dict.ckpt"

@@ -6,9 +6,7 @@ import torch
 from torch import nn
 
 
-def _last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    idx = (lengths - 1).clamp_min(0)
-    return x[torch.arange(x.shape[0], device=x.device), idx]
+from oneehr.models.utils import last_by_lengths
 
 
 class DrAgentModel(nn.Module):
@@ -47,7 +45,7 @@ class DrAgentModel(nn.Module):
         )
         packed_out, _ = self.rnn(packed)
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
-        last = _last_by_lengths(out, lengths)
+        last = last_by_lengths(out, lengths)
         if static is None or self.static_dim == 0:
             return self.head(last)
         s = self.static_proj(static)
@@ -93,4 +91,3 @@ class DrAgentTimeModel(nn.Module):
 class DrAgentArtifacts:
     feature_columns: list[str]
     state_dict: dict
-

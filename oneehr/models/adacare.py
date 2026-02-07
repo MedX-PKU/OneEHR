@@ -6,9 +6,7 @@ import torch
 from torch import nn
 
 
-def _last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    idx = (lengths - 1).clamp_min(0)
-    return x[torch.arange(x.shape[0], device=x.device), idx]
+from oneehr.models.utils import last_by_lengths
 
 
 class Sparsemax(nn.Module):
@@ -158,7 +156,7 @@ class AdaCareModel(nn.Module):
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
         z = self.encoder(x, lengths)
-        last = _last_by_lengths(z, lengths)
+        last = last_by_lengths(z, lengths)
         return self.head(last)
 
 
@@ -177,4 +175,3 @@ class AdaCareTimeModel(nn.Module):
 class AdaCareArtifacts:
     feature_columns: list[str]
     state_dict: dict
-

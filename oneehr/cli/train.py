@@ -7,9 +7,9 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from oneehr.eval.calibration import sigmoid
-from oneehr.utils.imports import optional_import
 from oneehr.utils.io import ensure_dir, write_json
 
 
@@ -24,10 +24,6 @@ def _train_sequence_patient_level(
     *,
     y_map: dict[str, float] | None = None,
 ):
-    torch = optional_import("torch")
-    if torch is None:
-        raise SystemExit("Missing optional dependency: torch. Install it first (e.g. `uv add torch`).")
-
     from oneehr.data.sequence import build_patient_sequences, pad_sequences
 
     feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
@@ -128,10 +124,6 @@ def _train_sequence_time_level(
     cfg,
     task,
 ):
-    torch = optional_import("torch")
-    if torch is None:
-        raise SystemExit("Missing optional dependency: torch. Install it first (e.g. `uv add torch`).")
-
     from oneehr.data.sequence import build_time_sequences, pad_sequences
 
     feat_cols = [c for c in binned.columns if c.startswith("num__") or c.startswith("cat__")]
@@ -697,10 +689,6 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     if hpo_metric in {"val_rmse", "rmse"}:
                         return float(vm["rmse"]), vm
                     return float(vm["mae"]), vm
-
-                torch = optional_import("torch")
-                if torch is None:
-                    raise SystemExit("DL HPO requires torch")
 
                 from oneehr.data.sequence import build_patient_sequences, build_time_sequences, pad_sequences
 

@@ -75,7 +75,10 @@ def run_analyze(
                 if not model_path.exists():
                     continue
 
-                art = load_tabular_model(split_dir, model_name)
+                from oneehr.config.schema import TaskConfig
+
+                task_cfg = TaskConfig(kind=task_kind, prediction_mode=mode)
+                art = load_tabular_model(split_dir, task=task_cfg, kind=model_name)
                 model_obj = art.model
 
                 methods_to_run = []

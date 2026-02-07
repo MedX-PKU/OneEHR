@@ -12,7 +12,7 @@ def build_dataset_overview(
     *,
     top_k_codes: int = 20,
 ) -> dict[str, object]:
-    _ = cfg
+    del cfg
     pid = "patient_id"
     tcol = "event_time"
     code = "code"

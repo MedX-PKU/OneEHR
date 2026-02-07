@@ -4,14 +4,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
+import torch
+
 from oneehr.config.schema import TaskConfig, TrainerConfig
 from oneehr.eval.calibration import sigmoid
 from oneehr.eval.metrics import binary_metrics, regression_metrics
-from oneehr.utils.imports import load_callable, require_torch
+from oneehr.utils.imports import load_callable
 
 
 def _select_device(cfg: TrainerConfig):
-    torch = require_torch()
     if cfg.device == "cpu":
         return torch.device("cpu")
     if cfg.device == "cuda":
@@ -26,7 +27,6 @@ def _select_device(cfg: TrainerConfig):
 
 
 def _default_loss(task: TaskConfig):
-    torch = require_torch()
     nn = torch.nn
     if task.kind == "binary":
         return nn.BCEWithLogitsLoss(reduction="none")
@@ -101,7 +101,6 @@ def fit_sequence_model(
 ) -> FitResult:
     """Trainer for N-1 sequence models (one label per patient)."""
 
-    torch = require_torch()
     device = _select_device(trainer)
 
     torch.manual_seed(trainer.seed)
@@ -224,7 +223,6 @@ def fit_sequence_model_time(
 ) -> FitSeqResult:
     """Trainer for N-N sequence models (one label per time step)."""
 
-    torch = require_torch()
     device = _select_device(trainer)
 
     torch.manual_seed(trainer.seed)

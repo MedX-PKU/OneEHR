@@ -6,6 +6,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from pathlib import Path
+
 from oneehr.config.schema import (
     CatBoostConfig,
     DTConfig,
@@ -23,8 +25,7 @@ class TabularArtifacts:
     kind: str  # xgboost | catboost | rf | dt | gbdt
 
 
-def save_tabular_model(art: TabularArtifacts, model_dir: str | "pd.Path") -> None:
-    from pathlib import Path
+def save_tabular_model(art: TabularArtifacts, model_dir: str | Path) -> None:
     import json
 
     d = Path(model_dir)
@@ -43,8 +44,7 @@ def save_tabular_model(art: TabularArtifacts, model_dir: str | "pd.Path") -> Non
     joblib.dump(art.model, d / "model.joblib")
 
 
-def load_tabular_model(model_dir: str | "pd.Path", *, task: TaskConfig, kind: str) -> TabularArtifacts:
-    from pathlib import Path
+def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) -> TabularArtifacts:
     import json
 
     d = Path(model_dir)

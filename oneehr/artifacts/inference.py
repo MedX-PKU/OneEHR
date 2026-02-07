@@ -28,31 +28,9 @@ def _load_static_postprocess_from_manifest(manifest: RunManifest) -> FittedPostp
     pipeline = (post or {}).get("pipeline")
     if not isinstance(pipeline, list):
         raise ValueError("Invalid run_manifest.json: static.postprocess.pipeline must be a list")
-    # Backward compat: older manifests stored mean/std/fill as stringified pandas Series.
-    fixed: list[dict[str, object]] = []
-    for step in pipeline:
-        if not isinstance(step, dict):
-            continue
-        step2 = dict(step)
-        for k in ("mean", "std", "fill"):
-            v = step2.get(k)
-            if isinstance(v, str) and "dtype:" in v and "\n" in v:
-                # Parse lines like: "col  value"
-                out = {}
-                for ln in v.splitlines():
-                    ln = ln.strip()
-                    if not ln or ln.startswith("dtype:"):
-                        continue
-                    parts = ln.split()
-                    if len(parts) >= 2:
-                        key = parts[0]
-                        try:
-                            out[key] = float(parts[-1])
-                        except Exception:
-                            continue
-                step2[k] = pd.Series(out, dtype=float)
-        fixed.append(step2)
-    return FittedPostprocess(pipeline=fixed)
+    if not all(isinstance(step, dict) for step in pipeline):
+        raise ValueError("Invalid run_manifest.json: static.postprocess.pipeline must be a list of dicts")
+    return FittedPostprocess(pipeline=list(pipeline))
 
 
 def _transform_static_like_train(

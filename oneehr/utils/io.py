@@ -35,11 +35,7 @@ def write_json(path: str | Path, data: Any) -> None:
     # Allow storing numpy/pandas objects in artifacts without callers having
     # to manually convert them to python scalars/lists.
     import numpy as np
-
-    try:
-        import pandas as pd  # type: ignore
-    except Exception:  # pragma: no cover
-        pd = None  # type: ignore
+    import pandas as pd
 
     def _default(o: Any):
         if isinstance(o, Path):
@@ -48,9 +44,9 @@ def write_json(path: str | Path, data: Any) -> None:
             return o.item()
         if isinstance(o, np.ndarray):
             return o.tolist()
-        if pd is not None and isinstance(o, pd.Series):  # type: ignore[attr-defined]
+        if isinstance(o, pd.Series):
             return o.to_dict()
-        if pd is not None and isinstance(o, pd.DataFrame):  # type: ignore[attr-defined]
+        if isinstance(o, pd.DataFrame):
             return o.to_dict(orient="list")
         raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
 

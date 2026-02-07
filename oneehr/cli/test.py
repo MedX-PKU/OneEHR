@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from oneehr.eval.calibration import sigmoid
-from oneehr.utils.imports import optional_import
+import torch
 from oneehr.utils.io import ensure_dir, write_json
 
 
@@ -101,7 +101,10 @@ def run_test(
                     model_path = split_dir / "model.pkl"
                 if not model_path.exists():
                     continue
-                art = load_tabular_model(split_dir, model_name)
+                from oneehr.config.schema import TaskConfig
+
+                task_cfg = TaskConfig(kind=task_kind, prediction_mode=mode)
+                art = load_tabular_model(split_dir, task=task_cfg, kind=model_name)
                 from oneehr.config.schema import TaskConfig
 
                 task_cfg = TaskConfig(kind=task_kind, prediction_mode=mode)
@@ -111,10 +114,6 @@ def run_test(
                 meta_path = split_dir / "model_meta.json"
                 if not ckpt.exists() or not meta_path.exists():
                     continue
-
-                torch = optional_import("torch")
-                if torch is None:
-                    raise SystemExit("torch is required for DL model testing")
 
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
                 stored_feat_cols = (meta.get("input") or {}).get("feature_columns", feat_cols)

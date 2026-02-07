@@ -6,9 +6,7 @@ import torch
 from torch import nn
 
 
-def _last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    idx = (lengths - 1).clamp_min(0)
-    return x[torch.arange(x.shape[0], device=x.device), idx]
+from oneehr.models.utils import last_by_lengths
 
 
 class LSTMEncoder(nn.Module):
@@ -48,7 +46,7 @@ class LSTMModel(nn.Module):
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
         out = self.encoder(x, lengths)
-        last = _last_by_lengths(out, lengths)
+        last = last_by_lengths(out, lengths)
         return self.head(last)
 
 
@@ -76,4 +74,3 @@ class LSTMTimeModel(nn.Module):
 class LSTMArtifacts:
     feature_columns: list[str]
     state_dict: dict
-
