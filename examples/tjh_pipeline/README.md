@@ -52,6 +52,17 @@ uv run oneehr train --config examples/tjh_pipeline/experiment_external_test.toml
 uv run oneehr test --config examples/tjh_pipeline/experiment_external_test.toml --force
 ```
 
+### Fixed train/val split (no CV)
+
+If you prefer a fixed train/val split (instead of k-fold CV on the training cohort),
+use:
+
+```bash
+uv run oneehr preprocess --config examples/tjh_pipeline/experiment_external_fixed_split.toml
+uv run oneehr train --config examples/tjh_pipeline/experiment_external_fixed_split.toml --force
+uv run oneehr test --config examples/tjh_pipeline/experiment_external_fixed_split.toml --force
+```
+
 Artifacts to inspect:
 - Training run: `logs/tjh_external_test/`
 - Test run outputs: `logs/tjh_external_test/test_runs/<dataset_stem>/`
