@@ -17,3 +17,18 @@ def make_patient_index(events: pd.DataFrame, time_col: str, patient_id_col: str)
     )
     return out
 
+
+def make_patient_index_from_static(static: pd.DataFrame, patient_id_col: str = "patient_id") -> pd.DataFrame:
+    """Create a patient index for static-only datasets.
+
+    min_time/max_time are set to NaT because there is no longitudinal timeline.
+    This still allows patient-level grouped splits.
+    """
+
+    if patient_id_col not in static.columns:
+        raise ValueError(f"static missing required column: {patient_id_col!r}")
+    pids = static[patient_id_col].astype(str).dropna().unique()
+    out = pd.DataFrame({"patient_id": pids})
+    out["min_time"] = pd.NaT
+    out["max_time"] = pd.NaT
+    return out

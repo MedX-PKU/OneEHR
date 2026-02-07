@@ -132,10 +132,14 @@ def run_test(
                     model=model_cfg_obj,
                     preprocess=replace(cfg0.preprocess, top_k_codes=input_dim),
                 )
+                st_cols = manifest.static_feature_columns()
+                if st_cols:
+                    cfg_use = replace(cfg_use, _static_dim=len(st_cols))
                 built = build_model(cfg_use)
                 model = built.model
                 model.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
                 model.eval()
+                model_supports_static_branch = hasattr(model, "static_dim") and int(getattr(model, "static_dim", 0)) > 0
 
                 if mode == "patient":
                     pids, seqs, lens = build_patient_sequences(views.binned, stored_feat_cols)
@@ -143,7 +147,15 @@ def run_test(
                     lens_t = torch.from_numpy(lens)
 
                     with torch.no_grad():
-                        logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                        if model_supports_static_branch and st_cols:
+                            static_mat = (
+                                views.X.reindex(index=np.array(pids, dtype=str))
+                                .loc[:, st_cols]
+                                .to_numpy(dtype=np.float32, copy=True)
+                            )
+                            logits = model(X_seq, lens_t, torch.from_numpy(static_mat)).squeeze(-1).detach().cpu().numpy()
+                        else:
+                            logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
                     if task_kind == "binary":
                         y_pred_all = sigmoid(logits)
                     else:
@@ -168,7 +180,16 @@ def run_test(
                     lens_t = torch.from_numpy(lens)
 
                     with torch.no_grad():
-                        logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                        if model_supports_static_branch and st_cols:
+                            # Align static by patient_id order (pids); models accept patient-level static.
+                            static_mat = (
+                                views.X.reindex(index=np.array(pids, dtype=str))
+                                .loc[:, st_cols]
+                                .to_numpy(dtype=np.float32, copy=True)
+                            )
+                            logits = model(X_seq, lens_t, torch.from_numpy(static_mat)).squeeze(-1).detach().cpu().numpy()
+                        else:
+                            logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
                     if task_kind == "binary":
                         y_pred_all = sigmoid(logits)
                     else:

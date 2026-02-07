@@ -46,7 +46,7 @@ class DatasetConfig:
     should convert raw datasets into these standard tables outside OneEHR.
     """
 
-    dynamic: DynamicTableConfig
+    dynamic: DynamicTableConfig | None = None
     static: StaticTableConfig | None = None
     label: LabelTableConfig | None = None
 
@@ -327,3 +327,10 @@ class ExperimentConfig:
     hpo_by_model: dict[str, HPOConfig] = field(default_factory=dict)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    # Internal: runtime-derived static feature dimension for models that support
+    # a dedicated static branch (e.g., MCGRU, DrAgent). This is populated by the
+    # CLI from the run manifest and is not user-configurable.
+    _static_dim: int = 0
+    # Internal: runtime-derived dynamic feature dimension (post-binning column count).
+    # This avoids overloading preprocess.top_k_codes, whose semantics are "how many codes to select".
+    _dynamic_input_dim: int = 0

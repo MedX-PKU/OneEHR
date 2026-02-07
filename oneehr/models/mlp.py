@@ -51,6 +51,14 @@ class MLPModel(nn.Module):
         self.head = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
+        # Support static-only tabular datasets:
+        # - x: (B, T, D) for sequence-style input
+        # - x: (B, D) for tabular input (no time axis)
+        if x.ndim == 2:
+            h = self.proj(x)
+            h = self.blocks(h)
+            return self.head(h)
+
         h = self.proj(x)
         h = self.blocks(h)
         last = last_by_lengths(h, lengths)

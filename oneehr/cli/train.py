@@ -21,6 +21,7 @@ def _train_sequence_patient_level(
     split,
     cfg,
     task,
+    model_supports_static_branch: bool = False,
     *,
     y_map: dict[str, float] | None = None,
 ):
@@ -56,7 +57,7 @@ def _train_sequence_patient_level(
     X_te, L_te, y_te = X_seq[test_m], lens_t[test_m], torch.from_numpy(y_arr[test_m])
 
     S = None
-    if static is not None:
+    if static is not None and model_supports_static_branch:
         from oneehr.data.sequence import align_static_features
 
         S_all = align_static_features(
@@ -70,6 +71,22 @@ def _train_sequence_patient_level(
         else:
             S_tr = S_va = S_te = None
     else:
+        S_tr = S_va = S_te = None
+
+    if static is not None and not model_supports_static_branch:
+        # Repeat patient-level static covariates across time and concat to dynamic bins.
+        from oneehr.data.sequence import align_static_features
+
+        S_all = align_static_features(
+            pids,
+            static,
+            expected_feature_columns=list(static.columns),
+        )
+        if S_all is not None:
+            S_np = np.asarray(S_all, dtype=np.float32)
+            S_rep = np.repeat(S_np[:, None, :], X_seq.shape[1], axis=1)
+            X_seq = torch.from_numpy(np.concatenate([X_seq, S_rep], axis=-1).astype(np.float32, copy=False))
+            X_tr, X_va, X_te = X_seq[train_m], X_seq[val_m], X_seq[test_m]
         S_tr = S_va = S_te = None
 
     from oneehr.modeling.trainer import fit_sequence_model
@@ -123,6 +140,7 @@ def _train_sequence_time_level(
     split,
     cfg,
     task,
+    model_supports_static_branch: bool = False,
 ):
     from oneehr.data.sequence import build_time_sequences, pad_sequences
 
@@ -162,7 +180,7 @@ def _train_sequence_time_level(
         M_seq[test_m],
     )
 
-    if static is not None:
+    if static is not None and model_supports_static_branch:
         from oneehr.data.sequence import align_static_features
 
         S_all = align_static_features(pids, static, expected_feature_columns=list(static.columns))
@@ -172,6 +190,17 @@ def _train_sequence_time_level(
         else:
             S_tr = S_va = S_te = None
     else:
+        S_tr = S_va = S_te = None
+
+    if static is not None and not model_supports_static_branch:
+        from oneehr.data.sequence import align_static_features
+
+        S_all = align_static_features(pids, static, expected_feature_columns=list(static.columns))
+        if S_all is not None:
+            S_np = np.asarray(S_all, dtype=np.float32)
+            S_rep = np.repeat(S_np[:, None, :], X_seq.shape[1], axis=1)
+            X_seq = torch.from_numpy(np.concatenate([X_seq, S_rep], axis=-1).astype(np.float32, copy=False))
+            X_tr, X_va, X_te = X_seq[train_m], X_seq[val_m], X_seq[test_m]
         S_tr = S_va = S_te = None
 
     from oneehr.modeling.trainer import fit_sequence_model_time
@@ -379,8 +408,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     import pandas as pd
 
     from oneehr.config.load import load_experiment_config
-    from oneehr.data.io import load_dynamic_table
-    from oneehr.data.patient_index import make_patient_index
+    from oneehr.data.io import load_dynamic_table_optional, load_static_table
+    from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
     from oneehr.data.sequence import build_patient_sequences
     from oneehr.data.splits import make_splits
     from oneehr.data.postprocess import maybe_fit_transform_postprocess
@@ -401,12 +430,18 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
-    dynamic = load_dynamic_table(train_dataset.dynamic)
-    patient_index = make_patient_index(
-        dynamic,
-        "event_time",
-        "patient_id",
-    )
+    dynamic = load_dynamic_table_optional(train_dataset.dynamic)
+    static_raw = load_static_table(train_dataset.static)
+    if dynamic is not None:
+        patient_index = make_patient_index(
+            dynamic,
+            "event_time",
+            "patient_id",
+        )
+    elif static_raw is not None:
+        patient_index = make_patient_index_from_static(static_raw, patient_id_col="patient_id")
+    else:
+        raise SystemExit("dataset.dynamic or dataset.static is required for training.")
     splits = make_splits(patient_index, cfg0.split)
 
     out_root = cfg0.output.root / cfg0.output.run_name
@@ -439,6 +474,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             )
 
     TABULAR_MODELS = {"xgboost", "catboost", "rf", "dt", "gbdt"}
+    DL_MODELS = {"gru", "rnn", "lstm", "mlp", "tcn", "transformer", "adacare", "stagenet", "retain", "concare", "grasp", "mcgru", "dragent"}
+    STATIC_ONLY_DL_MODELS = {"mlp"}
 
     models = cfg0.models or [cfg0.model]
 
@@ -654,6 +691,10 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             else:
                 test_patient_ids = X_test.index.astype(str)
 
+            static_only = len(dynamic_feature_columns) == 0
+            if static_only and cfg_model.task.prediction_mode != "patient":
+                raise SystemExit("static-only datasets only support prediction_mode='patient'.")
+
             X_train, X_val, X_test, fitted_post = maybe_fit_transform_postprocess(
                 X_train=X_train,
                 X_val=X_val,
@@ -661,10 +702,23 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 pipeline=cfg0.preprocess.pipeline,
             )
 
-            # Static features are currently not wired into DL training (train.py passes
-            # `static=static_train` but registry builds models with `static_dim=0`).
-            # Keep this None to avoid the appearance that static covariates are used.
             static_train = None
+            if static_all is not None and static_feature_columns is not None:
+                static_train = static_all
+            if static_all is not None and static_feature_columns is not None and model_name in TABULAR_MODELS:
+                # ML models always use concat (per pyehr pipeline): join static into X.
+                # Avoid collisions when a feature exists in both dynamic and static spaces.
+                overlap = [c for c in static_feature_columns if c in X_train.columns]
+                static_use = static_all.drop(columns=overlap, errors="ignore")
+                X_train = X_train.join(static_use, how="left").fillna(0.0)
+                X_val = X_val.join(static_use, how="left").fillna(0.0)
+                X_test = X_test.join(static_use, how="left").fillna(0.0)
+
+            if static_only and model_name in DL_MODELS and model_name not in STATIC_ONLY_DL_MODELS:
+                raise SystemExit(
+                    f"Model {model_name!r} is a DL sequence model and requires dynamic features; "
+                    "static-only datasets currently support ML models only."
+                )
 
             def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
                 hpo_metric = cfg.hpo.metric
@@ -692,6 +746,9 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     if hpo_metric in {"val_rmse", "rmse"}:
                         return float(vm["rmse"]), vm
                     return float(vm["mae"]), vm
+
+                if len(dynamic_feature_columns) == 0:
+                    return None
 
                 from oneehr.data.sequence import build_patient_sequences, build_time_sequences, pad_sequences
 
@@ -731,9 +788,11 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                         X_train=X_tr,
                         len_train=L_tr,
                         y_train=y_tr,
+                        static_train=None,
                         X_val=X_va,
                         len_val=L_va,
                         y_val=y_va,
+                        static_val=None,
                         task=cfg.task,
                         trainer=cfg.trainer,
                     )
@@ -786,10 +845,12 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                         len_train=L_tr,
                         y_train=Y_tr,
                         mask_train=M_tr,
+                        static_train=None,
                         X_val=X_va,
                         len_val=L_va,
                         y_val=Y_va,
                         mask_val=M_va,
+                        static_val=None,
                         task=cfg.task,
                         trainer=cfg.trainer,
                     )
@@ -874,83 +935,164 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     pp_dir = ensure_dir(out_root / "preprocess" / sp.name)
                     write_json(pp_dir / "pipeline.json", {"pipeline": fitted_post.pipeline})
             else:
-                # Unified DL model construction via build_model().
-                feat_cols = list(dynamic_feature_columns)
-                input_dim = len(feat_cols)
-                if cfg.task.kind == "binary" and len(np.unique(y_train.astype(float))) < 2:
-                    rows.append(
-                        {
-                            "model": model_name,
-                            "split": sp.name,
-                            "skipped": 1,
-                            "reason": "single_class_train",
-                        }
-                    )
-                    continue
-                if cfg.task.kind == "binary" and len(np.unique(y_val.astype(float))) < 2:
-                    rows.append(
-                        {
-                            "model": model_name,
-                            "split": sp.name,
-                            "skipped": 1,
-                            "reason": "single_class_val",
-                        }
-                    )
-                    continue
+                if static_only:
+                    # Static-only DL (tabular) currently supported for MLP only.
+                    if model_name != "mlp":
+                        raise SystemExit("static-only DL training currently supports model.name='mlp' only.")
+                    if static_train is None or static_feature_columns is None:
+                        raise SystemExit("static-only DL training requires dataset.static and materialized static features.")
+                    if cfg.task.prediction_mode != "patient":
+                        raise SystemExit("static-only DL training supports prediction_mode='patient' only.")
 
-                cfg_use = replace(cfg, preprocess=replace(cfg.preprocess, top_k_codes=input_dim))
-                built = build_model(cfg_use)
-                model = built.model
+                    # Build per-patient tabular tensors from static features.
+                    # Align X/y by patient_id and apply the same split masks.
+                    pids_all = static_train.index.astype(str).to_numpy()
+                    y_map = dict(zip(X.index.astype(str).tolist(), y.to_numpy().tolist()))
+                    y_all = np.array([y_map.get(pid, np.nan) for pid in pids_all], dtype=np.float32)
 
-                if cfg.task.prediction_mode == "patient":
-                    (
-                        y_score,
-                        y_test,
-                        test_patient_ids,
-                        test_logits,
-                        val_score,
-                        val_logits,
-                        y_val_true,
-                    ) = _train_sequence_patient_level(
+                    tr_m = np.isin(pids_all, sp.train_patients) & np.isfinite(y_all)
+                    va_m = np.isin(pids_all, sp.val_patients) & np.isfinite(y_all)
+                    te_m = np.isin(pids_all, sp.test_patients) & np.isfinite(y_all)
+
+                    if not bool(tr_m.any()) or not bool(va_m.any()) or not bool(te_m.any()):
+                        raise SystemExit("No samples available after split for static-only DL training.")
+
+                    X_static = torch.from_numpy(static_train.to_numpy(dtype=np.float32, copy=True))
+                    # Dummy lengths (not used in MLP tabular mode)
+                    L_static = torch.ones((X_static.shape[0],), dtype=torch.long)
+
+                    X_tr, L_tr, y_tr = X_static[tr_m], L_static[tr_m], torch.from_numpy(y_all[tr_m])
+                    X_va, L_va, y_va = X_static[va_m], L_static[va_m], torch.from_numpy(y_all[va_m])
+                    X_te, L_te, y_te = X_static[te_m], L_static[te_m], torch.from_numpy(y_all[te_m])
+
+                    input_dim = int(X_static.shape[1])
+                    cfg_use = replace(cfg, preprocess=replace(cfg.preprocess, top_k_codes=input_dim))
+                    built = build_model(cfg_use)
+                    model = built.model
+
+                    from oneehr.modeling.trainer import fit_sequence_model
+
+                    fit = fit_sequence_model(
                         model=model,
-                        binned=binned,
-                        y=y,
-                        static=static_train,
-                        split=sp,
-                        cfg=cfg.trainer,
+                        X_train=X_tr,
+                        len_train=L_tr,
+                        y_train=y_tr,
+                        static_train=None,
+                        X_val=X_va,
+                        len_val=L_va,
+                        y_val=y_va,
+                        static_val=None,
                         task=cfg.task,
-                        y_map=dict(zip(X.index.astype(str).tolist(), y.to_numpy().tolist())),
+                        trainer=cfg.trainer,
+                    )
+
+                    model.load_state_dict(fit.state_dict)
+                    model.eval()
+                    with torch.no_grad():
+                        val_logits = model(X_va, L_va).squeeze(-1).detach().cpu().numpy()
+                        test_logits = model(X_te, L_te).squeeze(-1).detach().cpu().numpy()
+                    if cfg.task.kind == "binary":
+                        val_score = sigmoid(val_logits)
+                        y_score = sigmoid(test_logits)
+                    else:
+                        val_score = val_logits
+                        y_score = test_logits
+                    y_val_true = y_va.detach().cpu().numpy()
+                    y_test = y_te.detach().cpu().numpy()
+                    test_patient_ids = pids_all[te_m]
+
+                    model_out = ensure_dir(out_root / "models" / model_name / sp.name)
+                    write_dl_artifacts(
+                        out_dir=model_out,
+                        model=model,
+                        cfg=cfg,
+                        feature_columns=list(static_feature_columns),
+                        code_vocab=None,
                     )
                 else:
-                    (
-                        y_score,
-                        y_test,
-                        test_key_rows,
-                        test_logits,
-                        val_score,
-                        val_logits,
-                        y_val_true,
-                    ) = _train_sequence_time_level(
-                        model=model,
-                        binned=binned,
-                        labels_df=labels_df,
-                        static=static_train,
-                        split=sp,
-                        cfg=cfg.trainer,
-                        task=cfg.task,
-                    )
-                    test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
-                    test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
+                    # Unified DL model construction via build_model().
+                    feat_cols = list(dynamic_feature_columns)
+                    input_dim = len(feat_cols)
+                    if cfg.task.kind == "binary" and len(np.unique(y_train.astype(float))) < 2:
+                        rows.append(
+                            {
+                                "model": model_name,
+                                "split": sp.name,
+                                "skipped": 1,
+                                "reason": "single_class_train",
+                            }
+                        )
+                        continue
+                    if cfg.task.kind == "binary" and len(np.unique(y_val.astype(float))) < 2:
+                        rows.append(
+                            {
+                                "model": model_name,
+                                "split": sp.name,
+                                "skipped": 1,
+                                "reason": "single_class_val",
+                            }
+                        )
+                        continue
 
-                model_out = ensure_dir(out_root / "models" / model_name / sp.name)
-                code_vocab = None
-                write_dl_artifacts(
-                    out_dir=model_out,
-                    model=model,
-                    cfg=cfg,
-                    feature_columns=feat_cols,
-                    code_vocab=code_vocab,
-                )
+                    cfg_use = replace(cfg, preprocess=replace(cfg.preprocess, top_k_codes=input_dim))
+                    if static_train is not None:
+                        cfg_use = replace(cfg_use, _static_dim=int(static_train.shape[1]))
+                    built = build_model(cfg_use)
+                    model = built.model
+
+                    model_supports_static_branch = hasattr(model, "static_dim") and int(getattr(model, "static_dim", 0)) > 0
+
+                    if cfg.task.prediction_mode == "patient":
+                        (
+                            y_score,
+                            y_test,
+                            test_patient_ids,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_patient_level(
+                            model=model,
+                            binned=binned,
+                            y=y,
+                            static=static_train,
+                            split=sp,
+                            cfg=cfg.trainer,
+                            task=cfg.task,
+                            model_supports_static_branch=model_supports_static_branch,
+                            y_map=dict(zip(X.index.astype(str).tolist(), y.to_numpy().tolist())),
+                        )
+                    else:
+                        (
+                            y_score,
+                            y_test,
+                            test_key_rows,
+                            test_logits,
+                            val_score,
+                            val_logits,
+                            y_val_true,
+                        ) = _train_sequence_time_level(
+                            model=model,
+                            binned=binned,
+                            labels_df=labels_df,
+                            static=static_train,
+                            split=sp,
+                            cfg=cfg.trainer,
+                            task=cfg.task,
+                            model_supports_static_branch=model_supports_static_branch,
+                        )
+                        test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)
+                        test_key = pd.DataFrame(test_key_rows, columns=["patient_id", "bin_time"])
+
+                    model_out = ensure_dir(out_root / "models" / model_name / sp.name)
+                    code_vocab = None
+                    write_dl_artifacts(
+                        out_dir=model_out,
+                        model=model,
+                        cfg=cfg,
+                        feature_columns=feat_cols,
+                        code_vocab=code_vocab,
+                    )
 
             # Optional calibration (fit on val split) + threshold selection.
             cal_extra = {}

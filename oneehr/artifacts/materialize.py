@@ -15,7 +15,7 @@ from oneehr.utils.io import ensure_dir, write_json
 
 def materialize_preprocess_artifacts(
     *,
-    dynamic: pd.DataFrame,
+    dynamic: pd.DataFrame | None,
     static: pd.DataFrame | None,
     label: pd.DataFrame | None,
     cfg: ExperimentConfig,
@@ -38,16 +38,25 @@ def materialize_preprocess_artifacts(
 
     out_root = ensure_dir(out_root)
 
-    binned = bin_events(dynamic, cfg.dataset.dynamic, cfg.preprocess)
-    # Standard binned column order: keys -> label -> features
-    binned_df = binned.table.copy()
-    base_cols = [c for c in ["patient_id", "bin_time", "label"] if c in binned_df.columns]
-    feat_cols = [c for c in binned_df.columns if c.startswith("num__") or c.startswith("cat__")]
-    other_cols = [c for c in binned_df.columns if c not in set(base_cols + feat_cols)]
-    binned_df = binned_df[base_cols + other_cols + feat_cols]
+    binned_df = None
+    feat_cols: list[str] = []
+    if dynamic is not None:
+        if cfg.dataset.dynamic is None:
+            raise ValueError("dataset.dynamic config is required when a dynamic table is provided.")
+        binned = bin_events(dynamic, cfg.dataset.dynamic, cfg.preprocess)
+        # Standard binned column order: keys -> label -> features
+        binned_df = binned.table.copy()
+        base_cols = [c for c in ["patient_id", "bin_time", "label"] if c in binned_df.columns]
+        feat_cols = [c for c in binned_df.columns if c.startswith("num__") or c.startswith("cat__")]
+        other_cols = [c for c in binned_df.columns if c not in set(base_cols + feat_cols)]
+        binned_df = binned_df[base_cols + other_cols + feat_cols]
+    else:
+        # Static-only runs: create an empty binned table placeholder.
+        binned_df = pd.DataFrame(columns=["patient_id", "bin_time", "label"])
+
     (out_root / "binned.parquet").write_bytes(binned_df.to_parquet(index=False))
 
-    # Dynamic feature space
+    # Dynamic feature space (may be empty for static-only runs)
     ensure_dir(out_root / "features" / "dynamic")
     write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"feature_columns": feat_cols})
 
@@ -56,19 +65,31 @@ def materialize_preprocess_artifacts(
     pt_path = None
     tm_path = None
     if cfg.task.prediction_mode == "patient":
-        Xp, yp = make_patient_tabular(binned_df)
-        dfp = Xp.reset_index()
-        # Do not force-drop unlabeled patients at preprocess time. Labels are
-        # materialized separately (labels.parquet) and joined below.
-        if yp is None or yp.empty:
-            dfp["label"] = pd.NA
+        if feat_cols:
+            Xp, yp = make_patient_tabular(binned_df)
+            dfp = Xp.reset_index()
+            # Do not force-drop unlabeled patients at preprocess time. Labels are
+            # materialized separately (labels.parquet) and joined below.
+            if yp is None or yp.empty:
+                dfp["label"] = pd.NA
+            else:
+                dfp["label"] = yp.to_numpy()
+            # Standard column order: keys -> label -> features
+            dfp = dfp[["patient_id", "label", *feat_cols]]
         else:
-            dfp["label"] = yp.to_numpy()
-        # Standard column order: keys -> label -> features
-        dfp = dfp[["patient_id", "label", *feat_cols]]
+            # Static-only: create a minimal patient view so downstream training
+            # can still read patient_id/label and join static features.
+            if static is None or static.empty:
+                dfp = pd.DataFrame(columns=["patient_id", "label"])
+            else:
+                dfp = pd.DataFrame({"patient_id": static["patient_id"].astype(str).unique()})
+                dfp["label"] = pd.NA
+            dfp = dfp[["patient_id", "label"]]
         (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
         pt_path = "views/patient_tabular.parquet"
     elif cfg.task.prediction_mode == "time":
+        if not feat_cols:
+            raise ValueError("prediction_mode='time' requires dynamic features; static-only is unsupported.")
         Xt, yt, key = make_time_tabular(binned_df)
         dft = key.copy().reset_index(drop=True)
         dft["label"] = yt.to_numpy()
@@ -119,7 +140,7 @@ def materialize_preprocess_artifacts(
         time_tabular_path=tm_path,
     )
 
-    labels_res = run_label_fn(dynamic, static, label, cfg)
+    labels_res = None if dynamic is None else run_label_fn(dynamic, static, label, cfg)
     if labels_res is not None:
         if cfg.task.prediction_mode == "patient":
             labels = normalize_patient_labels(labels_res.df)

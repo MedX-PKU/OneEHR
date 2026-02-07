@@ -269,9 +269,10 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
-    # Static features are not currently wired into the training/inference paths
-    # for DL models; keep `static_dim=0` consistently.
-    static_dim = 0
+    # Static features: for models that implement a dedicated static branch, we
+    # pass `static_dim`. For other models, static is expected to be concatenated
+    # into the dynamic tensor upstream.
+    static_dim = int(getattr(cfg, "_static_dim", 0) or 0)
 
     if name in {"dragent"}:
         if cfg.task.prediction_mode == "time":

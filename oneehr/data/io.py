@@ -26,6 +26,12 @@ def load_dynamic_table(cfg: DynamicTableConfig) -> pd.DataFrame:
     return df[required]
 
 
+def load_dynamic_table_optional(cfg: DynamicTableConfig | None) -> pd.DataFrame | None:
+    if cfg is None or cfg.path is None:
+        return None
+    return load_dynamic_table(cfg)
+
+
 def load_static_table(cfg: StaticTableConfig | None) -> pd.DataFrame | None:
     if cfg is None or cfg.path is None:
         return None
