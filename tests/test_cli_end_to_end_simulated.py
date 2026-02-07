@@ -325,6 +325,69 @@ def test_cli_e2e_time_binary_gru(tmp_path: Path) -> None:
     assert (run_root / "test_runs" / "test_summary.json").exists()
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        # Time-level DL models (keep epochs=1 in config writer).
+        "gru",
+        "lstm",
+        "rnn",
+        "transformer",
+        "mlp",
+        "retain",
+        "stagenet",
+        "adacare",
+        "concare",
+        "grasp",
+        "mcgru",
+        "dragent",
+    ],
+)
+def test_cli_e2e_time_binary_dl_models_smoke(tmp_path: Path, model_name: str) -> None:
+    """Broader smoke coverage for DL model registry on time-level tasks.
+
+    This is intentionally light: we assert the run contract exists and the test
+    command wrote a summary. Training may legitimately skip a model for a split
+    (e.g., single-class train/val on simulated data), so we do not require
+    `models/` or `preds/` to exist.
+    """
+
+    dynamic = _make_simulated_dynamic_events(n_patients=160, seed=4)
+    dynamic_csv = tmp_path / "dynamic.csv"
+    _write_dynamic_csv(dynamic_csv, dynamic)
+
+    label_fn = tmp_path / "labels_time.py"
+    _write_time_label_fn(label_fn)
+
+    cfg = tmp_path / "exp.toml"
+    out_root = tmp_path / "runs"
+    _write_experiment_toml(
+        path=cfg,
+        dynamic_csv=dynamic_csv,
+        label_fn_ref=f"{label_fn}:build_labels",
+        out_root=out_root,
+        run_name=f"time_bin_{model_name}",
+        task_kind="binary",
+        prediction_mode="time",
+        models=[model_name],
+        split_kind="kfold",
+        hpo_enabled=False,
+    )
+
+    subprocess.check_call(["oneehr", "preprocess", "--config", str(cfg)])
+    subprocess.check_call(["oneehr", "train", "--config", str(cfg), "--force"])
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg), "--force"])
+
+    run_root = out_root / f"time_bin_{model_name}"
+    assert (run_root / "run_manifest.json").exists()
+    assert (run_root / "summary.json").exists()
+    assert (run_root / "hpo_best.csv").exists()
+    assert (run_root / "test_runs" / "test_summary.json").exists()
+
+    payload = json.loads((run_root / "test_runs" / "test_summary.json").read_text(encoding="utf-8"))
+    assert "records" in payload
+
+
 def test_cli_analyze_writes_feature_importance(tmp_path: Path) -> None:
     dynamic = _make_simulated_dynamic_events(n_patients=60, seed=3)
     dynamic_csv = tmp_path / "dynamic.csv"
