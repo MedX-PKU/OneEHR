@@ -661,7 +661,10 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 pipeline=cfg0.preprocess.pipeline,
             )
 
-            static_train = static_all if model_name in {"mcgru", "dragent"} else None
+            # Static features are currently not wired into DL training (train.py passes
+            # `static=static_train` but registry builds models with `static_dim=0`).
+            # Keep this None to avoid the appearance that static covariates are used.
+            static_train = None
 
             def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
                 hpo_metric = cfg.hpo.metric

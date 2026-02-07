@@ -269,8 +269,8 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             kind="dl",
         )
 
-    # Static feature dimension is known from the materialized static matrix,
-    # not from config (static.csv is free-form).
+    # Static features are not currently wired into the training/inference paths
+    # for DL models; keep `static_dim=0` consistently.
     static_dim = 0
 
     if name in {"dragent"}:
