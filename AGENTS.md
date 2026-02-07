@@ -63,3 +63,9 @@ Future modules may include interpretability, uncertainty, confidence, etc.
 
 - CLI command name: `oneehr`.
 - CLI should be driven primarily by **TOML configuration**.
+
+
+## Git Commits
+
+- git commit regularly with conventional commit message!
+-
