@@ -58,7 +58,12 @@ def materialize_preprocess_artifacts(
     if cfg.task.prediction_mode == "patient":
         Xp, yp = make_patient_tabular(binned_df)
         dfp = Xp.reset_index()
-        dfp["label"] = yp.to_numpy()
+        # Do not force-drop unlabeled patients at preprocess time. Labels are
+        # materialized separately (labels.parquet) and joined below.
+        if yp is None or yp.empty:
+            dfp["label"] = pd.NA
+        else:
+            dfp["label"] = yp.to_numpy()
         # Standard column order: keys -> label -> features
         dfp = dfp[["patient_id", "label", *feat_cols]]
         (out_root / "views" / "patient_tabular.parquet").write_bytes(dfp.to_parquet(index=False))
@@ -124,6 +129,31 @@ def materialize_preprocess_artifacts(
                 cols.append("mask")
             labels = labels[cols].copy()
         (out_root / "labels.parquet").write_bytes(labels.to_parquet(index=False))
+
+        # Join labels onto the materialized tabular views so training can load
+        # features+labels directly from `views/*.parquet`.
+        if cfg.task.prediction_mode == "patient" and pt_path is not None:
+            dfp = pd.read_parquet(out_root / pt_path)
+            if "patient_id" in dfp.columns:
+                dfp["patient_id"] = dfp["patient_id"].astype(str)
+            labels_j = labels.copy()
+            labels_j["patient_id"] = labels_j["patient_id"].astype(str)
+            # If a label is missing for a patient, keep it as NaN (train will drop).
+            dfp = dfp.drop(columns=["label"], errors="ignore").merge(labels_j, on="patient_id", how="left")
+            dfp = dfp[["patient_id", "label", *feat_cols]]
+            (out_root / pt_path).write_bytes(dfp.to_parquet(index=False))
+        elif cfg.task.prediction_mode == "time" and tm_path is not None:
+            dft = pd.read_parquet(out_root / tm_path)
+            dft["patient_id"] = dft["patient_id"].astype(str)
+            labels_j = labels.copy()
+            labels_j["patient_id"] = labels_j["patient_id"].astype(str)
+            labels_j["bin_time"] = pd.to_datetime(labels_j["bin_time"], errors="raise")
+            # If a label is missing for a (patient,bin_time), keep as NaN (train will drop).
+            dft = dft.drop(columns=["label"], errors="ignore").merge(
+                labels_j[["patient_id", "bin_time", "label"]], on=["patient_id", "bin_time"], how="left"
+            )
+            dft = dft[["patient_id", "bin_time", "label", *feat_cols]]
+            (out_root / tm_path).write_bytes(dft.to_parquet(index=False))
     else:
         # Labels are optional. Persist a minimal schema marker for downstream steps.
         # Train will still require labels for supervised learning.

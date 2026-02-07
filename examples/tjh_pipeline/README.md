@@ -30,5 +30,29 @@ Edit `examples/tjh_pipeline/experiment.toml` to point to the exported CSVs, then
 ```bash
 oneehr preprocess --config examples/tjh_pipeline/experiment.toml
 oneehr train --config examples/tjh_pipeline/experiment.toml
+
+## 3) External test split (train/test) + `oneehr test`
+
+If you want a **true external evaluation** (train on one patient cohort, test on a held-out cohort),
+use the helper splitter:
+
+```bash
+uv run python examples/tjh_pipeline/split_tjh.py \
+  --in-dir /tmp/oneehr_tjh_example \
+  --out-dir /tmp/oneehr_tjh_split \
+  --test-size 0.2 \
+  --seed 42
 ```
 
+Then run OneEHR with `datasets.train` + `datasets.test`:
+
+```bash
+uv run oneehr preprocess --config examples/tjh_pipeline/experiment_external_test.toml
+uv run oneehr train --config examples/tjh_pipeline/experiment_external_test.toml --force
+uv run oneehr test --config examples/tjh_pipeline/experiment_external_test.toml --force
+```
+
+Artifacts to inspect:
+- Training run: `logs/tjh_external_test/`
+- Test run outputs: `logs/tjh_external_test/test_runs/<dataset_stem>/`
+```

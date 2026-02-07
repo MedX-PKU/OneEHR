@@ -42,7 +42,10 @@ class GRUModel(nn.Module):
         )
         self.head = nn.Linear(hidden_dim, out_dim)
 
-    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
+        # Static features are currently ignored for GRUModel. The trainer may pass
+        # static features for models that support them; accepting the argument
+        # keeps the call signature consistent across DL models.
         emb = self.encoder(x, lengths)
         return self.head(emb)
 

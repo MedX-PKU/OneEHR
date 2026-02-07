@@ -28,7 +28,31 @@ def _load_static_postprocess_from_manifest(manifest: RunManifest) -> FittedPostp
     pipeline = (post or {}).get("pipeline")
     if not isinstance(pipeline, list):
         raise ValueError("Invalid run_manifest.json: static.postprocess.pipeline must be a list")
-    return FittedPostprocess(pipeline=list(pipeline))
+    # Backward compat: older manifests stored mean/std/fill as stringified pandas Series.
+    fixed: list[dict[str, object]] = []
+    for step in pipeline:
+        if not isinstance(step, dict):
+            continue
+        step2 = dict(step)
+        for k in ("mean", "std", "fill"):
+            v = step2.get(k)
+            if isinstance(v, str) and "dtype:" in v and "\n" in v:
+                # Parse lines like: "col  value"
+                out = {}
+                for ln in v.splitlines():
+                    ln = ln.strip()
+                    if not ln or ln.startswith("dtype:"):
+                        continue
+                    parts = ln.split()
+                    if len(parts) >= 2:
+                        key = parts[0]
+                        try:
+                            out[key] = float(parts[-1])
+                        except Exception:
+                            continue
+                step2[k] = pd.Series(out, dtype=float)
+        fixed.append(step2)
+    return FittedPostprocess(pipeline=fixed)
 
 
 def _transform_static_like_train(
@@ -200,7 +224,11 @@ def materialize_test_views(
             else:
                 labels_df = normalize_time_labels(labels_res.df, cfg)
 
-    if label is not None and not label.empty:
+    # If a user provided `label.csv` in the training-dataset schema
+    # (patient_id,label_time,label_code,label_value), treat it as raw labels input
+    # and rely on `labels_fn` to normalize it. Only accept already-normalized label
+    # tables when `labels_fn` is NOT provided.
+    if labels_fn is None and label is not None and not label.empty:
         # Normalize shape based on manifest prediction_mode.
         if mode == "patient":
             if "patient_id" not in label.columns or "label" not in label.columns:
@@ -223,6 +251,10 @@ def materialize_test_views(
         X_dyn = _build_patient_tabular_from_binned(binned=binned, feat_cols=feat_cols)
         if static_all is not None:
             # Join by patient_id.
+            # Avoid collisions when a feature exists in both dynamic and static spaces.
+            overlap = [c for c in static_all.columns if c in X_dyn.columns]
+            if overlap:
+                static_all = static_all.drop(columns=overlap)
             X = X_dyn.join(static_all, how="left").fillna(0.0)
         else:
             X = X_dyn

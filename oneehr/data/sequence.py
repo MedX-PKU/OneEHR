@@ -134,4 +134,9 @@ def pad_sequences(seqs: list[np.ndarray], lengths: np.ndarray):
     out = np.zeros((len(seqs), max_len, feat_dim), dtype=np.float32)
     for i, s in enumerate(seqs):
         out[i, : s.shape[0], :] = s
-    return torch.from_numpy(out)
+    # Fill any NaNs in the padded tensor (some datasets may still contain NaNs
+    # after preprocessing, and they can poison DL training/inference).
+    if np.isnan(out).any():
+        out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+    # Ensure the returned tensor is writable/contiguous.
+    return torch.from_numpy(out.copy())

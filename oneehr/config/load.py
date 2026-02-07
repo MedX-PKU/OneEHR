@@ -51,8 +51,10 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     path = Path(path)
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
 
-    dataset_raw = _require(raw, "dataset")
+    dataset_raw = raw.get("dataset")
     datasets_raw = raw.get("datasets")
+    if dataset_raw is None and datasets_raw is None:
+        raise ValueError("Missing required key: dataset or datasets")
     preprocess_raw = raw.get("preprocess", {})
     # Removed: [static_features]. Static is enabled by providing dataset.static only.
     task_raw = _require(raw, "task")
@@ -68,21 +70,25 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     hpo_models_raw = raw.get("hpo_models", {})
     calibration_raw = raw.get("calibration", {})
 
-    dynamic = DynamicTableConfig(
-        path=(None if dataset_raw.get("dynamic") in {None, ""} else Path(dataset_raw.get("dynamic"))),
-    )
-    if dynamic.path is None:
-        raise ValueError("dataset.dynamic is required.")
+    dataset = None
+    if dataset_raw is not None:
+        if not isinstance(dataset_raw, dict):
+            raise ValueError("dataset must be a table")
+        dynamic = DynamicTableConfig(
+            path=(None if dataset_raw.get("dynamic") in {None, ""} else Path(dataset_raw.get("dynamic"))),
+        )
+        if dynamic.path is None:
+            raise ValueError("dataset.dynamic is required.")
 
-    static = None
-    if dataset_raw.get("static") not in {None, ""}:
-        static = StaticTableConfig(path=Path(dataset_raw.get("static")))
+        static = None
+        if dataset_raw.get("static") not in {None, ""}:
+            static = StaticTableConfig(path=Path(dataset_raw.get("static")))
 
-    label = None
-    if dataset_raw.get("label") not in {None, ""}:
-        label = LabelTableConfig(path=Path(dataset_raw.get("label")))
+        label = None
+        if dataset_raw.get("label") not in {None, ""}:
+            label = LabelTableConfig(path=Path(dataset_raw.get("label")))
 
-    dataset = DatasetConfig(dynamic=dynamic, static=static, label=label)
+        dataset = DatasetConfig(dynamic=dynamic, static=static, label=label)
 
     datasets = None
     if datasets_raw is not None:
@@ -117,6 +123,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
                 raise ValueError("datasets.test must be a table")
             test_ds = _load_dataset(test_raw)
         datasets = DatasetsConfig(train=train_ds, test=test_ds)
+        if dataset is None:
+            dataset = train_ds
 
     preprocess = PreprocessConfig(
         bin_size=preprocess_raw.get("bin_size", "1d"),

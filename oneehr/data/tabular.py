@@ -29,10 +29,6 @@ def make_patient_tabular(binned: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]
     binned = binned.sort_values(["patient_id", "bin_time"], kind="stable")
     X = binned.groupby("patient_id", sort=False)[feature_cols].last()
     y = binned.groupby("patient_id", sort=False)["label"].last()
-    # Drop unlabeled patients to avoid NaNs downstream.
-    keep = y.notna()
-    X = X.loc[keep]
-    y = y.loc[keep]
     return X, y
 
 

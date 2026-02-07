@@ -77,7 +77,10 @@ def write_dl_artifacts(
             "event_time_col": "event_time",
         },
         "input": {
-            "input_dim": int(cfg.preprocess.top_k_codes or len(feature_columns)),
+            # Use the actual binned feature dimension used for training.
+            # This can differ from cfg.preprocess.top_k_codes depending on the dataset
+            # and preprocessing choices.
+            "input_dim": int(len(feature_columns)),
             "static_dim": 0,
             "static_feature_columns": None,
             "static_feature_columns_sha256": None,

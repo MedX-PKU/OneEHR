@@ -50,6 +50,8 @@ def _train_sequence_patient_level(
     split,
     cfg,
     task,
+    *,
+    y_map: dict[str, float] | None = None,
 ):
     torch = optional_import("torch")
     if torch is None:
@@ -62,13 +64,30 @@ def _train_sequence_patient_level(
     X_seq = pad_sequences(seqs, lens)
     lens_t = torch.from_numpy(lens)
 
-    y_map = dict(zip(y.index.astype(str).tolist(), y.to_numpy().tolist()))
+    if y_map is None:
+        # Fallback: assume y is aligned to patient_id strings already.
+        y_map = dict(zip(y.index.astype(str).tolist(), y.to_numpy().tolist()))
     y_arr = np.array([y_map.get(pid) for pid in pids], dtype=np.float32)
     pids_arr = np.array(pids, dtype=str)
 
     train_m = np.isin(pids_arr, split.train_patients)
     val_m = np.isin(pids_arr, split.val_patients)
     test_m = np.isin(pids_arr, split.test_patients)
+
+    # Drop unlabeled patients for sequence training.
+    finite_y = np.isfinite(y_arr)
+    train_m = train_m & finite_y
+    val_m = val_m & finite_y
+    test_m = test_m & finite_y
+
+    # Guard against empty partitions (can happen if dataset is tiny).
+    # (Debug) mask sizes can be useful in end-to-end runs.
+    # print(f"[oneehr] dl masks: tr={int(train_m.sum())} va={int(val_m.sum())} te={int(test_m.sum())}", file=sys.stderr)
+    if not bool(train_m.any()) or not bool(val_m.any()) or not bool(test_m.any()):
+        raise SystemExit(
+            "No samples available for DL sequence training in this split. "
+            "Check split configuration (train/val/test sizes)."
+        )
 
     X_tr, L_tr, y_tr = X_seq[train_m], lens_t[train_m], torch.from_numpy(y_arr[train_m])
     X_va, L_va, y_va = X_seq[val_m], lens_t[val_m], torch.from_numpy(y_arr[val_m])
@@ -84,7 +103,7 @@ def _train_sequence_patient_level(
             expected_feature_columns=list(static.columns),
         )
         if S_all is not None:
-            S = torch.from_numpy(S_all)
+            S = torch.from_numpy(np.asarray(S_all, dtype=np.float32).copy())
             S_tr, S_va, S_te = S[train_m], S[val_m], S[test_m]
         else:
             S_tr = S_va = S_te = None
@@ -190,7 +209,7 @@ def _train_sequence_time_level(
 
         S_all = align_static_features(pids, static, expected_feature_columns=list(static.columns))
         if S_all is not None:
-            S = torch.from_numpy(S_all)
+            S = torch.from_numpy(np.asarray(S_all, dtype=np.float32).copy())
             S_tr, S_va, S_te = S[train_m], S[val_m], S[test_m]
         else:
             S_tr = S_va = S_te = None
@@ -454,6 +473,24 @@ def _run_train(cfg_path: str, force: bool) -> None:
     run = RunIO(run_root=out_root)
     _ = run.require_manifest()
 
+    # `oneehr train --force` should overwrite training outputs without deleting
+    # preprocess outputs (run_manifest.json, binned.parquet, views/, etc.).
+    if force:
+        import shutil
+
+        # Do NOT delete preprocess artifacts; `oneehr train` requires them.
+        # Only delete training-related outputs.
+        # Keep preprocess artifacts (run_manifest.json, binned.parquet, views/, features/, labels.parquet)
+        # and only overwrite training outputs.
+        for rel in ["models", "preds", "hpo", "summary.json", "hpo_best.csv"]:
+            p = out_root / rel
+            if p.is_dir():
+                shutil.rmtree(p)
+            elif p.is_file():
+                p.unlink()
+        # Ensure preprocess manifest still exists.
+        _ = run.require_manifest()
+
     # Unified training: run all splits by default (or a single fold if configured).
 
     if any(m.name in {"gru", "rnn", "transformer"} for m in cfg0.models):
@@ -624,11 +661,9 @@ def _run_test(
                 if exp_input_dim != feat_input_dim:
                     # Prefer the run's actual feature schema over the config value, so users can
                     # run `oneehr test` with a config that hasn't been perfectly normalized.
-                    print(
-                        "Warning: overriding preprocess.top_k_codes for DL test. "
-                        f"Config has {exp_input_dim}, but run_manifest feature_columns has {feat_input_dim}.",
-                        file=sys.stderr,
-                    )
+                    # Keep quiet by default; this is expected when configs use `top_k_codes`
+                    # while the run schema is derived from actual binned columns.
+                    pass
                 built = build_model(
                     replace(
                         cfg0,
@@ -657,7 +692,7 @@ def _run_test(
                             static_all,
                             expected_feature_columns=list(static_feature_columns or []),
                         )
-                        S = None if S_np is None else torch.from_numpy(S_np)
+                        S = None if S_np is None else torch.from_numpy(np.asarray(S_np, dtype=np.float32).copy())
                     with torch.no_grad():
                         if S is None:
                             logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
@@ -692,7 +727,7 @@ def _run_test(
                             static_all,
                             expected_feature_columns=list(static_feature_columns or []),
                         )
-                        S = None if S_np is None else torch.from_numpy(S_np)
+                        S = None if S_np is None else torch.from_numpy(np.asarray(S_np, dtype=np.float32).copy())
                     with torch.no_grad():
                         if S is None:
                             logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
@@ -766,6 +801,7 @@ def _run_test(
 
 
 def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
+    # Minimal progress logs for end-to-end runs.
     cfg0 = load_experiment_config(cfg_path)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     dynamic = load_dynamic_table(train_dataset.dynamic)
@@ -807,6 +843,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             )
 
     models = cfg0.models or [cfg0.model]
+    # print(f"[oneehr] models={[(m.name) for m in models]}", file=sys.stderr)
     if any(m.name in {"gru", "rnn", "transformer"} for m in models):
         torch = optional_import("torch")
         if torch is None:
@@ -816,17 +853,14 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
     rows = []
     run_records: list[dict[str, object]] = []
-    if out_root.exists() and force:
-        import shutil
-
-        shutil.rmtree(out_root)
-        ensure_dir(out_root)
+    # NOTE: out_root cleanup is handled by `_run_train(..., --force)`.
 
     # Single-process only.
 
     for model_cfg in models:
         cfg_model = replace(cfg0, model=model_cfg, models=[model_cfg])
         model_name = cfg_model.model.name
+        # print(f"[oneehr] running model={model_name}", file=sys.stderr)
         if model_name in cfg0.hpo_by_model:
             cfg_model = replace(cfg_model, hpo=cfg0.hpo_by_model[model_name])
 
@@ -1048,7 +1082,10 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             )
 
             # Pass full static matrix; batch builders align to patient_id order.
-            static_train = static_all
+            # Only pass static features to models that explicitly support them.
+            # For models like plain GRU/RNN/Transformer (current implementations),
+            # passing high-dimensional one-hot static can destabilize training.
+            static_train = static_all if model_name in {"mcgru", "dragent"} else None
 
             # Select best hyperparameters using validation.
             def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
@@ -1271,6 +1308,27 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             else:
                 feat_cols = list(dynamic_feature_columns)
                 input_dim = len(feat_cols)
+                if cfg.task.kind == "binary" and len(np.unique(y_train.astype(float))) < 2:
+                    # Keep a row for completeness, but mark as skipped.
+                    rows.append(
+                        {
+                            "model": model_name,
+                            "split": sp.name,
+                            "skipped": 1,
+                            "reason": "single_class_train",
+                        }
+                    )
+                    continue
+                if cfg.task.kind == "binary" and len(np.unique(y_val.astype(float))) < 2:
+                    rows.append(
+                        {
+                            "model": model_name,
+                            "split": sp.name,
+                            "skipped": 1,
+                            "reason": "single_class_val",
+                        }
+                    )
+                    continue
                 if cfg.model.name == "gru":
                     from oneehr.models.gru import GRUModel, GRUTimeModel
 
@@ -1298,6 +1356,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
+                            y_map=dict(zip(X.index.astype(str).tolist(), y.to_numpy().tolist())),
                         )
                     else:
                         model = GRUTimeModel(
@@ -1355,6 +1414,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
+                            y_map=dict(zip(X.index.astype(str).tolist(), y.to_numpy().tolist())),
                         )
                     else:
                         model = RNNTimeModel(
@@ -1415,6 +1475,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                             split=sp,
                             cfg=cfg.trainer,
                             task=cfg.task,
+                            y_map=dict(zip(X.index.astype(str).tolist(), y.to_numpy().tolist())),
                         )
                     else:
                         model = TransformerTimeModel(
@@ -1459,6 +1520,12 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 # Static features are persisted at preprocess time via run_manifest.json and
                 # features/static/static_all.parquet.
 
+                # Helpful progress indicator for long-running DL models.
+                # print(f"[oneehr] dl trained split={sp.name} model={model_name}", file=sys.stderr)
+
+                # Note: metrics/preds are written after optional calibration/thresholding
+                # (below) for both tabular and DL models.
+
             # Optional calibration (fit on val split) + threshold selection.
             cal_extra = {}
             if cfg.task.kind == "binary":
@@ -1477,6 +1544,11 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     y_test_logits=test_logits,
                 )
 
+            # Persist DL model artifacts (metrics/preds) after calibration.
+            if model_name not in {"xgboost", "catboost", "rf", "dt", "gbdt"}:
+                model_out = ensure_dir(out_root / "models" / model_name / sp.name)
+                # Metrics are computed below; write once they are available.
+
             # Guard against any remaining unlabeled rows in test (should be rare).
             finite_mask = np.isfinite(y_test.astype(float))
             y_test_eval = y_test[finite_mask]
@@ -1492,6 +1564,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
             model_out = ensure_dir(out_root / "models" / model_name / sp.name)
             write_json(model_out / "metrics.json", metrics)
+
             run_records.append(
                 {
                     "model": model_name,

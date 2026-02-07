@@ -1,13 +1,7 @@
-[datasets.train]
-dynamic = "/path/to/out/train/dynamic.csv"
-static = "/path/to/out/train/static.csv"
-label = "/path/to/out/train/label.csv"
-
-# Optional external test dataset. Can omit `label` for online inference.
-[datasets.test]
-dynamic = "/path/to/out/test/dynamic.csv"
-static = "/path/to/out/test/static.csv"
-# label = "/path/to/out/test/label.csv"
+[dataset]
+dynamic = "/tmp/oneehr_tjh_example/dynamic.csv"
+static = "/tmp/oneehr_tjh_example/static.csv"
+label = "/tmp/oneehr_tjh_example/label.csv"
 
 [preprocess]
 bin_size = "1d"
@@ -35,6 +29,22 @@ n_splits = 5
 seed = 42
 val_size = 0.2
 
+[trainer]
+device = "cpu"
+seed = 42
+max_epochs = 2
+batch_size = 64
+lr = 1e-3
+weight_decay = 0.0
+early_stopping = true
+early_stopping_patience = 2
+monitor = "val_loss"
+monitor_mode = "min"
+final_refit = "train_val"
+final_model_source = "refit"
+bootstrap_test = false
+bootstrap_n = 50
+
 [[models]]
 name = "xgboost"
 
@@ -43,5 +53,5 @@ name = "gru"
 
 [output]
 root = "logs"
-run_name = "tjh_pipeline_example"
+run_name = "tjh_pipeline_example_train"
 save_preds = true
