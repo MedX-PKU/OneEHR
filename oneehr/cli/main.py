@@ -448,9 +448,16 @@ def _run_preprocess(cfg_path: str, *, overview: bool, overview_top_k_codes: int)
     if overview:
         import json
 
-        from oneehr.data.overview_light import build_dataset_overview
+        from oneehr.artifacts.read import read_run_manifest
+        from oneehr.data.overview_light import build_dataset_overview, build_feature_overview
 
         payload = build_dataset_overview(dynamic, cfg.dataset.dynamic, top_k_codes=overview_top_k_codes)
+        manifest = read_run_manifest(out_root)
+        if manifest is not None:
+            payload["features"] = build_feature_overview(
+                dynamic_feature_columns=manifest.dynamic_feature_columns(),
+                static_feature_columns=manifest.static_feature_columns(),
+            )
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
