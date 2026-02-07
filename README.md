@@ -2,34 +2,99 @@
 
 An all-in-one EHR predictive modeling and analysis library in Python.
 
-## Datasets
+## Tooling (uv)
 
-OneEHR consumes a unified **three-table** format (standard CSV only):
-`dynamic.csv` (required), `static.csv` (optional), and `label.csv` (optional).
-You do **not** need to “register” datasets inside the framework—just convert
-raw data into these standard tables.
-
-See `docs/datasets.md`.
-
-## Status
-
-This repository is being rebuilt from scratch.
-
-## CLI
-
-Environment setup with uv:
+This project uses **uv** for Python environment + dependencies.
 
 ```bash
 uv venv .venv --python 3.12
 uv pip install -e .
 ```
 
-## Quickstart
+Python version is pinned in `.python-version`.
+
+## Quickstart (CLI)
 
 ```bash
 oneehr preprocess --config examples/experiment.toml
 oneehr train --config examples/experiment.toml
 ```
+
+## What OneEHR Is
+
+OneEHR is organized around an end-to-end EHR modeling workflow:
+
+1. Data pre-processing
+2. Modeling
+3. Evaluation
+4. Analysis (future: interpretability/uncertainty/confidence)
+
+Key design goals:
+
+- Doctor-friendly inputs: start from a single CSV/Excel event table.
+- No leakage: all split strategies must be patient-level group split.
+- Extensible: tasks/labels can be defined via a user `label_fn`.
+
+## Datasets (Decoupled, Three-Table Input)
+
+OneEHR consumes a unified **three-table** format (standard CSV only):
+`dynamic.csv` (required), `static.csv` (optional), and `label.csv` (optional).
+You do **not** need to “register” datasets inside the framework—just convert
+raw data into these standard tables.
+
+### `dynamic.csv` (required)
+
+Unified longitudinal event table (long format). Required columns (fixed names):
+
+- `patient_id`
+- `event_time` — parseable by `pandas.to_datetime`
+- `code` — concept / measurement name
+- `value` — numeric or categorical
+
+Default time column name is `event_time`.
+
+### `static.csv` (optional)
+
+Patient-level table (one row per patient). Minimal requirement:
+
+- `patient_id`
+
+All other columns are treated as static covariates.
+
+### `label.csv` (optional, recommended)
+
+Task-agnostic label event table (long format). Required columns (fixed names):
+
+- `patient_id`
+- `label_time`
+- `label_code`
+- `label_value`
+
+## Tasks, Labels, Prediction Modes
+
+- Single-task only (for now)
+- Task types: `binary` and `regression`
+- Prediction modes:
+  - N-1 (`patient`): one prediction per patient
+  - N-N (`time`): one prediction per time step
+
+### Labels via `label_fn` (optional)
+
+You can generate labels via a Python function configured in TOML:
+
+- in `experiment.toml`: `[labels]`
+- example: `fn = "path/to/label_fn.py:build_labels"`
+
+For N-N tasks (`task.prediction_mode = "time"`), the label function may return
+`label_time` and OneEHR aligns it to `bin_time` using `preprocess.bin_size`.
+
+## Status
+
+This repository is being rebuilt from scratch.
+
+## Outputs
+
+By default, run artifacts are written under `logs/`.
 
 `oneehr preprocess` materializes a run directory under `output.root/output.run_name`, including:
 - `binned.parquet` (dynamic features in long format)

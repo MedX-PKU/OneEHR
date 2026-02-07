@@ -1,71 +1,65 @@
-# OneEHR — Codex Agent Notes
+# OneEHR — Codex Working Agreement (AGENTS.md)
 
-This file provides persistent context for working on this repository with Codex.
+This file is optimized for Codex to onboard fast and operate safely.
 
-## Project
+## Project Snapshot
 
 - Name: **OneEHR**
-- Positioning: **An all-in-one EHR predictive modeling and analysis library in Python**
+- Purpose: **EHR predictive modeling + analysis library in Python**
+- CLI: `oneehr`
+- Config: **TOML-first**
+- Python: **3.12** (`.python-version`)
+- Dependency manager: **uv** (required)
 
-## Tooling
-
-- Use **uv** for environment and dependency management.
-- Typical setup:
+## Setup (uv-only)
 
 ```bash
 uv venv .venv --python 3.12
 uv pip install -e .
 ```
 
-- Python version: **3.12** (see `.python-version`).
+## Core Product Decisions (don’t “simplify away”)
 
-## Architecture (pipeline)
+### Data assumptions
 
-OneEHR modules should follow the workflow:
-
-1. Data Pre-processing
-2. Modeling
-3. Evaluation
-4. Analysis
-
-Future modules may include interpretability, uncertainty, confidence, etc.
-
-### Data
-
-- Input is doctor-friendly: start with **a single CSV/Excel table**.
-- Default time column name: `event_time`.
-- EHR data is **event-level** (irregular timestamps, `code`/`value`).
-- Events can be **numeric and categorical**; handle typing/curation during preprocessing.
-- Time discretization for deep learning uses **fixed-time binning** (user-configurable `bin_size`, e.g. `1h`, `1d`).
+- Start from a single doctor-friendly CSV/Excel event table.
+- Event-level EHR is irregular timestamps + (`code`, `value`).
+- Default time column: `event_time`.
+- `value` may be numeric or categorical; typing/curation happens in preprocessing.
+- Deep-learning discretization uses fixed-time binning with user `bin_size` (e.g. `1h`, `1d`).
 
 ### Tasks
 
-- Only **single-task** currently.
-- Task types needed now: `binary` and `regression` (no multiclass yet).
+- Single-task only (for now)
+- Task types: `binary`, `regression` (no multiclass yet)
 - Prediction modes:
-  - **N-1** (`patient`): one prediction per patient.
-  - **N-N** (`time`): one prediction per time step.
-- N-N labels can be generated via rules in a user-provided `label_fn`.
+  - N-1 (`patient`)
+  - N-N (`time`)
+- N-N labels can be generated via user-provided `label_fn`.
 
-## Repository context
+### Splits (leakage prevention is non-negotiable)
 
-- Put longer-form architecture and design notes under `docs/`.
-
-### Splits
-
-- Must prevent leakage via **patient-level group split**.
-- Support:
+- All split strategies must be **patient-level group split**
+- Supported/desired:
   - `k-fold`
   - `train/val/test`
-  - `time-based split` (still patient-level grouping)
+  - time-based split (still grouped by patient)
 
-### CLI / Config
+## How You Should Work In This Repo
 
-- CLI command name: `oneehr`.
-- CLI should be driven primarily by **TOML configuration**.
+### Conventional commits (do this often)
 
+Use Conventional Commits whenever you commit:
 
-## Git Commits
+- `feat: ...`
+- `fix: ...`
+- `refactor: ...`
+- `docs: ...`
+- `test: ...`
+- `chore: ...`
 
-- git commit regularly with conventional commit message!
--
+### Plan-first when uncertain
+
+If any requirement is ambiguous: Ask me to confirm before implementing.
+
+Keep the questions concrete and choose defaults only after confirmation.
