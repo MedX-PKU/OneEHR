@@ -52,7 +52,9 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> MetricResult:
 
     out: dict[str, float] = {}
     out["mae"] = float(mean_absolute_error(y_true, y_pred))
-    out["mse"] = float(mean_squared_error(y_true, y_pred, squared=True))
-    out["rmse"] = float(mean_squared_error(y_true, y_pred, squared=False))
+    # scikit-learn removed the `squared` kwarg from mean_squared_error in 1.8.
+    mse = float(mean_squared_error(y_true, y_pred))
+    out["mse"] = mse
+    out["rmse"] = float(np.sqrt(mse))
     out["r2"] = float(r2_score(y_true, y_pred))
     return MetricResult(metrics=out)
