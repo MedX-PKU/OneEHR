@@ -49,6 +49,8 @@ def write_run_manifest(
     dyn_cols = [] if not dynamic_feature_columns else list(dynamic_feature_columns)
     st_cols = [] if not static_feature_columns else list(static_feature_columns)
 
+    from oneehr.features.names import display_names
+
     manifest = {
         "schema_version": 2,
         "dataset": _as_jsonable(asdict(cfg.dataset)),
@@ -72,10 +74,14 @@ def write_run_manifest(
             "dynamic": {
                 "feature_columns": dyn_cols,
                 "feature_columns_json_path": "features/dynamic/feature_columns.json",
+                "feature_columns_display": display_names(dyn_cols),
+                "feature_columns_display_json_path": "features/dynamic/feature_columns_display.json",
             },
             "static": {
                 "feature_columns": st_cols,
                 "feature_columns_json_path": "features/static/feature_columns.json",
+                "feature_columns_display": display_names(st_cols),
+                "feature_columns_display_json_path": "features/static/feature_columns_display.json",
                 "matrix_parquet_path": None if not st_cols else "features/static/static_all.parquet",
             },
         },
