@@ -89,6 +89,13 @@ def materialize_preprocess_artifacts(
     static_feat_cols: list[str] = []
     static_post_pipeline = None
     if static_raw is not None and not static_raw.empty:
+        if "patient_id" not in static_raw.columns:
+            raise ValueError("static.csv missing required column: patient_id")
+        # patient_id is a join key, not a model feature.
+        # Important: ensure we keep it out of the feature encoder even if the
+        # column name casing differs (some datasets may use PatientID/patientID).
+        id_like_cols = [c for c in static_raw.columns if str(c).lower() in {"patient_id", "patientid"}]
+        static_raw = static_raw.drop(columns=id_like_cols, errors="ignore")
         static_all, _, _, static_art = fit_transform_static_features(
             raw_train=static_raw,
             raw_val=None,

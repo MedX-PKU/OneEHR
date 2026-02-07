@@ -67,7 +67,9 @@ def _transform_static_like_train(
         raise ValueError("static.csv missing required column: patient_id")
 
     raw = static_raw.set_index(static_raw["patient_id"].astype(str), drop=False)
-    raw = raw.drop(columns=["patient_id"])
+    # patient_id is a join key, not a model feature.
+    id_like_cols = [c for c in raw.columns if str(c).lower() in {"patient_id", "patientid"}]
+    raw = raw.drop(columns=id_like_cols, errors="ignore")
 
     X0 = _encode_static_categoricals(raw)
     feat_cols = manifest.static_feature_columns()

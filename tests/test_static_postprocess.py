@@ -1,6 +1,7 @@
 import pandas as pd
+import pytest
 
-from oneehr.data.static_postprocess import fit_transform_static_features
+from oneehr.data.static_postprocess import _encode_static_categoricals, fit_transform_static_features
 
 
 def test_static_postprocess_onehot_and_impute():
@@ -27,3 +28,13 @@ def test_static_postprocess_onehot_and_impute():
     assert X_va.isna().sum().sum() == 0
     assert art.feature_columns == list(X_tr.columns)
 
+
+def test_static_patient_id_not_a_feature():
+    raw = pd.DataFrame(
+        {
+            "patient_id": ["p1", "p2"],
+            "age": [10.0, 20.0],
+        }
+    )
+    X = _encode_static_categoricals(raw)
+    assert all("patient_id" not in c for c in X.columns)

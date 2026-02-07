@@ -32,12 +32,19 @@ def _encode_static_categoricals(raw: pd.DataFrame) -> pd.DataFrame:
     Strategy (MVP):
     - Numeric columns => `num__{col}` float
     - Non-numeric columns => one-hot via `pd.get_dummies` with `cat__{col}__{level}`
+    - ID columns like `patient_id` are not features and must be removed upstream
     - Missing numeric stays NaN (handled by postprocess.impute if configured)
     - Missing categorical => treated as its own level via `__nan__`
     """
 
     if raw.empty:
         return raw.copy()
+
+    # Defensive: `patient_id` must never become a feature column (leakage + huge cardinality).
+    # Drop common ID-like variants rather than erroring.
+    id_like_cols = [c for c in raw.columns if str(c).lower() in {"patient_id", "patientid"}]
+    if id_like_cols:
+        raw = raw.drop(columns=id_like_cols, errors="ignore")
 
     X_parts: list[pd.DataFrame] = []
 
