@@ -10,7 +10,6 @@ from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.data.static_postprocess import fit_transform_static_features
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
-from oneehr.features.names import display_names
 from oneehr.utils.io import ensure_dir, write_json
 
 
@@ -51,10 +50,6 @@ def materialize_preprocess_artifacts(
     # Dynamic feature space
     ensure_dir(out_root / "features" / "dynamic")
     write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"feature_columns": feat_cols})
-    write_json(
-        out_root / "features" / "dynamic" / "feature_columns_display.json",
-        {"feature_columns": display_names(feat_cols)},
-    )
 
     # Views (tabular)
     ensure_dir(out_root / "views")
@@ -111,10 +106,6 @@ def materialize_preprocess_artifacts(
         static_post_pipeline = None if static_art.fitted_postprocess is None else static_art.fitted_postprocess.pipeline
         ensure_dir(out_root / "features" / "static")
         write_json(out_root / "features" / "static" / "feature_columns.json", {"feature_columns": static_feat_cols})
-        write_json(
-            out_root / "features" / "static" / "feature_columns_display.json",
-            {"feature_columns": display_names(static_feat_cols)},
-        )
         (out_root / "features" / "static" / "static_all.parquet").write_bytes(static_all.to_parquet(index=True))
 
     write_run_manifest(

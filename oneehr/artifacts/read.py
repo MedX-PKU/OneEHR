@@ -23,18 +23,6 @@ class RunManifest:
             raise ValueError("Invalid run_manifest: features.static.feature_columns must be list[str]")
         return list(cols)
 
-    def dynamic_feature_columns_display(self) -> list[str]:
-        cols = (((self.data.get("features") or {}).get("dynamic") or {}).get("feature_columns_display")) or []
-        if not isinstance(cols, list) or not all(isinstance(c, str) for c in cols):
-            raise ValueError("Invalid run_manifest: features.dynamic.feature_columns_display must be list[str]")
-        return list(cols)
-
-    def static_feature_columns_display(self) -> list[str]:
-        cols = (((self.data.get("features") or {}).get("static") or {}).get("feature_columns_display")) or []
-        if not isinstance(cols, list) or not all(isinstance(c, str) for c in cols):
-            raise ValueError("Invalid run_manifest: features.static.feature_columns_display must be list[str]")
-        return list(cols)
-
     def static_matrix_path(self) -> Path | None:
         p = (((self.data.get("features") or {}).get("static") or {}).get("matrix_parquet_path")) or None
         if p is None:
