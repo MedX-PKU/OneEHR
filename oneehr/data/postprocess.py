@@ -91,6 +91,11 @@ def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, obj
         cols = _select_columns(X, step.get("cols"))
         if op == "standardize":
             _ensure_numeric_frame(X, cols)
+            # Ensure float dtype so standardized values can be assigned even if
+            # the source column was int (avoid pandas LossySetitemError).
+            if cols:
+                X = X.copy()
+                X[cols] = X[cols].astype(float)
             mean = X[cols].mean(axis=0, skipna=True)
             std = X[cols].std(axis=0, ddof=0, skipna=True).replace(0.0, 1.0)
             fitted_steps.append({"op": "standardize", "cols": cols, "mean": mean, "std": std})
@@ -171,6 +176,8 @@ def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, obj
 
 
 def transform_postprocess_pipeline(X: pd.DataFrame, fitted: FittedPostprocess) -> pd.DataFrame:
+    # Use a float frame to avoid pandas LossySetitemError when assigning
+    # standardized/processed values back into integer-typed columns.
     X_out = X.copy()
     for step in fitted.pipeline:
         op = str(step["op"])
@@ -180,7 +187,19 @@ def transform_postprocess_pipeline(X: pd.DataFrame, fitted: FittedPostprocess) -
         if op == "standardize":
             mean = step["mean"]
             std = step["std"]
-            X_out.loc[:, cols] = (X_out[cols] - mean) / std
+            # Be tolerant to dtype drift (strings/object) and avoid integer dtype
+            # assignment errors by forcing float.
+            X_out = X_out.copy()
+            X_out[cols] = X_out[cols].apply(pd.to_numeric, errors="coerce").astype(float)
+            mean_s = pd.Series(mean, dtype=float) if isinstance(mean, dict) else pd.Series(mean).astype(float)
+            std_s = (
+                pd.Series(std, dtype=float).replace(0.0, 1.0)
+                if isinstance(std, dict)
+                else pd.Series(std).astype(float).replace(0.0, 1.0)
+            )
+            mean_s = mean_s.reindex(cols)
+            std_s = std_s.reindex(cols)
+            X_out[cols] = ((X_out[cols] - mean_s) / std_s).astype(float)
         elif op == "impute":
             fill = step["fill"]
             X_out.loc[:, cols] = X_out[cols].fillna(fill)

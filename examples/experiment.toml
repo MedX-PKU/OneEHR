@@ -1,5 +1,7 @@
 [dataset]
-dynamic = "examples/example_events.csv"
+dynamic = "examples/dynamic.csv"
+static = "examples/static.csv"
+label = "examples/label.csv"
 
 [preprocess]
 bin_size = "1d"

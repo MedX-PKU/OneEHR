@@ -12,6 +12,23 @@ def as_jsonable(v: Any) -> Any:
         return v
     if isinstance(v, Path):
         return str(v)
+    # Preserve pandas/numpy containers (common in fitted artifacts) as native
+    # python dict/list types rather than lossy stringification.
+    try:
+        import numpy as np  # type: ignore
+        import pandas as pd  # type: ignore
+
+        if isinstance(v, np.ndarray):
+            return v.tolist()
+        if isinstance(v, (np.integer, np.floating, np.bool_)):
+            return v.item()
+        if isinstance(v, pd.Series):
+            return {str(k): as_jsonable(x) for k, x in v.to_dict().items()}
+        if isinstance(v, pd.DataFrame):
+            return {str(k): as_jsonable(x) for k, x in v.to_dict(orient="list").items()}
+    except Exception:
+        # Keep as_jsonable lightweight if pandas/numpy aren't present.
+        pass
     if isinstance(v, (list, tuple)):
         return [as_jsonable(x) for x in v]
     if isinstance(v, dict):

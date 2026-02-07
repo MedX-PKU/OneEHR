@@ -83,6 +83,16 @@ Long-form label events. Required columns:
 
 If you do not have a label table, you can generate labels via a Python `label_fn` (recommended for rapid iteration).
 
+## Example Dataset (Simulated)
+
+The repo includes a tiny simulated dataset under `examples/`:
+
+- `examples/dynamic.csv` (required)
+- `examples/static.csv` (optional)
+- `examples/label.csv` (optional)
+
+The default `examples/experiment.toml` points to these files.
+
 ## Tasks and Prediction Modes
 
 OneEHR is currently **single-task**.
