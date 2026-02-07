@@ -130,7 +130,7 @@ def run_test(
                 cfg_use = replace(
                     cfg0,
                     model=model_cfg_obj,
-                    _dynamic_input_dim=input_dim,
+                    _dynamic_dim=input_dim,
                 )
                 st_cols = manifest.static_feature_columns()
                 if st_cols:

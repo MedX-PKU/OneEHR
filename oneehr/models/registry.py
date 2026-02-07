@@ -22,8 +22,8 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
 
     # For tabular models, input_dim is derived from the tabular view at runtime.
     # For DL models, the real input_dim is the number of binned feature columns
-    # (computed at runtime); callers should set cfg._dynamic_input_dim accordingly.
-    input_dim = int(getattr(cfg, "_dynamic_input_dim", 0) or 0)
+    # (computed at runtime); callers should set cfg._dynamic_dim accordingly.
+    input_dim = int(getattr(cfg, "_dynamic_dim", 0) or 0)
     out_dim = 1
 
     if name == "gru":

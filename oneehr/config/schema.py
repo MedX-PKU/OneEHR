@@ -333,4 +333,4 @@ class ExperimentConfig:
     _static_dim: int = 0
     # Internal: runtime-derived dynamic feature dimension (post-binning column count).
     # This avoids overloading preprocess.top_k_codes, whose semantics are "how many codes to select".
-    _dynamic_input_dim: int = 0
+    _dynamic_dim: int = 0

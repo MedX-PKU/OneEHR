@@ -777,7 +777,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     )
 
                     input_dim = int(X_seq.shape[-1])
-                    cfg_use = replace(cfg, _dynamic_input_dim=input_dim)
+                    cfg_use = replace(cfg, _dynamic_dim=input_dim)
                     built = build_model(cfg_use)
                     if built.kind != "dl":
                         return None
@@ -833,7 +833,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     )
 
                     input_dim = int(X_seq.shape[-1])
-                    cfg_use = replace(cfg, _dynamic_input_dim=input_dim)
+                    cfg_use = replace(cfg, _dynamic_dim=input_dim)
                     built = build_model(cfg_use)
                     if built.kind != "dl":
                         return None
@@ -966,7 +966,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     X_te, L_te, y_te = X_static[te_m], L_static[te_m], torch.from_numpy(y_all[te_m])
 
                     input_dim = int(X_static.shape[1])
-                    cfg_use = replace(cfg, _dynamic_input_dim=input_dim)
+                    cfg_use = replace(cfg, _dynamic_dim=input_dim)
                     built = build_model(cfg_use)
                     model = built.model
 
@@ -1034,7 +1034,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                         )
                         continue
 
-                    cfg_use = replace(cfg, _dynamic_input_dim=input_dim)
+                    cfg_use = replace(cfg, _dynamic_dim=input_dim)
                     if static_train is not None:
                         cfg_use = replace(cfg_use, _static_dim=int(static_train.shape[1]))
                     built = build_model(cfg_use)
