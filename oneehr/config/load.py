@@ -27,7 +27,7 @@ from oneehr.config.schema import (
     TransformerConfig,
     XGBoostConfig,
     AdaCareConfig,
-    AgentConfig,
+    DrAgentConfig,
     CatBoostConfig,
     ConCareConfig,
     DTConfig,
@@ -189,7 +189,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         concare_raw = model_raw_in.get("concare", {})
         grasp_raw = model_raw_in.get("grasp", {})
         mcgru_raw = model_raw_in.get("mcgru", {})
-        agent_raw = model_raw_in.get("agent", {})
+        dragent_raw = model_raw_in.get("dragent", {})
         return ModelConfig(
             name=_require(model_raw_in, "name"),
             xgboost=XGBoostConfig(
@@ -288,9 +288,9 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
                 num_layers=int(mcgru_raw.get("num_layers", 1)),
                 dropout=float(mcgru_raw.get("dropout", 0.0)),
             ),
-            agent=AgentConfig(
-                hidden_dim=int(agent_raw.get("hidden_dim", 128)),
-                dropout=float(agent_raw.get("dropout", 0.1)),
+            dragent=DrAgentConfig(
+                hidden_dim=int(dragent_raw.get("hidden_dim", 128)),
+                dropout=float(dragent_raw.get("dropout", 0.1)),
             ),
         )
 

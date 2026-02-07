@@ -29,11 +29,7 @@ def write_dl_artifacts(
     ckpt_path = out_dir / "state_dict.ckpt"
     torch.save(model.state_dict(), ckpt_path)
 
-    # Some models share config blocks (e.g. model.name="dragent" uses [model.agent]).
-    model_cfg_name = cfg.model.name
-    if model_cfg_name == "dragent":
-        model_cfg_name = "agent"
-    model_cfg = getattr(cfg.model, model_cfg_name)
+    model_cfg = getattr(cfg.model, cfg.model.name)
 
     meta = {
         "schema_version": 1,

@@ -281,8 +281,8 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
                 model=DrAgentTimeModel(
                     input_dim=input_dim,
                     static_dim=static_dim,
-                    hidden_dim=cfg.model.agent.hidden_dim,
-                    dropout=cfg.model.agent.dropout,
+                    hidden_dim=cfg.model.dragent.hidden_dim,
+                    dropout=cfg.model.dragent.dropout,
                 ),
                 kind="dl",
             )
@@ -292,8 +292,8 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             model=DrAgentModel(
                 input_dim=input_dim,
                 static_dim=static_dim,
-                hidden_dim=cfg.model.agent.hidden_dim,
-                dropout=cfg.model.agent.dropout,
+                hidden_dim=cfg.model.dragent.hidden_dim,
+                dropout=cfg.model.dragent.dropout,
             ),
             kind="dl",
         )

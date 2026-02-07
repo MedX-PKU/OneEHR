@@ -252,7 +252,7 @@ class MCGRUConfig:
 
 
 @dataclass(frozen=True)
-class AgentConfig:
+class DrAgentConfig:
     hidden_dim: int = 128
     dropout: float = 0.1
 
@@ -302,7 +302,7 @@ class ModelConfig:
     concare: ConCareConfig = field(default_factory=ConCareConfig)
     grasp: GRASPConfig = field(default_factory=GRASPConfig)
     mcgru: MCGRUConfig = field(default_factory=MCGRUConfig)
-    agent: AgentConfig = field(default_factory=AgentConfig)
+    dragent: DrAgentConfig = field(default_factory=DrAgentConfig)
 
 
 @dataclass(frozen=True)
