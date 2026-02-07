@@ -22,6 +22,7 @@ from oneehr.config.schema import (
     TaskConfig,
     TrainerConfig,
     GRUConfig,
+    LSTMConfig,
     RNNConfig,
     TransformerConfig,
     XGBoostConfig,
@@ -229,12 +230,10 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
                 bidirectional=bool(rnn_raw.get("bidirectional", False)),
                 nonlinearity=str(rnn_raw.get("nonlinearity", "tanh")),
             ),
-            lstm=RNNConfig(
+            lstm=LSTMConfig(
                 hidden_dim=int(lstm_raw.get("hidden_dim", 128)),
                 num_layers=int(lstm_raw.get("num_layers", 1)),
                 dropout=float(lstm_raw.get("dropout", 0.0)),
-                bidirectional=bool(lstm_raw.get("bidirectional", False)),
-                nonlinearity=str(lstm_raw.get("nonlinearity", "tanh")),
             ),
             mlp=MLPConfig(
                 hidden_dim=int(mlp_raw.get("hidden_dim", 128)),

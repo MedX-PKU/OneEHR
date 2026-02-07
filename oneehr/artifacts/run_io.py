@@ -114,19 +114,3 @@ class RunIO:
         if mode == "time":
             return validate_time_labels(df)
         raise ValueError(f"Unsupported prediction_mode in run_manifest.json: {mode!r}")
-
-
-def read_feature_columns_json(path: Path) -> list[str]:
-    """Read a feature_columns.json file.
-
-    Expected format:
-      {"feature_columns": [...]}
-    """
-
-    import json
-
-    data = json.loads(path.read_text(encoding="utf-8"))
-    cols = data.get("feature_columns")
-    if not isinstance(cols, list) or not all(isinstance(c, str) for c in cols):
-        raise ValueError(f"Invalid feature_columns.json at {path}")
-    return list(cols)

@@ -6,8 +6,7 @@ import pandas as pd
 def make_patient_tabular(binned: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     """Convert binned long table into one-row-per-patient tabular features.
 
-    Current behavior (MVP): take features from the last time bin (discretized)
-    for each patient.
+    Takes features from the last time bin (discretized) for each patient.
     """
 
     if "patient_id" not in binned.columns:

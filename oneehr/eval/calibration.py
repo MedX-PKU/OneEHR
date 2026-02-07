@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 
-def _sigmoid(x: np.ndarray) -> np.ndarray:
+def sigmoid(x: np.ndarray) -> np.ndarray:
     x = np.asarray(x, dtype=float)
     out = np.empty_like(x, dtype=float)
     pos = x >= 0
@@ -22,17 +22,6 @@ def _logit(p: np.ndarray) -> np.ndarray:
     return np.log(p / (1.0 - p))
 
 
-def _binary_log_loss_from_logits(y_true: np.ndarray, logits: np.ndarray) -> float:
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    logits = np.asarray(logits, dtype=float).reshape(-1)
-    if y_true.shape != logits.shape:
-        raise ValueError("y_true and logits must have same shape")
-    # Stable logistic loss:
-    # loss = softplus(logits) - y*logits, where softplus(x)=log(1+exp(x))
-    loss = np.logaddexp(0.0, logits) - y_true * logits
-    return float(np.mean(loss))
-
-
 @dataclass(frozen=True)
 class TemperatureCalibrator:
     temperature: float
@@ -41,7 +30,7 @@ class TemperatureCalibrator:
         t = float(self.temperature)
         if not np.isfinite(t) or t <= 0:
             raise ValueError(f"Invalid temperature={t}")
-        return _sigmoid(np.asarray(logits, dtype=float) / t)
+        return sigmoid(np.asarray(logits, dtype=float) / t)
 
 
 @dataclass(frozen=True)
@@ -51,7 +40,7 @@ class PlattCalibrator:
 
     def logits_to_proba(self, logits: np.ndarray) -> np.ndarray:
         logits = np.asarray(logits, dtype=float)
-        return _sigmoid(self.a * logits + self.b)
+        return sigmoid(self.a * logits + self.b)
 
 
 def fit_temperature_scaling(
@@ -80,7 +69,7 @@ def fit_temperature_scaling(
     for _ in range(int(max_iter)):
         t = float(max(np.exp(s), min_temperature))
         z = logits / t
-        p = _sigmoid(z)
+        p = sigmoid(z)
         # dL/dz = p - y
         # z = logits / t, dt/ds = t, dz/ds = d(logits/t)/ds = -logits/t
         grad = np.mean((p - y_true) * (-logits / t))
@@ -114,7 +103,7 @@ def fit_platt_scaling(
     b = 0.0
     for _ in range(int(max_iter)):
         z = a * logits + b
-        p = _sigmoid(z)
+        p = sigmoid(z)
         # dL/dz = p - y
         da = np.mean((p - y_true) * logits) + float(l2) * a
         db = np.mean(p - y_true)

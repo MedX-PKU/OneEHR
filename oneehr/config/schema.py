@@ -183,6 +183,13 @@ class TransformerConfig:
 
 
 @dataclass(frozen=True)
+class LSTMConfig:
+    hidden_dim: int = 128
+    num_layers: int = 1
+    dropout: float = 0.0
+
+
+@dataclass(frozen=True)
 class MLPConfig:
     hidden_dim: int = 128
     num_layers: int = 2
@@ -284,7 +291,7 @@ class ModelConfig:
     gbdt: GBDTConfig = field(default_factory=GBDTConfig)
     gru: GRUConfig = field(default_factory=GRUConfig)
     rnn: RNNConfig = field(default_factory=RNNConfig)
-    lstm: RNNConfig = field(default_factory=RNNConfig)
+    lstm: LSTMConfig = field(default_factory=LSTMConfig)
     mlp: MLPConfig = field(default_factory=MLPConfig)
     tcn: TCNConfig = field(default_factory=TCNConfig)
     transformer: TransformerConfig = field(default_factory=TransformerConfig)

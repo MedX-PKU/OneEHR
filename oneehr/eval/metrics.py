@@ -13,7 +13,7 @@ class MetricResult:
 def binary_metrics(y_true: np.ndarray, y_score: np.ndarray) -> MetricResult:
     """Standard binary classification metrics.
 
-    Required for MVP: AUROC and AUPRC.
+    Computes AUROC, AUPRC, and threshold-based metrics.
     """
 
     from sklearn.metrics import (

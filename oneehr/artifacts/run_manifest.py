@@ -2,29 +2,9 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
 from oneehr.config.schema import ExperimentConfig
-from oneehr.utils.io import ensure_dir, write_json
-
-
-def _sha256_lines(lines: list[str]) -> str:
-    import hashlib
-
-    norm = "\n".join([ln.strip() for ln in lines]) + "\n"
-    return hashlib.sha256(norm.encode("utf-8")).hexdigest()
-
-
-def _as_jsonable(v: Any) -> Any:
-    if isinstance(v, (str, int, float, bool)) or v is None:
-        return v
-    if isinstance(v, Path):
-        return str(v)
-    if isinstance(v, (list, tuple)):
-        return [_as_jsonable(x) for x in v]
-    if isinstance(v, dict):
-        return {str(k): _as_jsonable(x) for k, x in v.items()}
-    return str(v)
+from oneehr.utils.io import as_jsonable, ensure_dir, write_json
 
 
 def write_run_manifest(
@@ -51,9 +31,9 @@ def write_run_manifest(
 
     manifest = {
         "schema_version": 2,
-        "dataset": _as_jsonable(asdict(cfg.dataset)),
-        "task": _as_jsonable(asdict(cfg.task)),
-        "split": _as_jsonable(asdict(cfg.split)),
+        "dataset": as_jsonable(asdict(cfg.dataset)),
+        "task": as_jsonable(asdict(cfg.task)),
+        "split": as_jsonable(asdict(cfg.split)),
         "preprocess": {
             "bin_size": str(cfg.preprocess.bin_size),
             "numeric_strategy": str(cfg.preprocess.numeric_strategy),
@@ -61,12 +41,12 @@ def write_run_manifest(
             "code_selection": str(cfg.preprocess.code_selection),
             "top_k_codes": None if cfg.preprocess.top_k_codes is None else int(cfg.preprocess.top_k_codes),
             "min_code_count": int(cfg.preprocess.min_code_count),
-            "pipeline": _as_jsonable(list(cfg.preprocess.pipeline)),
+            "pipeline": as_jsonable(list(cfg.preprocess.pipeline)),
         },
         "static": {
             "postprocess": None
             if static_postprocess_pipeline is None
-            else {"schema_version": 1, "pipeline": _as_jsonable(list(static_postprocess_pipeline))},
+            else {"schema_version": 1, "pipeline": as_jsonable(list(static_postprocess_pipeline))},
         },
         "features": {
             "dynamic": {

@@ -54,7 +54,3 @@ def load_label_table(cfg: LabelTableConfig | None) -> pd.DataFrame | None:
     df["label_time"] = pd.to_datetime(df["label_time"], errors="raise")
     df["label_code"] = df["label_code"].astype(str)
     return df[required]
-
-
-# Back-compat alias (previously only dynamic events were supported).
-load_event_table = load_dynamic_table

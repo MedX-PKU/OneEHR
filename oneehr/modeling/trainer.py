@@ -1,24 +1,17 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 import numpy as np
 
 from oneehr.config.schema import TaskConfig, TrainerConfig
+from oneehr.eval.calibration import sigmoid
 from oneehr.eval.metrics import binary_metrics, regression_metrics
-from oneehr.utils.imports import load_callable, optional_import
-
-
-def _torch():
-    torch = optional_import("torch")
-    if torch is None:
-        raise ModuleNotFoundError("torch")
-    return torch
+from oneehr.utils.imports import load_callable, require_torch
 
 
 def _select_device(cfg: TrainerConfig):
-    torch = _torch()
+    torch = require_torch()
     if cfg.device == "cpu":
         return torch.device("cpu")
     if cfg.device == "cuda":
@@ -33,7 +26,7 @@ def _select_device(cfg: TrainerConfig):
 
 
 def _default_loss(task: TaskConfig):
-    torch = _torch()
+    torch = require_torch()
     nn = torch.nn
     if task.kind == "binary":
         return nn.BCEWithLogitsLoss(reduction="none")
@@ -108,7 +101,7 @@ def fit_sequence_model(
 ) -> FitResult:
     """Trainer for N-1 sequence models (one label per patient)."""
 
-    torch = _torch()
+    torch = require_torch()
     device = _select_device(trainer)
 
     torch.manual_seed(trainer.seed)
@@ -168,7 +161,7 @@ def fit_sequence_model(
             val_logits_np = val_logits.detach().cpu().numpy()
 
         if task.kind == "binary":
-            val_score = 1.0 / (1.0 + np.exp(-val_logits_np))
+            val_score = sigmoid(val_logits_np)
         else:
             val_score = val_logits_np
 
@@ -202,7 +195,7 @@ def fit_sequence_model(
         logits = model(Xv, Lv) if Sv is None else model(Xv, Lv, Sv)
         logits = logits.squeeze(-1).detach().cpu().numpy()
     if task.kind == "binary":
-        y_pred = 1.0 / (1.0 + np.exp(-logits))
+        y_pred = sigmoid(logits)
     else:
         y_pred = logits
 
@@ -231,7 +224,7 @@ def fit_sequence_model_time(
 ) -> FitSeqResult:
     """Trainer for N-N sequence models (one label per time step)."""
 
-    torch = _torch()
+    torch = require_torch()
     device = _select_device(trainer)
 
     torch.manual_seed(trainer.seed)
@@ -297,7 +290,7 @@ def fit_sequence_model_time(
             val_logits_np = val_logits.detach().cpu().numpy()
 
         if task.kind == "binary":
-            val_score = 1.0 / (1.0 + np.exp(-val_logits_np))
+            val_score = sigmoid(val_logits_np)
         else:
             val_score = val_logits_np
 
@@ -335,7 +328,7 @@ def fit_sequence_model_time(
         logits = model(Xv, Lv) if Sv is None else model(Xv, Lv, Sv)
         logits = logits.squeeze(-1).detach().cpu().numpy()
     if task.kind == "binary":
-        y_pred = 1.0 / (1.0 + np.exp(-logits))
+        y_pred = sigmoid(logits)
     else:
         y_pred = logits
 

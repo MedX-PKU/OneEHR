@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from oneehr.data.postprocess import FittedPostprocess, maybe_fit_transform_postprocess
+from oneehr.utils.io import sha256_lines
 
 
 @dataclass(frozen=True)
@@ -19,17 +20,10 @@ class StaticArtifacts:
     fitted_postprocess: FittedPostprocess | None
 
 
-def _sha256_lines(lines: list[str]) -> str:
-    import hashlib
-
-    norm = "\n".join([ln.strip() for ln in lines]) + "\n"
-    return hashlib.sha256(norm.encode("utf-8")).hexdigest()
-
-
 def _encode_static_categoricals(raw: pd.DataFrame) -> pd.DataFrame:
     """Turn raw static columns into numeric columns compatible with postprocess.
 
-    Strategy (MVP):
+    Strategy:
     - Numeric columns => `num__{col}` float
     - Non-numeric columns => one-hot via `pd.get_dummies` with `cat__{col}__{level}`
     - ID columns like `patient_id` are not features and must be removed upstream
@@ -100,7 +94,7 @@ def fit_transform_static_features(
         schema_version=1,
         raw_cols=list(raw_train.columns),
         feature_columns=feat_cols,
-        feature_columns_sha256=_sha256_lines(feat_cols),
+        feature_columns_sha256=sha256_lines(feat_cols),
         fitted_postprocess=fitted_post,
     )
     return X_train, X_val, X_test, artifacts

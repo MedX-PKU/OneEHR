@@ -23,5 +23,6 @@ dependencies = [
 [project.scripts]
 oneehr = "oneehr.cli.main:main"
 
-[tool.setuptools]
-packages = ["oneehr"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["oneehr*"]

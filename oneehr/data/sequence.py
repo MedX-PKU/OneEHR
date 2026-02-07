@@ -1,26 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 import pandas as pd
 
-from oneehr.utils.imports import optional_import
-
-
-def _torch():
-    torch = optional_import("torch")
-    if torch is None:
-        raise ModuleNotFoundError("torch")
-    return torch
-
-
-@dataclass(frozen=True)
-class SequenceBatch:
-    x: object  # torch.Tensor (B, T, D)
-    lengths: object  # torch.Tensor (B,)
-    y: object  # torch.Tensor (B,) or (B, T)
-    mask: object | None  # torch.Tensor | None
+from oneehr.utils.imports import require_torch
 
 
 def build_patient_sequences(binned: pd.DataFrame, feature_columns: list[str]):
@@ -126,7 +109,7 @@ def build_time_sequences(
 
 
 def pad_sequences(seqs: list[np.ndarray], lengths: np.ndarray):
-    torch = _torch()
+    torch = require_torch()
     max_len = int(lengths.max()) if len(lengths) else 0
     if max_len == 0:
         return torch.empty((0, 0, 0), dtype=torch.float32)

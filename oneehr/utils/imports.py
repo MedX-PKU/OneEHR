@@ -14,6 +14,14 @@ def optional_import(name: str):
         return None
 
 
+def require_torch():
+    """Import and return torch, raising ModuleNotFoundError if missing."""
+    torch = optional_import("torch")
+    if torch is None:
+        raise ModuleNotFoundError("torch")
+    return torch
+
+
 def load_module_from_path(path: str | Path, module_name: str) -> ModuleType:
     path = Path(path)
     spec = importlib.util.spec_from_file_location(module_name, path)

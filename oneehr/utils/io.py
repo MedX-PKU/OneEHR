@@ -1,8 +1,28 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
+
+
+def as_jsonable(v: Any) -> Any:
+    """Recursively convert a value to a JSON-serializable form."""
+    if isinstance(v, (str, int, float, bool)) or v is None:
+        return v
+    if isinstance(v, Path):
+        return str(v)
+    if isinstance(v, (list, tuple)):
+        return [as_jsonable(x) for x in v]
+    if isinstance(v, dict):
+        return {str(k): as_jsonable(x) for k, x in v.items()}
+    return str(v)
+
+
+def sha256_lines(lines: list[str]) -> str:
+    """SHA-256 hash of a list of strings, with normalized whitespace."""
+    norm = "\n".join([ln.strip() for ln in lines]) + "\n"
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
 
 def ensure_dir(path: str | Path) -> Path:
