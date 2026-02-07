@@ -1,121 +1,163 @@
 # OneEHR
 
-An all-in-one EHR predictive modeling and analysis library in Python.
+OneEHR is an end-to-end EHR predictive modeling + analysis toolkit in Python, designed around:
 
-## Tooling (uv)
+- **Doctor-friendly input**: start from a single long-form event table (CSV/Excel).
+- **Leakage prevention by default**: all data splits are patient-level group splits.
+- **TOML-first experiments**: most behavior is configured via one `experiment.toml`.
+- **CLI-first workflow**: preprocess → train (with optional grid search) → test → analyze.
 
-This project uses **uv** for Python environment + dependencies.
+This README is the user-facing guide. If you are using agents to modify the repo, read `AGENTS.md` too.
+
+## Install (uv-only)
+
+Python is pinned in `.python-version` (Python 3.12). Use `uv`:
 
 ```bash
 uv venv .venv --python 3.12
 uv pip install -e .
 ```
 
-Python version is pinned in `.python-version`.
-
-## Quickstart (CLI)
+Verify:
 
 ```bash
-oneehr preprocess --config examples/experiment.toml
-oneehr train --config examples/experiment.toml
+uv run oneehr --help
 ```
 
-## What OneEHR Is
+## Quickstart (5 minutes)
 
-OneEHR is organized around an end-to-end EHR modeling workflow:
+Run the example end-to-end:
 
-1. Data pre-processing
-2. Modeling
-3. Evaluation
-4. Analysis (future: interpretability/uncertainty/confidence)
+```bash
+uv run oneehr preprocess --config examples/experiment.toml
+uv run oneehr train --config examples/experiment.toml
+uv run oneehr analyze --config examples/experiment.toml
+```
 
-Key design goals:
+Artifacts are written under `output.root/output.run_name` (defaults in config; the example uses `logs/example/`).
 
-- Doctor-friendly inputs: start from a single CSV/Excel event table.
-- No leakage: all split strategies must be patient-level group split.
-- Extensible: tasks/labels can be defined via a user `label_fn`.
+## The Workflow (Conceptual)
 
-## Datasets (Decoupled, Three-Table Input)
+OneEHR is organized around an explicit pipeline:
 
-OneEHR consumes a unified **three-table** format (standard CSV only):
-`dynamic.csv` (required), `static.csv` (optional), and `label.csv` (optional).
-You do **not** need to “register” datasets inside the framework—just convert
-raw data into these standard tables.
+1. **Preprocess**: validate and bin irregular events into fixed time bins; build features; materialize tabular “views”.
+2. **Train**: fit one or more models; optionally run config-driven grid search (HPO) per model.
+3. **Test**: evaluate a trained run on external test data (dataset config can differ from train).
+4. **Analyze**: feature importance / interpretability hooks (method depends on model).
+
+## Data Model (What You Provide)
+
+OneEHR starts from a single, long-form event table and (optionally) a patient static table and/or label table.
+These are plain CSVs; there is no dataset registry step.
 
 ### `dynamic.csv` (required)
 
-Unified longitudinal event table (long format). Required columns (fixed names):
+Unified longitudinal event table (long format). Required columns:
 
-- `patient_id`
+- `patient_id` — patient identifier (stringable)
 - `event_time` — parseable by `pandas.to_datetime`
-- `code` — concept / measurement name
+- `code` — measurement / concept name
 - `value` — numeric or categorical
 
-Default time column name is `event_time`.
+Notes:
+
+- Timestamps are **irregular**; binning happens during preprocessing.
+- `value` typing/curation happens in preprocessing (numeric strategy + categorical strategy).
 
 ### `static.csv` (optional)
 
-Patient-level table (one row per patient). Minimal requirement:
+One row per patient. Minimum:
 
 - `patient_id`
 
 All other columns are treated as static covariates.
 
-### `label.csv` (optional, recommended)
+### `label.csv` (optional)
 
-Task-agnostic label event table (long format). Required columns (fixed names):
+Long-form label events. Required columns:
 
 - `patient_id`
 - `label_time`
 - `label_code`
 - `label_value`
 
-## Tasks, Labels, Prediction Modes
+If you do not have a label table, you can generate labels via a Python `label_fn` (recommended for rapid iteration).
 
-- Single-task only (for now)
-- Task types: `binary` and `regression`
-- Prediction modes:
-  - N-1 (`patient`): one prediction per patient
-  - N-N (`time`): one prediction per time step
+## Tasks and Prediction Modes
 
-### Labels via `label_fn` (optional)
+OneEHR is currently **single-task**.
 
-You can generate labels via a Python function configured in TOML:
+Supported task kinds:
 
-- in `experiment.toml`: `[labels]`
-- example: `fn = "path/to/label_fn.py:build_labels"`
+- `binary`
+- `regression`
 
-For N-N tasks (`task.prediction_mode = "time"`), the label function may return
-`label_time` and OneEHR aligns it to `bin_time` using `preprocess.bin_size`.
+Supported prediction modes:
 
-## Status
+- `patient` (N-1): one prediction per patient
+- `time` (N-N): one prediction per time bin
 
-This repository is being rebuilt from scratch.
+## Config (TOML) Overview
 
-## Outputs
+The primary entrypoint is a single experiment config, e.g. `examples/experiment.toml`.
 
-By default, run artifacts are written under `logs/`.
+High-level sections:
 
-`oneehr preprocess` materializes a run directory under `output.root/output.run_name`, including:
-- `binned.parquet` (dynamic features in long format)
-- `features/dynamic/feature_columns.json` (dynamic feature space)
-- `features/static/static_all.parquet` (global static matrix, if enabled)
-- `views/patient_tabular.parquet` or `views/time_tabular.parquet` (tabular views)
-- `run_manifest.json` (single source of truth for artifacts + feature schema)
+- `[dataset]`: file paths (dynamic/static/label or dynamic + `labels.fn`)
+- `[preprocess]`: binning + feature building strategies
+- `[task]`: `kind` and `prediction_mode`
+- `[labels]`: optional label generation function
+- `[split]`: patient-level group splitting strategy
+- `[[models]]`: one or more models to train
+- `[hpo]` and `[hpo_models.<name>]`: optional config-driven grid search
+- `[trainer]`: generic training and selection behavior
+- `[output]`: where run artifacts are written
 
-`oneehr train` reads the above preprocess artifacts and writes per-split metrics to `summary.csv`, and aggregated paper-style tables
-including 95% CI to `paper_table.csv`.
+## Splits (Leakage Prevention)
 
-When multiple models are configured, metrics are grouped by `model` in the output tables and
-predictions/HPO artifacts are written under `logs/<run_name>/preds/<model>` and
-`logs/<run_name>/hpo/<model>`.
+All splits are **patient-level group splits** (patients never span train/val/test).
 
-`oneehr hpo` currently supports `model.name = "xgboost"` and writes
-`logs/<run_name>/hpo_best_<model>.json` per model.
+Config patterns (see `examples/experiment.toml`):
+
+- K-fold CV: `[split] kind = "kfold"`
+- Prospective/time boundary split: `[split] kind = "time"` (still grouped by patient)
+
+## Preprocessing Design (Irregular → Fixed-Time)
+
+Deep-learning and many tabular baselines want regular sampling. OneEHR converts irregular EHR events into fixed bins:
+
+- `preprocess.bin_size`: e.g. `"1h"`, `"1d"`
+- Per bin and per code:
+  - numeric values: aggregated via `preprocess.numeric_strategy` (e.g. mean)
+  - categorical values: represented via `preprocess.categorical_strategy` (e.g. one-hot or counts)
+
+### Code selection (feature vocabulary)
+
+`preprocess.code_selection` controls which codes enter the feature space:
+
+- `frequency`: top-k by frequency (`top_k_codes`)
+- `all`: include all codes
+- `list`: explicit `code_list = ["A", "B"]`
+- `importance`: load top-k from an importance file (e.g., SHAP export)
+
+## Labels via `label_fn` (Recommended)
+
+You can generate labels from events via a Python function configured in TOML:
+
+```toml
+[labels]
+fn = "examples/label_fn.py:build_labels"
+bin_from_time_col = true
+```
+
+Guidance:
+
+- For `task.prediction_mode = "time"`, return time-aligned labels; OneEHR will align to bin times using `preprocess.bin_size`.
+- Treat the label function as part of the experiment definition: version it and keep it next to your config.
 
 ## Models
 
-You can configure one or more models in a single TOML:
+Configure one or more models:
 
 ```toml
 [[models]]
@@ -125,53 +167,108 @@ name = "gru"
 name = "xgboost"
 ```
 
-Single-model config also works:
+One model can also be configured (legacy style), but `[[models]]` is recommended for consistency.
 
-```toml
-[model]
-name = "rnn" # or "transformer"
-```
+## Hyperparameter Search (Config-Driven Grid Search)
 
-## HPO Per Model
+There is no separate `oneehr hpo` command. Hyperparameter search is part of `oneehr train` when enabled in config.
 
-Define shared HPO in `[hpo]`, and override per model via `[hpo_models.<model_name>]`.
+Shared HPO config lives in `[hpo]`, per-model overrides live in `[hpo_models.<model_name>]`:
 
 ```toml
 [hpo]
 enabled = true
 metric = "val_loss"
 mode = "min"
-grid = [["trainer.lr", [1e-3, 3e-4]]]
+scope = "single" # single | per_split | cv_mean
+grid = [
+  ["trainer.lr", [1e-3, 3e-4]],
+  ["trainer.batch_size", [16, 32]],
+]
 
 [hpo_models.xgboost]
 enabled = true
 metric = "val_auroc"
 mode = "max"
-grid = [["model.xgboost.max_depth", [4, 6, 8]]]
+grid = [
+  ["model.xgboost.max_depth", [4, 6, 8]],
+  ["model.xgboost.n_estimators", [200, 500]],
+]
 ```
 
-Each model can include its own hyperparameters in the HPO grid, e.g.
-`model.gru.hidden_dim`, `model.rnn.num_layers`, `model.transformer.nhead`, etc.
+Notes:
 
-### Labels (optional)
+- Grid keys are dotted paths into the config (e.g. `trainer.lr`, `model.xgboost.max_depth`).
+- Scope:
+  - `single`: tune on one split (default `splits[0]` or `hpo.tune_split`)
+  - `per_split`: tune separately per split
+  - `cv_mean`: select by averaging an aggregate metric across splits
 
-You can optionally generate labels via a Python function:
+## CLI Reference
 
-- Configure in `experiment.toml` under `[labels]`.
-- Provide `fn = "path/to/label_fn.py:build_labels"`.
+Run `uv run oneehr --help` for authoritative flags. Current commands:
 
-For N-N tasks (`task.prediction_mode = "time"`), your label function may return `label_time` and
-OneEHR will internally align it to `bin_time` using `preprocess.bin_size`.
+- `oneehr preprocess --config <toml>`: preprocessing + artifact materialization
+- `oneehr train --config <toml> [--force]`: training + optional grid search + evaluation summaries
+- `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on external test data
+- `oneehr analyze --config <toml> [--run-dir <run>] --method <xgboost|shap|attention>`: feature importance analysis
 
-## Outputs
+## Outputs (Run Directory Contract)
 
-By default, run artifacts are written under `logs/`.
+By default, run artifacts are written under `[output]`:
 
-## Code Selection
+```toml
+[output]
+root = "logs"
+run_name = "example"
+```
 
-Use `preprocess.code_selection` to control the code vocabulary:
+Key artifacts you can rely on:
 
-- `frequency`: use `top_k_codes` by frequency (default)
-- `all`: use all codes (set `top_k_codes = "all"` or omit)
-- `list`: provide `code_list = ["A", "B"]`
-- `importance`: load top-k from `importance_file` (e.g., SHAP importance)
+- Preprocess outputs:
+  - `binned.parquet`: binned dynamic events (long format)
+  - `features/dynamic/feature_columns.json`: dynamic feature schema
+  - `features/static/static_all.parquet`: static matrix (if enabled)
+  - `views/patient_tabular.parquet` or `views/time_tabular.parquet`: modeling-ready tabular views
+  - `run_manifest.json`: single source of truth (artifact paths + schema)
+- Train outputs:
+  - `summary.csv`: per-split metrics
+  - `paper_table.csv`: aggregated “paper-style” table with 95% CI
+  - `preds/<model>/...`: predictions (if `output.save_preds = true`)
+  - `hpo/<model>/...`: grid search trials and selected configs (if enabled)
+
+## Common Recipes
+
+### 1) Train a single model (no HPO)
+
+Set one model and disable HPO:
+
+```toml
+[[models]]
+name = "xgboost"
+
+[hpo]
+enabled = false
+```
+
+### 2) Time-level (N-N) prediction
+
+```toml
+[task]
+prediction_mode = "time"
+```
+
+Make sure `labels.fn` produces time-level labels (with `label_time`) that match your binning logic.
+
+### 3) External test set evaluation
+
+Use `oneehr test` with an external dataset config:
+
+```bash
+uv run oneehr test --config examples/experiment.toml --test-dataset path/to/test_dataset.toml
+```
+
+## Development Notes
+
+- The CLI entrypoint is `oneehr` (see `pyproject.toml`).
+- If you are contributing or using coding agents, read `AGENTS.md` for repository conventions and “do not break” design invariants.
