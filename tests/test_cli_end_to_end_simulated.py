@@ -62,6 +62,36 @@ def _write_patient_label_fn(path: Path) -> None:
     )
 
 
+def _write_stratified_patient_label_fn(path: Path) -> None:
+    """Write a label_fn that guarantees class balance by patient_id.
+
+    This avoids folds/splits being skipped for single-class train/val and
+    ensures every model produces artifacts + prediction outputs.
+    """
+
+    path.write_text(
+        "\n".join(
+            [
+                "from __future__ import annotations",
+                "",
+                "import pandas as pd",
+                "",
+                "",
+                "def build_labels(dynamic: pd.DataFrame, static, label, cfg):",
+                "    df = dynamic[['patient_id']].drop_duplicates().copy()",
+                "    df['patient_id'] = df['patient_id'].astype(str)",
+                "    # patient_id like 'p0001' -> 1; fallback 0",
+                "    # Use modulo of pid_int to ensure stable balance within GroupKFold splits.",
+                "    df['pid_int'] = df['patient_id'].str.extract(r'(\\d+)', expand=False).fillna('0').astype(int)",
+                "    df['label'] = (df['pid_int'] // 10 % 2).astype(int)",
+                "    return df[['patient_id', 'label']]",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_time_label_fn(path: Path) -> None:
     path.write_text(
         "\n".join(
@@ -126,7 +156,9 @@ def _write_experiment_toml(
                 "",
                 "[split]",
                 f'kind = "{split_kind}"',
-                "seed = 123",
+                # Use a fixed seed to make tests deterministic and to avoid
+                # class-imbalanced val splits causing model training to be skipped.
+                "seed = 0",
                 "n_splits = 2",
                 "val_size = 0.2",
                 "test_size = 0.2",
@@ -420,8 +452,8 @@ def test_cli_e2e_patient_binary_all_models_smoke(tmp_path: Path, model_name: str
     dynamic_csv = tmp_path / "dynamic.csv"
     _write_dynamic_csv(dynamic_csv, dynamic)
 
-    label_fn = tmp_path / "labels_patient.py"
-    _write_patient_label_fn(label_fn)
+    label_fn = tmp_path / "labels_patient_stratified.py"
+    _write_stratified_patient_label_fn(label_fn)
 
     cfg = tmp_path / "exp.toml"
     out_root = tmp_path / "runs"
@@ -447,16 +479,14 @@ def test_cli_e2e_patient_binary_all_models_smoke(tmp_path: Path, model_name: str
     assert (run_root / "run_manifest.json").exists()
     assert (run_root / "summary.json").exists()
     assert (run_root / "hpo_best.csv").exists()
-    # If training produced no models (e.g., single-class splits), `oneehr test`
-    # writes an empty records summary and returns; otherwise it writes test runs.
-    test_summary = (run_root / "test_runs" / "test_summary.json")
-    if test_summary.exists():
-        payload = json.loads(test_summary.read_text(encoding="utf-8"))
-        assert "records" in payload
-    else:
-        # Ensure we didn't silently fail the test command; in this case it should
-        # at least have produced a models directory with some artifacts.
-        assert (run_root / "models").exists()
+    test_summary = run_root / "test_runs" / "test_summary.json"
+    assert test_summary.exists()
+    payload = json.loads(test_summary.read_text(encoding="utf-8"))
+    assert "records" in payload
+    # With stratified labels, training should not skip; require preds for the model.
+    preds_dir = run_root / "preds" / model_name
+    assert preds_dir.exists()
+    assert any(p.suffix == ".parquet" for p in preds_dir.iterdir())
 
 
 def test_cli_analyze_writes_feature_importance(tmp_path: Path) -> None:

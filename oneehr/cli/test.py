@@ -205,6 +205,8 @@ def run_test(
 
             rows.append({"model": model_name, "split": split_name, **metrics})
 
+    # Always write a summary file so downstream tooling/tests have a stable
+    # artifact to read, even if some models produced no evaluable rows.
+    write_json(output / "test_summary.json", {"records": rows})
     if rows:
-        write_json(output / "test_summary.json", {"records": rows})
         pd.DataFrame(rows).to_csv(output / "test_summary.csv", index=False)

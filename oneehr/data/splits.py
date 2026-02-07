@@ -43,6 +43,13 @@ def make_splits(
         X = np.zeros((len(patients), 1))
         groups = patients
         splits: list[Split] = []
+        # Note: GroupKFold's splitting is deterministic given the order of
+        # `patients` and does not use `random_state`. We shuffle patient order
+        # here to respect `split.seed` while preserving patient-level grouping.
+        patients = patients[rng.permutation(len(patients))]
+        groups = patients
+        X = np.zeros((len(patients), 1))
+
         for fold, (train_idx, test_idx) in enumerate(gkf.split(X, groups=groups), start=0):
             train_patients = patients[train_idx]
             test_patients = patients[test_idx]
