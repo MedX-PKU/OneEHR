@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -85,9 +83,3 @@ class DrAgentTimeModel(nn.Module):
             return self.head(out)
         s = self.static_proj(static).unsqueeze(1).expand(out.shape[0], out.shape[1], -1)
         return self.head(torch.cat([out, s], dim=-1))
-
-
-@dataclass(frozen=True)
-class DrAgentArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

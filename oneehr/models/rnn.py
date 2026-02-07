@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -96,9 +94,3 @@ class RNNTimeModel(nn.Module):
         packed_out, _ = self.rnn(packed)
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         return self.head(out)
-
-
-@dataclass(frozen=True)
-class RNNArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

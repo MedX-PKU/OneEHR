@@ -240,6 +240,7 @@ class ConCareConfig:
 @dataclass(frozen=True)
 class GRASPConfig:
     hidden_dim: int = 128
+    cluster_num: int = 12
     dropout: float = 0.1
 
 

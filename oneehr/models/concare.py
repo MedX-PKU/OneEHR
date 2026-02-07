@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import math
 
 import torch
@@ -122,9 +120,3 @@ class ConCareTimeModel(nn.Module):
         pad_mask = _make_pad_mask(lengths, t)
         z = self.encoder(h, src_key_padding_mask=pad_mask)
         return self.head(z)
-
-
-@dataclass(frozen=True)
-class ConCareArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

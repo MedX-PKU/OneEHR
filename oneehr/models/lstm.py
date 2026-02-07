@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -68,9 +66,3 @@ class LSTMTimeModel(nn.Module):
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
         out = self.encoder(x, lengths)
         return self.head(out)
-
-
-@dataclass(frozen=True)
-class LSTMArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

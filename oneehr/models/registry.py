@@ -252,7 +252,7 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
                 model=GRASPTimeModel(
                     input_dim=input_dim,
                     hidden_dim=cfg.model.grasp.hidden_dim,
-                    cluster_num=12,
+                    cluster_num=cfg.model.grasp.cluster_num,
                     dropout=cfg.model.grasp.dropout,
                 ),
                 kind="dl",
@@ -263,7 +263,7 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
             model=GRASPModel(
                 input_dim=input_dim,
                 hidden_dim=cfg.model.grasp.hidden_dim,
-                cluster_num=12,
+                cluster_num=cfg.model.grasp.cluster_num,
                 dropout=cfg.model.grasp.dropout,
             ),
             kind="dl",

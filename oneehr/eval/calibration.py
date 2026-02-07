@@ -125,23 +125,18 @@ def calibrate_from_probs(
 ) -> tuple[np.ndarray, dict[str, float]]:
     """Convenience API for calibrating when you only have probabilities.
 
-    Internally converts probs -> logits, fits calibrator, then returns calibrated probs.
+    Internally converts probs -> logits, then delegates to `calibrate_from_logits`.
     """
 
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
     probs = np.asarray(probs, dtype=float).reshape(-1)
     logits = _logit(probs)
-    if method == "temperature":
-        kw = {} if temperature_kwargs is None else dict(temperature_kwargs)
-        cal = fit_temperature_scaling(y_true, logits, **kw)
-        p_cal = cal.logits_to_proba(logits)
-        return p_cal, {"temperature": float(cal.temperature)}
-    if method == "platt":
-        kw = {} if platt_kwargs is None else dict(platt_kwargs)
-        cal = fit_platt_scaling(y_true, logits, **kw)
-        p_cal = cal.logits_to_proba(logits)
-        return p_cal, {"a": float(cal.a), "b": float(cal.b)}
-    raise ValueError(f"Unsupported calibration method={method!r}")
+    return calibrate_from_logits(
+        y_true,
+        logits,
+        method=method,
+        temperature_kwargs=temperature_kwargs,
+        platt_kwargs=platt_kwargs,
+    )
 
 
 def calibrate_from_logits(
@@ -201,4 +196,3 @@ def binary_brier(y_true: np.ndarray, probs: np.ndarray) -> float:
     y_true = np.asarray(y_true, dtype=float).reshape(-1)
     probs = np.asarray(probs, dtype=float).reshape(-1)
     return float(np.mean((probs - y_true) ** 2))
-

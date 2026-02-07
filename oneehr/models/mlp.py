@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -57,9 +55,3 @@ class MLPModel(nn.Module):
         h = self.blocks(h)
         last = last_by_lengths(h, lengths)
         return self.head(last)
-
-
-@dataclass(frozen=True)
-class MLPArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

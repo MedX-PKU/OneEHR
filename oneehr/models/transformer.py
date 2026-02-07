@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -82,9 +80,3 @@ class TransformerTimeModel(nn.Module):
         key_padding_mask = torch.arange(t, device=lengths.device)[None, :] >= lengths[:, None]
         z = self.encoder(h, src_key_padding_mask=key_padding_mask)
         return self.head(z)
-
-
-@dataclass(frozen=True)
-class TransformerArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

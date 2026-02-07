@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -123,10 +121,3 @@ class TCNTimeModel(nn.Module):
         # the signature consistent with the OneEHR trainer.
         z = self.encoder(x)
         return self.head(z)
-
-
-@dataclass(frozen=True)
-class TCNArtifacts:
-    feature_columns: list[str]
-    state_dict: dict
-

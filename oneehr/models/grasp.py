@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 import torch
 from torch import nn
@@ -126,9 +124,3 @@ class GRASPTimeModel(nn.Module):
         pad_mask = torch.arange(t, device=x.device)[None, :] >= lengths[:, None]
         out[pad_mask] = 0.0
         return out
-
-
-@dataclass(frozen=True)
-class GRASPArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

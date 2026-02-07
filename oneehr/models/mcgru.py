@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -105,9 +103,3 @@ class MCGRUTimeModel(nn.Module):
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
         z = self.encoder(x, static=static)
         return self.head(z)
-
-
-@dataclass(frozen=True)
-class MCGRUArtifacts:
-    feature_columns: list[str]
-    state_dict: dict

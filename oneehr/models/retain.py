@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch import nn
 
@@ -85,9 +83,3 @@ class RETAINTimeModel(nn.Module):
         pad_mask = torch.arange(t, device=device)[None, :] >= lengths[:, None]
         out[pad_mask] = 0.0
         return out
-
-
-@dataclass(frozen=True)
-class RETAINArtifacts:
-    feature_columns: list[str]
-    state_dict: dict
