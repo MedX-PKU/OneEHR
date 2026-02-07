@@ -329,6 +329,7 @@ def test_cli_e2e_time_binary_gru(tmp_path: Path) -> None:
     "model_name",
     [
         # Time-level DL models (keep epochs=1 in config writer).
+        "tcn",
         "gru",
         "lstm",
         "rnn",
@@ -386,6 +387,76 @@ def test_cli_e2e_time_binary_dl_models_smoke(tmp_path: Path, model_name: str) ->
 
     payload = json.loads((run_root / "test_runs" / "test_summary.json").read_text(encoding="utf-8"))
     assert "records" in payload
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        # Tabular ML models.
+        "xgboost",
+        "catboost",
+        "rf",
+        "dt",
+        "gbdt",
+        # Patient-level DL models.
+        "gru",
+        "lstm",
+        "rnn",
+        "transformer",
+        "mlp",
+        "retain",
+        "stagenet",
+        "adacare",
+        "concare",
+        "grasp",
+        "mcgru",
+        "dragent",
+    ],
+)
+def test_cli_e2e_patient_binary_all_models_smoke(tmp_path: Path, model_name: str) -> None:
+    """Broader smoke coverage for ML+DL models on patient-level tasks."""
+
+    dynamic = _make_simulated_dynamic_events(n_patients=240, seed=5)
+    dynamic_csv = tmp_path / "dynamic.csv"
+    _write_dynamic_csv(dynamic_csv, dynamic)
+
+    label_fn = tmp_path / "labels_patient.py"
+    _write_patient_label_fn(label_fn)
+
+    cfg = tmp_path / "exp.toml"
+    out_root = tmp_path / "runs"
+    _write_experiment_toml(
+        path=cfg,
+        dynamic_csv=dynamic_csv,
+        label_fn_ref=f"{label_fn}:build_labels",
+        out_root=out_root,
+        run_name=f"patient_bin_{model_name}",
+        task_kind="binary",
+        prediction_mode="patient",
+        models=[model_name],
+        split_kind="kfold",
+        hpo_enabled=False,
+        calibration_enabled=(model_name in {"xgboost", "catboost"}),
+    )
+
+    subprocess.check_call(["oneehr", "preprocess", "--config", str(cfg)])
+    subprocess.check_call(["oneehr", "train", "--config", str(cfg), "--force"])
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg), "--force"])
+
+    run_root = out_root / f"patient_bin_{model_name}"
+    assert (run_root / "run_manifest.json").exists()
+    assert (run_root / "summary.json").exists()
+    assert (run_root / "hpo_best.csv").exists()
+    # If training produced no models (e.g., single-class splits), `oneehr test`
+    # writes an empty records summary and returns; otherwise it writes test runs.
+    test_summary = (run_root / "test_runs" / "test_summary.json")
+    if test_summary.exists():
+        payload = json.loads(test_summary.read_text(encoding="utf-8"))
+        assert "records" in payload
+    else:
+        # Ensure we didn't silently fail the test command; in this case it should
+        # at least have produced a models directory with some artifacts.
+        assert (run_root / "models").exists()
 
 
 def test_cli_analyze_writes_feature_importance(tmp_path: Path) -> None:
