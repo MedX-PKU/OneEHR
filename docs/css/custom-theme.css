@@ -1,11 +1,11 @@
 :root {
     --header-height: 3.5rem;
-    --bg-color: #0b1220;
-    --fg-color: #e2e8f0;
-    --muted-fg-color: #94a3b8;
-    --neutral-color: #273449;
-    --link-color: #7dd3fc;
-    --code-bg-color: #0f172a;
+    --bg-color: #f8fafc;
+    --fg-color: #1f2937;
+    --muted-fg-color: #64748b;
+    --neutral-color: #d5deea;
+    --link-color: #2563eb;
+    --code-bg-color: #eef2f7;
 }
 
 * {
@@ -15,7 +15,7 @@
 body {
     color: var(--fg-color) !important;
     background-color: var(--bg-color) !important;
-    background-image: radial-gradient(circle at top, #111b33, var(--bg-color) 45%) !important;
+    background-image: radial-gradient(circle at top, #ffffff, var(--bg-color) 55%) !important;
 }
 
 main,
@@ -32,7 +32,7 @@ nav.right {
     height: var(--header-height);
     padding: 0 1.25rem;
     border-bottom: 1px solid var(--neutral-color);
-    background: rgba(11, 18, 32, 0.92);
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -66,7 +66,7 @@ nav.left,
 nav.right {
     top: var(--header-height);
     height: calc(100% - var(--header-height));
-    background: rgba(15, 23, 42, 0.52);
+    background: rgba(248, 250, 252, 0.96);
 }
 
 nav.left {
