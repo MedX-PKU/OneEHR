@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -14,6 +17,53 @@ class Split:
     train_patients: np.ndarray
     val_patients: np.ndarray
     test_patients: np.ndarray
+
+
+def save_splits(splits: list[Split], out_dir: Path) -> None:
+    """Write each Split as {name}.json with train/val/test patient arrays."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for sp in splits:
+        payload = {
+            "name": sp.name,
+            "train_patients": sp.train_patients.tolist(),
+            "val_patients": sp.val_patients.tolist(),
+            "test_patients": sp.test_patients.tolist(),
+        }
+        (out_dir / f"{sp.name}.json").write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
+
+
+def load_splits(split_dir: Path) -> list[Split]:
+    """Read back into list[Split], sorted by filename."""
+    split_dir = Path(split_dir)
+    if not split_dir.is_dir():
+        return []
+    splits: list[Split] = []
+    for path in sorted(split_dir.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        splits.append(
+            Split(
+                name=str(data["name"]),
+                train_patients=np.array(data["train_patients"], dtype=str),
+                val_patients=np.array(data["val_patients"], dtype=str),
+                test_patients=np.array(data["test_patients"], dtype=str),
+            )
+        )
+    return splits
+
+
+_REPEAT_RE = re.compile(r"__r(\d+)$")
+
+
+def _parse_repeat_index(name: str) -> int:
+    """Extract repeat index from split names like ``fold0__r2`` → 2.
+
+    Returns 0 for non-repeat names.
+    """
+    m = _REPEAT_RE.search(name)
+    return int(m.group(1)) if m else 0
 
 
 def make_splits(
@@ -84,6 +134,32 @@ def make_splits(
         n_test = max(1, int(round(len(patients) * split.test_size)))
         test_patients = patients[:n_test]
         rem = patients[n_test:]
+
+        # Nested CV: fixed random test set, CV folds on remainder.
+        if split.inner_kind is not None:
+            inner_kind = split.inner_kind.lower()
+            if inner_kind != "kfold":
+                raise ValueError("split.random currently supports inner_kind='kfold' only")
+            n_splits = split.inner_n_splits or split.n_splits
+            from sklearn.model_selection import GroupKFold
+
+            gkf = GroupKFold(n_splits=int(n_splits))
+            X0 = np.zeros((len(rem), 1))
+            groups0 = rem
+            out: list[Split] = []
+            for fold, (train_idx, val_idx) in enumerate(gkf.split(X0, groups=groups0), start=0):
+                tr = rem[train_idx]
+                va = rem[val_idx]
+                out.append(Split(name=f"random0_fold{fold}", train_patients=tr, val_patients=va, test_patients=test_patients))
+            if split.fold_index is None:
+                return out
+            if split.fold_index < 0 or split.fold_index >= len(out):
+                raise ValueError(
+                    f"split.fold_index out of range: {split.fold_index}. "
+                    f"Expected 0..{len(out) - 1}"
+                )
+            return [out[int(split.fold_index)]]
+
         n_val = max(1, int(round(len(rem) * split.val_size))) if split.val_size > 0 else 0
         val_patients = rem[:n_val]
         train_patients = rem[n_val:]

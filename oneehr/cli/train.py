@@ -37,7 +37,7 @@ def run_train(cfg_path: str, force: bool) -> None:
     if force:
         import shutil
 
-        for rel in ["models", "preds", "hpo", "summary.json", "hpo_best.csv"]:
+        for rel in ["models", "preds", "hpo", "splits", "summary.json", "hpo_best.csv"]:
             p = out_root / rel
             if p.is_dir():
                 shutil.rmtree(p)
@@ -53,7 +53,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     from oneehr.config.load import load_experiment_config
     from oneehr.data.io import load_dynamic_table_optional, load_static_table
     from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
-    from oneehr.data.splits import make_splits
+    from oneehr.data.splits import Split, make_splits, save_splits, _parse_repeat_index
     from oneehr.data.postprocess import maybe_fit_transform_postprocess
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.hpo.grid import apply_overrides, iter_grid
@@ -82,6 +82,24 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     splits = make_splits(patient_index, cfg0.split)
 
     out_root = cfg0.output.root / cfg0.output.run_name
+
+    # Persist splits so that `oneehr test` can use them for self-split evaluation.
+    save_splits(splits, out_root / "splits")
+
+    # Expand splits with repeats for multi-seed training.
+    if cfg0.trainer.repeat > 1:
+        expanded: list[Split] = []
+        for sp in splits:
+            for r in range(cfg0.trainer.repeat):
+                expanded.append(Split(
+                    name=f"{sp.name}__r{r}",
+                    train_patients=sp.train_patients,
+                    val_patients=sp.val_patients,
+                    test_patients=sp.test_patients,
+                ))
+        splits = expanded
+        # Save expanded splits too (test command matches by name).
+        save_splits(splits, out_root / "splits")
     run = RunIO(run_root=out_root)
     manifest = run.require_manifest()
     labels_df = run.load_labels(manifest)
@@ -223,6 +241,10 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 hpo_best_score = None
 
             # ===== Train on this split =====
+            # Determine effective seed for multi-seed training.
+            repeat_idx = _parse_repeat_index(sp.name)
+            effective_seed = cfg.trainer.seed + repeat_idx
+
             if cfg.model.name in TABULAR_MODELS:
                 if cfg.task.kind == "binary" and len(np.unique(y_train)) < 2:
                     rows.append({"model": model_name, "split": sp.name, "skipped": 1, "reason": "single_class_train"})
@@ -234,6 +256,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     X_train=X_train, y_train=y_train,
                     X_val=X_val, y_val=y_val,
                     task=cfg.task, model_cfg=tab_model_cfg,
+                    seed=effective_seed,
                 )
                 model_out = ensure_dir(out_root / "models" / model_name / sp.name)
                 save_tabular_model(art, model_out)
@@ -273,11 +296,12 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                     built = build_model(cfg_use)
                     model = built.model
 
+                    trainer_cfg_eff = replace(cfg.trainer, seed=effective_seed)
                     fit = fit_model(
                         model=model,
                         X_train=X_tr, len_train=L_tr, y_train=y_tr, static_train=None,
                         X_val=X_va, len_val=L_va, y_val=y_va, static_val=None,
-                        task=cfg.task, trainer=cfg.trainer,
+                        task=cfg.task, trainer=trainer_cfg_eff,
                     )
 
                     model.load_state_dict(fit.state_dict)
@@ -319,6 +343,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
                     model_supports_static_branch = has_static_branch(model)
 
+                    trainer_cfg_eff = replace(cfg.trainer, seed=effective_seed)
                     if cfg.task.prediction_mode == "patient":
                         (
                             y_score, y_test, test_patient_ids, test_logits,
@@ -326,7 +351,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                         ) = train_dl_patient_level(
                             model=model, binned=binned, y=y,
                             static=static_train, split=sp,
-                            cfg=cfg.trainer, task=cfg.task,
+                            cfg=trainer_cfg_eff, task=cfg.task,
                             model_supports_static_branch=model_supports_static_branch,
                             y_map=dict(zip(X.index.astype(str).tolist(), y.to_numpy().tolist())),
                         )
@@ -337,7 +362,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                         ) = train_dl_time_level(
                             model=model, binned=binned, labels_df=labels_df,
                             static=static_train, split=sp,
-                            cfg=cfg.trainer, task=cfg.task,
+                            cfg=trainer_cfg_eff, task=cfg.task,
                             model_supports_static_branch=model_supports_static_branch,
                         )
                         test_patient_ids = np.array([r[0] for r in test_key_rows], dtype=str)

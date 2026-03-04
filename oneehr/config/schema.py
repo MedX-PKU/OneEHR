@@ -130,6 +130,7 @@ class TrainerConfig:
     final_model_source: str = "refit"  # refit | best_split
     bootstrap_test: bool = False
     bootstrap_n: int = 200
+    repeat: int = 1  # Number of training runs per split (different seeds)
 
 
 @dataclass(frozen=True)

@@ -28,7 +28,7 @@ def _build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--force", action="store_true", help="Overwrite existing run directory")
 
     # test
-    te = sub.add_parser("test", help="Evaluate trained models on external test data")
+    te = sub.add_parser("test", help="Evaluate trained models on test data")
     te.add_argument("--config", required=True, help="Path to TOML config")
     te.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
     te.add_argument("--test-dataset", default=None, help="Path to test dataset config")

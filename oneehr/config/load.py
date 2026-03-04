@@ -267,6 +267,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         final_model_source=str(trainer_raw.get("final_model_source", "refit")),
         bootstrap_test=bool(trainer_raw.get("bootstrap_test", False)),
         bootstrap_n=int(trainer_raw.get("bootstrap_n", 200)),
+        repeat=int(trainer_raw.get("repeat", 1)),
     )
 
     def _load_hpo(hpo_section: dict[str, Any]) -> HPOConfig:

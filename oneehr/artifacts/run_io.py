@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -114,3 +115,20 @@ class RunIO:
         if mode == "time":
             return validate_time_labels(df)
         raise ValueError(f"Unsupported prediction_mode in run_manifest.json: {mode!r}")
+
+    def load_fitted_postprocess(self, split_name: str):
+        """Load fitted postprocess pipeline for a given split.
+
+        Reads ``preprocess/{split_name}/pipeline.json`` and returns a
+        ``FittedPostprocess`` instance, or ``None`` if the file doesn't exist.
+        """
+        pp_path = self.run_root / "preprocess" / split_name / "pipeline.json"
+        if not pp_path.exists():
+            return None
+        from oneehr.data.postprocess import FittedPostprocess
+
+        data = json.loads(pp_path.read_text(encoding="utf-8"))
+        pipeline = data.get("pipeline")
+        if not isinstance(pipeline, list):
+            return None
+        return FittedPostprocess(pipeline=pipeline)

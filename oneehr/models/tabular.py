@@ -85,6 +85,7 @@ def train_tabular_model(
     y_val: np.ndarray | None,
     task: TaskConfig,
     model_cfg: Any,
+    seed: int = 0,
 ) -> TabularArtifacts:
     """Train a 2D tabular model.
 
@@ -117,6 +118,7 @@ def train_tabular_model(
                 reg_lambda=cfg.reg_lambda,
                 min_child_weight=cfg.min_child_weight,
                 eval_metric="logloss",
+                random_state=seed,
             )
         elif task.kind == "regression":
             model = XGBRegressor(
@@ -127,6 +129,7 @@ def train_tabular_model(
                 colsample_bytree=cfg.colsample_bytree,
                 reg_lambda=cfg.reg_lambda,
                 min_child_weight=cfg.min_child_weight,
+                random_state=seed,
             )
         else:
             raise ValueError(f"Unsupported task.kind={task.kind!r}")
@@ -154,7 +157,7 @@ def train_tabular_model(
                 depth=cfg.depth,
                 n_estimators=cfg.n_estimators,
                 learning_rate=cfg.learning_rate,
-                random_state=0,
+                random_state=seed,
                 verbose=False,
                 allow_writing_files=False,
             )
@@ -163,7 +166,7 @@ def train_tabular_model(
                 depth=cfg.depth,
                 n_estimators=cfg.n_estimators,
                 learning_rate=cfg.learning_rate,
-                random_state=0,
+                random_state=seed,
                 verbose=False,
                 allow_writing_files=False,
             )
@@ -187,14 +190,14 @@ def train_tabular_model(
             model = RandomForestClassifier(
                 n_estimators=cfg.n_estimators,
                 max_depth=cfg.max_depth,
-                random_state=0,
+                random_state=seed,
                 n_jobs=-1,
             )
         elif task.kind == "regression":
             model = RandomForestRegressor(
                 n_estimators=cfg.n_estimators,
                 max_depth=cfg.max_depth,
-                random_state=0,
+                random_state=seed,
                 n_jobs=-1,
             )
         else:
@@ -210,9 +213,9 @@ def train_tabular_model(
         assert isinstance(cfg, DTConfig)
 
         if task.kind == "binary":
-            model = DecisionTreeClassifier(max_depth=cfg.max_depth, random_state=0)
+            model = DecisionTreeClassifier(max_depth=cfg.max_depth, random_state=seed)
         elif task.kind == "regression":
-            model = DecisionTreeRegressor(max_depth=cfg.max_depth, random_state=0)
+            model = DecisionTreeRegressor(max_depth=cfg.max_depth, random_state=seed)
         else:
             raise ValueError(f"Unsupported task.kind={task.kind!r}")
 
@@ -230,14 +233,14 @@ def train_tabular_model(
                 n_estimators=cfg.n_estimators,
                 learning_rate=cfg.learning_rate,
                 max_depth=cfg.max_depth,
-                random_state=0,
+                random_state=seed,
             )
         elif task.kind == "regression":
             model = GradientBoostingRegressor(
                 n_estimators=cfg.n_estimators,
                 learning_rate=cfg.learning_rate,
                 max_depth=cfg.max_depth,
-                random_state=0,
+                random_state=seed,
             )
         else:
             raise ValueError(f"Unsupported task.kind={task.kind!r}")
