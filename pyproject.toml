@@ -24,7 +24,7 @@ dependencies = [
 oneehr = "oneehr.cli.main:main"
 
 [project.optional-dependencies]
-docs = ["mkdocs-material>=9.5", "mkdocs-glightbox>=0.4"]
+docs = ["mkdocs @ git+https://github.com/encode/mkdocs.git"]
 
 [tool.setuptools.packages.find]
 where = ["."]

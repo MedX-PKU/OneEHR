@@ -7,7 +7,7 @@ OneEHR is an end-to-end EHR predictive modeling + analysis toolkit in Python, de
 - **TOML-first experiments**: most behavior is configured via one `experiment.toml`.
 - **CLI-first workflow**: preprocess → train (with optional grid search) → test → analyze.
 
-This README is the user-facing guide. For full documentation, see the [docs site](https://medx-pku.github.io/OneEHR/) or build locally with `uv run mkdocs serve`. If you are using agents to modify the repo, read `AGENTS.md` too.
+This README is the user-facing guide. For full documentation, see the [docs site](https://medx-pku.github.io/OneEHR/) or build locally with `uv run mkdocs serve` (MkDocs 2 pre-release + `mkdocs.toml`). If you are using agents to modify the repo, read `AGENTS.md` too.
 
 ## Install (uv-only)
 
@@ -306,8 +306,8 @@ uv run oneehr test --config examples/experiment.toml --test-dataset path/to/test
 Full documentation is available at [medx-pku.github.io/OneEHR](https://medx-pku.github.io/OneEHR/) or can be built locally:
 
 ```bash
-uv pip install -e “.[docs]”
-uv run mkdocs serve          # http://127.0.0.1:8000
+uv pip install -e ".[docs]"
+uv run mkdocs serve          # http://127.0.0.1:5000
 ```
 
 The docs cover:

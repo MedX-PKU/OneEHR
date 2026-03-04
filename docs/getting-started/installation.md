@@ -33,7 +33,7 @@ To build the documentation site locally:
 
 ```bash
 uv pip install -e ".[docs]"
-uv run mkdocs serve
+uv run mkdocs serve  # MkDocs 2 pre-release, default http://127.0.0.1:5000
 ```
 
 ## GPU support

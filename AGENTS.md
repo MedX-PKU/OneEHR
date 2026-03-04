@@ -143,23 +143,23 @@ Source of truth: `oneehr/config/schema.py` (config dataclasses) and `oneehr/mode
   - `oneehr/hpo/grid.py`: grid iteration + config override application
   - `oneehr/hpo/runner.py`: HPO trial runner
 - `oneehr/utils/`: shared utilities (I/O, time parsing, imports)
-- `docs/`: MkDocs Material documentation site (see below)
+- `docs/`: MkDocs documentation site (MkDocs 2 pre-release; see below)
 - `examples/`: runnable reference configs and templates
 - `tests/`: unit/integration tests (keep them fast)
 
 ## Documentation
 
-The docs site uses [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) and lives in `docs/`.
+The docs site uses the [MkDocs 2 pre-release](https://www.encode.io/mkdocs/) and lives in `docs/` with root config in `mkdocs.toml`.
 
 ```bash
 # Install docs dependencies
 uv pip install -e ".[docs]"
 
 # Local preview
-uv run mkdocs serve          # http://127.0.0.1:8000
+uv run mkdocs serve          # http://127.0.0.1:5000
 
-# Build (strict mode checks for broken links)
-uv run mkdocs build --strict
+# Build
+uv run mkdocs build
 ```
 
 When changing CLI flags, config parameters, model behavior, or artifact layout, update the corresponding pages under `docs/reference/` and `docs/guide/`.
@@ -172,7 +172,7 @@ When changing CLI flags, config parameters, model behavior, or artifact layout, 
   - `uv run pytest -q`
   - `uv run oneehr --help`
   - `uv run oneehr preprocess --config examples/experiment.toml --overview` (quick smoke; avoids long training)
-  - `uv run mkdocs build --strict` (verify docs build without broken links)
+  - `uv run mkdocs build` (verify docs build succeeds)
 
 ### Conventional commits (do this often)
 

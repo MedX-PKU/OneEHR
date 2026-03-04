@@ -1,0 +1,71 @@
+[mkdocs]
+nav = [
+  { title = "Home", path = "index.md" },
+  { title = "Getting Started", children = [
+    { title = "Installation", path = "getting-started/installation.md" },
+    { title = "Quickstart", path = "getting-started/quickstart.md" },
+    { title = "Data Model", path = "getting-started/data-model.md" },
+  ] },
+  { title = "User Guide", children = [
+    { title = "Preprocessing", path = "guide/preprocessing.md" },
+    { title = "Training", path = "guide/training.md" },
+    { title = "Testing", path = "guide/testing.md" },
+    { title = "Analysis", path = "guide/analysis.md" },
+    { title = "Splits", path = "guide/splits.md" },
+    { title = "HPO (Grid Search)", path = "guide/hpo.md" },
+    { title = "Calibration", path = "guide/calibration.md" },
+    { title = "Label Functions", path = "guide/label-functions.md" },
+    { title = "Recipes", path = "guide/recipes.md" },
+  ] },
+  { title = "Reference", children = [
+    { title = "CLI", path = "reference/cli.md" },
+    { title = "Configuration", path = "reference/configuration.md" },
+    { title = "Models", path = "reference/models.md" },
+    { title = "Artifacts", path = "reference/artifacts.md" },
+  ] },
+]
+
+[loaders]
+theme = "pkg://mkdocs/default"
+docs = "dir://docs"
+
+[context]
+title = "OneEHR"
+favicon = "🩺"
+
+[markdown]
+extensions = [
+  "admonition",
+  "def_list",
+  "fenced_code",
+  "footnotes",
+  "gfm_admonition",
+  "mkdocs.extensions.rewrite_urls",
+  "mkdocs.extensions.short_codes",
+  "mkdocs.extensions.strike_thru",
+  "pymdownx.details",
+  "pymdownx.highlight",
+  "pymdownx.snippets",
+  "pymdownx.superfences",
+  "pymdownx.tabbed",
+  "pymdownx.tasklist",
+  "tables",
+  "toc",
+]
+
+[markdown.configs.footnotes]
+BACKLINK_TITLE = ""
+
+[markdown.configs.toc]
+anchorlink = true
+marker = ""
+permalink = true
+
+[markdown.configs."pymdownx.highlight"]
+anchor_linenums = true
+
+[markdown.configs."pymdownx.tabbed"]
+alternate_style = true
+
+[markdown.configs."pymdownx.tasklist"]
+custom_checkbox = true
