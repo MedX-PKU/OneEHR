@@ -7,7 +7,7 @@ OneEHR is an end-to-end EHR predictive modeling + analysis toolkit in Python, de
 - **TOML-first experiments**: most behavior is configured via one `experiment.toml`.
 - **CLI-first workflow**: preprocess → train (with optional grid search) → test → analyze.
 
-This README is the user-facing guide. If you are using agents to modify the repo, read `AGENTS.md` too.
+This README is the user-facing guide. For full documentation, see the [docs site](https://medx-pku.github.io/OneEHR/) or build locally with `uv run mkdocs serve`. If you are using agents to modify the repo, read `AGENTS.md` too.
 
 ## Install (uv-only)
 
@@ -167,6 +167,29 @@ Guidance:
 
 ## Models
 
+OneEHR ships 18 models: 5 tabular and 13 deep learning.
+
+| Model | Config key | Type | Patient (N-1) | Time (N-N) | Static branch |
+|-------|-----------|------|:---:|:---:|:---:|
+| XGBoost | `xgboost` | Tabular | Yes | Yes | -- |
+| CatBoost | `catboost` | Tabular | Yes | Yes | -- |
+| Random Forest | `rf` | Tabular | Yes | Yes | -- |
+| Decision Tree | `dt` | Tabular | Yes | Yes | -- |
+| GBDT | `gbdt` | Tabular | Yes | Yes | -- |
+| GRU | `gru` | DL | Yes | Yes | No |
+| LSTM | `lstm` | DL | Yes | Yes | No |
+| RNN | `rnn` | DL | Yes | Yes | No |
+| Transformer | `transformer` | DL | Yes | Yes | No |
+| TCN | `tcn` | DL | No | Yes | No |
+| MLP | `mlp` | DL | Yes | Yes | No |
+| AdaCare | `adacare` | DL | Yes | Yes | No |
+| StageNet | `stagenet` | DL | Yes | Yes | No |
+| RETAIN | `retain` | DL | Yes | Yes | No |
+| ConCare | `concare` | DL | Yes | Yes | No |
+| GRASP | `grasp` | DL | Yes | Yes | No |
+| MCGRU | `mcgru` | DL | Yes | Yes | Yes |
+| DrAgent | `dragent` | DL | Yes | Yes | Yes |
+
 Configure one or more models:
 
 ```toml
@@ -177,7 +200,7 @@ name = "gru"
 name = "xgboost"
 ```
 
-One model can also be configured (legacy style), but `[[models]]` is recommended for consistency.
+One model can also be configured (legacy style), but `[[models]]` is recommended for consistency. See the [Models Reference](https://medx-pku.github.io/OneEHR/reference/models/) for all per-model parameters.
 
 ## Hyperparameter Search (Config-Driven Grid Search)
 
@@ -277,6 +300,21 @@ Use `oneehr test` with an external dataset config:
 ```bash
 uv run oneehr test --config examples/experiment.toml --test-dataset path/to/test_dataset.toml
 ```
+
+## Documentation
+
+Full documentation is available at [medx-pku.github.io/OneEHR](https://medx-pku.github.io/OneEHR/) or can be built locally:
+
+```bash
+uv pip install -e “.[docs]”
+uv run mkdocs serve          # http://127.0.0.1:8000
+```
+
+The docs cover:
+
+- **Getting Started**: installation, quickstart, data model
+- **User Guide**: preprocessing, training, testing, analysis, splits, HPO, calibration, label functions, recipes
+- **Reference**: CLI flags, all TOML parameters, all 18 models, run directory artifacts
 
 ## Development Notes
 
