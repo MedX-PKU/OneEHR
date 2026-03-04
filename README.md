@@ -180,13 +180,13 @@ OneEHR ships 18 models: 5 tabular and 13 deep learning.
 | LSTM | `lstm` | DL | Yes | Yes | No |
 | RNN | `rnn` | DL | Yes | Yes | No |
 | Transformer | `transformer` | DL | Yes | Yes | No |
-| TCN | `tcn` | DL | No | Yes | No |
+| TCN | `tcn` | DL | Yes | Yes | No |
 | MLP | `mlp` | DL | Yes | Yes | No |
 | AdaCare | `adacare` | DL | Yes | Yes | No |
 | StageNet | `stagenet` | DL | Yes | Yes | No |
 | RETAIN | `retain` | DL | Yes | Yes | No |
-| ConCare | `concare` | DL | Yes | Yes | No |
-| GRASP | `grasp` | DL | Yes | Yes | No |
+| ConCare | `concare` | DL | Yes | Yes | Yes |
+| GRASP | `grasp` | DL | Yes | Yes | Yes |
 | MCGRU | `mcgru` | DL | Yes | Yes | Yes |
 | DrAgent | `dragent` | DL | Yes | Yes | Yes |
 

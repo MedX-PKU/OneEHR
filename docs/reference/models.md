@@ -17,18 +17,18 @@ OneEHR ships 18 models: 5 tabular and 13 deep learning. All models are configure
 | LSTM | `lstm` | DL | Yes | Yes | No |
 | RNN | `rnn` | DL | Yes | Yes | No |
 | Transformer | `transformer` | DL | Yes | Yes | No |
-| TCN | `tcn` | DL | No | Yes | No |
+| TCN | `tcn` | DL | Yes | Yes | No |
 | MLP | `mlp` | DL | Yes | Yes | No |
 | AdaCare | `adacare` | DL | Yes | Yes | No |
 | StageNet | `stagenet` | DL | Yes | Yes | No |
 | RETAIN | `retain` | DL | Yes | Yes | No |
-| ConCare | `concare` | DL | Yes | Yes | No |
-| GRASP | `grasp` | DL | Yes | Yes | No |
+| ConCare | `concare` | DL | Yes | Yes | Yes |
+| GRASP | `grasp` | DL | Yes | Yes | Yes |
 | MCGRU | `mcgru` | DL | Yes | Yes | Yes |
 | DrAgent | `dragent` | DL | Yes | Yes | Yes |
 
 !!! info "Static branch"
-    MCGRU and DrAgent accept a separate static feature vector alongside the dynamic sequence. The `static_dim` is derived automatically from the run manifest -- no user configuration needed.
+    ConCare, GRASP, MCGRU, and DrAgent accept a separate static feature vector alongside the dynamic sequence. The `static_dim` is derived automatically from the run manifest -- no user configuration needed.
 
 ---
 
@@ -195,7 +195,7 @@ pooling = "last"  # patient mode only
 
 ### TCN
 
-Temporal Convolutional Network. Currently supports **time mode only**.
+Temporal Convolutional Network.
 
 ```toml
 [model.tcn]

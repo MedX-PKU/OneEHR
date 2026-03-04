@@ -3,6 +3,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
+from oneehr.models.utils import last_by_lengths
+
 
 class _Chomp1d(nn.Module):
     def __init__(self, chomp_size: int):
@@ -94,6 +96,32 @@ class TCNEncoder(nn.Module):
         z = self.network(x)
         # (B, H, T) -> (B, T, H)
         return z.transpose(1, 2)
+
+
+class TCNPatientModel(nn.Module):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        out_dim: int,
+        num_layers: int = 2,
+        kernel_size: int = 3,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.encoder = TCNEncoder(
+            input_dim=input_dim,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            kernel_size=kernel_size,
+            dropout=dropout,
+        )
+        self.head = nn.Linear(hidden_dim, out_dim)
+
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
+        z = self.encoder(x)
+        last = last_by_lengths(z, lengths)
+        return self.head(last)
 
 
 class TCNTimeModel(nn.Module):

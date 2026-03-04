@@ -16,4 +16,4 @@ DL_MODELS: frozenset[str] = frozenset(
 
 STATIC_ONLY_DL_MODELS: frozenset[str] = frozenset({"mlp"})
 
-STATIC_BRANCH_MODELS: frozenset[str] = frozenset({"dragent", "mcgru"})
+STATIC_BRANCH_MODELS: frozenset[str] = frozenset({"dragent", "mcgru", "concare", "grasp"})

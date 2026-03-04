@@ -57,10 +57,12 @@ def _kmeans_simple(x: torch.Tensor, k: int, iters: int = 30) -> torch.Tensor:
 
 
 class GRASPEncoder(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int = 128, cluster_num: int = 12, dropout: float = 0.1):
+    def __init__(self, input_dim: int, hidden_dim: int = 128, cluster_num: int = 12,
+                 static_dim: int = 0, dropout: float = 0.1):
         super().__init__()
         self.hidden_dim = int(hidden_dim)
         self.cluster_num = int(cluster_num)
+        self.static_dim = int(static_dim)
 
         self.rnn = nn.GRU(input_dim, hidden_dim, batch_first=True)
         self.gcn1 = GraphConvolution(hidden_dim, hidden_dim)
@@ -69,6 +71,7 @@ class GRASPEncoder(nn.Module):
         self.weight2 = nn.Linear(hidden_dim, 1)
         self.dropout = nn.Dropout(float(dropout))
         self.relu = nn.ReLU()
+        self.static_proj = nn.Identity() if self.static_dim == 0 else nn.Linear(static_dim, hidden_dim)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         packed = nn.utils.rnn.pack_padded_sequence(
@@ -97,29 +100,42 @@ class GRASPEncoder(nn.Module):
 
 
 class GRASPModel(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int = 128, cluster_num: int = 12, dropout: float = 0.1):
+    def __init__(self, input_dim: int, hidden_dim: int = 128, cluster_num: int = 12,
+                 static_dim: int = 0, dropout: float = 0.1):
         super().__init__()
-        self.encoder = GRASPEncoder(input_dim, hidden_dim=hidden_dim, cluster_num=cluster_num, dropout=dropout)
-        self.head = nn.Linear(hidden_dim, 1)
+        self.static_dim = int(static_dim)
+        self.encoder = GRASPEncoder(input_dim, hidden_dim=hidden_dim, cluster_num=cluster_num,
+                                    static_dim=static_dim, dropout=dropout)
+        self.head = nn.Linear(hidden_dim * (2 if static_dim else 1), 1)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
         z = self.encoder(x, lengths)
+        if static is not None and self.static_dim > 0:
+            s = self.encoder.static_proj(static)
+            z = torch.cat([z, s], dim=-1)
         return self.head(z)
 
 
 class GRASPTimeModel(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int = 128, cluster_num: int = 12, dropout: float = 0.1):
+    def __init__(self, input_dim: int, hidden_dim: int = 128, cluster_num: int = 12,
+                 static_dim: int = 0, dropout: float = 0.1):
         super().__init__()
-        self.encoder = GRASPEncoder(input_dim, hidden_dim=hidden_dim, cluster_num=cluster_num, dropout=dropout)
-        self.head = nn.Linear(hidden_dim, 1)
+        self.static_dim = int(static_dim)
+        self.encoder = GRASPEncoder(input_dim, hidden_dim=hidden_dim, cluster_num=cluster_num,
+                                    static_dim=static_dim, dropout=dropout)
+        self.head = nn.Linear(hidden_dim * (2 if static_dim else 1), 1)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
-        # Per-step logits by reusing the same encoder on prefixes (correct but slower baseline).
         bsz, t, _ = x.shape
+        s_proj = None
+        if static is not None and self.static_dim > 0:
+            s_proj = self.encoder.static_proj(static)
         out = x.new_zeros((bsz, t, 1))
         for cur_t in range(t):
             cur_len = torch.clamp(lengths, max=cur_t + 1)
             z = self.encoder(x[:, : cur_t + 1], cur_len)
+            if s_proj is not None:
+                z = torch.cat([z, s_proj], dim=-1)
             out[:, cur_t, :] = self.head(z)
         pad_mask = torch.arange(t, device=x.device)[None, :] >= lengths[:, None]
         out[pad_mask] = 0.0

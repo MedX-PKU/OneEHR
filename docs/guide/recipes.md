@@ -65,7 +65,7 @@ bin_from_time_col = true
 Ensure your `label_fn` returns time-aligned labels with `label_time`, `label`, and `mask` columns.
 
 !!! note
-    TCN only supports time mode. Most other DL models support both patient and time modes.
+    Most DL models support both patient and time modes.
 
 ---
 
@@ -186,14 +186,20 @@ importance_file = "analysis/shap_scores.csv"
 
 ---
 
-## Static features with MCGRU/DrAgent
+## Static features with dedicated branch models
 
-Use models with a dedicated static branch:
+Use models with a dedicated static branch (ConCare, GRASP, MCGRU, DrAgent):
 
 ```toml
 [dataset]
 dynamic = "data/dynamic.csv"
 static = "data/static.csv"
+
+[[models]]
+name = "concare"
+
+[[models]]
+name = "grasp"
 
 [[models]]
 name = "mcgru"
