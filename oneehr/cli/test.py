@@ -24,23 +24,19 @@ def run_test(
 
     from oneehr.config.load import load_experiment_config
     from oneehr.data.io import load_dynamic_table, load_label_table, load_static_table
-    from oneehr.artifacts.read import read_run_manifest
     from oneehr.artifacts.inference import materialize_test_views
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.models.tabular import load_tabular_model, predict_tabular
     from oneehr.models.registry import build_model
 
+    from oneehr.cli._common import resolve_run_root, require_manifest
+
     cfg0 = load_experiment_config(cfg_path)
-    if run_dir is not None:
-        run_root = Path(run_dir)
-    else:
-        run_root = cfg0.output.root / cfg0.output.run_name
+    run_root = resolve_run_root(cfg0, run_dir)
     if not run_root.exists():
         raise SystemExit(f"Run directory not found: {run_root}")
 
-    manifest = read_run_manifest(run_root)
-    if manifest is None:
-        raise SystemExit(f"Missing run_manifest.json under {run_root}. Run `oneehr preprocess` first.")
+    manifest = require_manifest(run_root)
 
     if test_dataset is not None:
         test_cfg = load_experiment_config(test_dataset)
@@ -74,7 +70,7 @@ def run_test(
         raise SystemExit(f"Output directory already exists: {output}. Use --force to overwrite.")
     ensure_dir(output)
 
-    TABULAR_MODELS = {"xgboost", "catboost", "rf", "dt", "gbdt"}
+    from oneehr.models.constants import TABULAR_MODELS
     models_dir = run_root / "models"
     if not models_dir.exists():
         print(f"No models directory found at {models_dir}. Nothing to test.", file=sys.stderr)
@@ -105,9 +101,6 @@ def run_test(
 
                 task_cfg = TaskConfig(kind=task_kind, prediction_mode=mode)
                 art = load_tabular_model(split_dir, task=task_cfg, kind=model_name)
-                from oneehr.config.schema import TaskConfig
-
-                task_cfg = TaskConfig(kind=task_kind, prediction_mode=mode)
                 y_pred = predict_tabular(art, X, task_cfg)
             else:
                 ckpt = split_dir / "state_dict.ckpt"
@@ -139,7 +132,8 @@ def run_test(
                 model = built.model
                 model.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
                 model.eval()
-                model_supports_static_branch = hasattr(model, "static_dim") and int(getattr(model, "static_dim", 0)) > 0
+                from oneehr.data.features import has_static_branch
+                model_supports_static_branch = has_static_branch(model)
 
                 if mode == "patient":
                     pids, seqs, lens = build_patient_sequences(views.binned, stored_feat_cols)

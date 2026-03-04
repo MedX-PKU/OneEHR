@@ -170,128 +170,66 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         inner_n_splits=split_raw.get("inner_n_splits"),
     )
 
+    import dataclasses as _dc
+
+    # Fields whose ``None`` default needs special TOML handling (empty string / "null").
+    _NULLABLE_INT_FIELDS = frozenset({
+        ("rf", "max_depth"),
+        ("dt", "max_depth"),
+    })
+
+    _MODEL_CONFIG_MAP: dict[str, type] = {
+        "xgboost": XGBoostConfig,
+        "catboost": CatBoostConfig,
+        "rf": RFConfig,
+        "dt": DTConfig,
+        "gbdt": GBDTConfig,
+        "gru": GRUConfig,
+        "rnn": RNNConfig,
+        "lstm": LSTMConfig,
+        "mlp": MLPConfig,
+        "tcn": TCNConfig,
+        "transformer": TransformerConfig,
+        "adacare": AdaCareConfig,
+        "stagenet": StageNetConfig,
+        "retain": RETAINConfig,
+        "concare": ConCareConfig,
+        "grasp": GRASPConfig,
+        "mcgru": MCGRUConfig,
+        "dragent": DrAgentConfig,
+    }
+
+    def _parse_dataclass(section_name: str, cls: type, raw: dict[str, Any]) -> Any:
+        kwargs = {}
+        for f in _dc.fields(cls):
+            if f.name not in raw:
+                continue
+            val = raw[f.name]
+            # Special handling for nullable int fields.
+            if (section_name, f.name) in _NULLABLE_INT_FIELDS:
+                if val in {None, "", "null"}:
+                    kwargs[f.name] = None
+                    continue
+                kwargs[f.name] = int(val)
+                continue
+            # Coerce to the field's declared type.
+            if f.type in ("int", int):
+                kwargs[f.name] = int(val)
+            elif f.type in ("float", float):
+                kwargs[f.name] = float(val)
+            elif f.type in ("bool", bool):
+                kwargs[f.name] = bool(val)
+            elif f.type in ("str", str):
+                kwargs[f.name] = str(val)
+            else:
+                kwargs[f.name] = val
+        return cls(**kwargs)
+
     def _load_model(model_raw_in: dict[str, Any]) -> ModelConfig:
-        xgb_raw = model_raw_in.get("xgboost", {})
-        cb_raw = model_raw_in.get("catboost", {})
-        rf_raw = model_raw_in.get("rf", {})
-        dt_raw = model_raw_in.get("dt", {})
-        gbdt_raw = model_raw_in.get("gbdt", {})
-        gru_raw = model_raw_in.get("gru", {})
-        rnn_raw = model_raw_in.get("rnn", {})
-        lstm_raw = model_raw_in.get("lstm", {})
-        mlp_raw = model_raw_in.get("mlp", {})
-        tcn_raw = model_raw_in.get("tcn", {})
-        tf_raw = model_raw_in.get("transformer", {})
-        adacare_raw = model_raw_in.get("adacare", {})
-        stagenet_raw = model_raw_in.get("stagenet", {})
-        retain_raw = model_raw_in.get("retain", {})
-        concare_raw = model_raw_in.get("concare", {})
-        grasp_raw = model_raw_in.get("grasp", {})
-        mcgru_raw = model_raw_in.get("mcgru", {})
-        dragent_raw = model_raw_in.get("dragent", {})
-        return ModelConfig(
-            name=_require(model_raw_in, "name"),
-            xgboost=XGBoostConfig(
-                max_depth=int(xgb_raw.get("max_depth", 6)),
-                n_estimators=int(xgb_raw.get("n_estimators", 500)),
-                learning_rate=float(xgb_raw.get("learning_rate", 0.05)),
-                subsample=float(xgb_raw.get("subsample", 0.8)),
-                colsample_bytree=float(xgb_raw.get("colsample_bytree", 0.8)),
-                reg_lambda=float(xgb_raw.get("reg_lambda", 1.0)),
-                min_child_weight=float(xgb_raw.get("min_child_weight", 1.0)),
-            ),
-            catboost=CatBoostConfig(
-                depth=int(cb_raw.get("depth", 6)),
-                n_estimators=int(cb_raw.get("n_estimators", 500)),
-                learning_rate=float(cb_raw.get("learning_rate", 0.05)),
-            ),
-            rf=RFConfig(
-                n_estimators=int(rf_raw.get("n_estimators", 500)),
-                max_depth=None if rf_raw.get("max_depth") in {None, "", "null"} else int(rf_raw.get("max_depth")),
-            ),
-            dt=DTConfig(
-                max_depth=None if dt_raw.get("max_depth") in {None, "", "null"} else int(dt_raw.get("max_depth")),
-            ),
-            gbdt=GBDTConfig(
-                n_estimators=int(gbdt_raw.get("n_estimators", 500)),
-                learning_rate=float(gbdt_raw.get("learning_rate", 0.05)),
-                max_depth=int(gbdt_raw.get("max_depth", 3)),
-            ),
-            gru=GRUConfig(
-                hidden_dim=int(gru_raw.get("hidden_dim", 128)),
-                num_layers=int(gru_raw.get("num_layers", 1)),
-                dropout=float(gru_raw.get("dropout", 0.0)),
-            ),
-            rnn=RNNConfig(
-                hidden_dim=int(rnn_raw.get("hidden_dim", 128)),
-                num_layers=int(rnn_raw.get("num_layers", 1)),
-                dropout=float(rnn_raw.get("dropout", 0.0)),
-                bidirectional=bool(rnn_raw.get("bidirectional", False)),
-                nonlinearity=str(rnn_raw.get("nonlinearity", "tanh")),
-            ),
-            lstm=LSTMConfig(
-                hidden_dim=int(lstm_raw.get("hidden_dim", 128)),
-                num_layers=int(lstm_raw.get("num_layers", 1)),
-                dropout=float(lstm_raw.get("dropout", 0.0)),
-            ),
-            mlp=MLPConfig(
-                hidden_dim=int(mlp_raw.get("hidden_dim", 128)),
-                num_layers=int(mlp_raw.get("num_layers", 2)),
-                dropout=float(mlp_raw.get("dropout", 0.1)),
-            ),
-            tcn=TCNConfig(
-                hidden_dim=int(tcn_raw.get("hidden_dim", 128)),
-                num_layers=int(tcn_raw.get("num_layers", 2)),
-                kernel_size=int(tcn_raw.get("kernel_size", 3)),
-                dropout=float(tcn_raw.get("dropout", 0.1)),
-            ),
-            transformer=TransformerConfig(
-                d_model=int(tf_raw.get("d_model", 128)),
-                nhead=int(tf_raw.get("nhead", 4)),
-                num_layers=int(tf_raw.get("num_layers", 2)),
-                dim_feedforward=int(tf_raw.get("dim_feedforward", 256)),
-                dropout=float(tf_raw.get("dropout", 0.1)),
-                pooling=str(tf_raw.get("pooling", "last")),
-            ),
-            adacare=AdaCareConfig(
-                hidden_dim=int(adacare_raw.get("hidden_dim", 128)),
-                kernel_size=int(adacare_raw.get("kernel_size", 2)),
-                kernel_num=int(adacare_raw.get("kernel_num", 64)),
-                r_v=int(adacare_raw.get("r_v", 4)),
-                r_c=int(adacare_raw.get("r_c", 4)),
-                dropout=float(adacare_raw.get("dropout", 0.5)),
-            ),
-            stagenet=StageNetConfig(
-                hidden_dim=int(stagenet_raw.get("hidden_dim", 384)),
-                conv_size=int(stagenet_raw.get("conv_size", 10)),
-                levels=int(stagenet_raw.get("levels", 3)),
-                dropconnect=float(stagenet_raw.get("dropconnect", 0.3)),
-                dropout=float(stagenet_raw.get("dropout", 0.3)),
-                dropres=float(stagenet_raw.get("dropres", 0.3)),
-            ),
-            retain=RETAINConfig(
-                hidden_dim=int(retain_raw.get("hidden_dim", 128)),
-                dropout=float(retain_raw.get("dropout", 0.1)),
-            ),
-            concare=ConCareConfig(
-                hidden_dim=int(concare_raw.get("hidden_dim", 128)),
-                num_heads=int(concare_raw.get("num_heads", 4)),
-                dropout=float(concare_raw.get("dropout", 0.1)),
-            ),
-            grasp=GRASPConfig(
-                hidden_dim=int(grasp_raw.get("hidden_dim", 128)),
-                dropout=float(grasp_raw.get("dropout", 0.1)),
-            ),
-            mcgru=MCGRUConfig(
-                hidden_dim=int(mcgru_raw.get("hidden_dim", 128)),
-                num_layers=int(mcgru_raw.get("num_layers", 1)),
-                dropout=float(mcgru_raw.get("dropout", 0.0)),
-            ),
-            dragent=DrAgentConfig(
-                hidden_dim=int(dragent_raw.get("hidden_dim", 128)),
-                dropout=float(dragent_raw.get("dropout", 0.1)),
-            ),
-        )
+        sub = {}
+        for key, cls in _MODEL_CONFIG_MAP.items():
+            sub[key] = _parse_dataclass(key, cls, model_raw_in.get(key, {}))
+        return ModelConfig(name=_require(model_raw_in, "name"), **sub)
 
     model = None
     if model_raw is not None:

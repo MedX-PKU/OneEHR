@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from oneehr.cli.train import _train_sequence_patient_level
+from oneehr.cli._train_dl import train_dl_patient_level
 
 
 class _SpyModel(torch.nn.Module):
@@ -58,7 +58,7 @@ def test_static_branch_passes_static_tensor():
     task = TaskConfig(kind="binary", prediction_mode="patient")
     trainer = TrainerConfig(device="cpu", max_epochs=1, batch_size=8, early_stopping=False)
 
-    _train_sequence_patient_level(
+    train_dl_patient_level(
         model=model,
         binned=binned,
         y=y,
@@ -84,7 +84,7 @@ def test_static_concat_increases_dynamic_dim():
     task = TaskConfig(kind="binary", prediction_mode="patient")
     trainer = TrainerConfig(device="cpu", max_epochs=1, batch_size=8, early_stopping=False)
 
-    _train_sequence_patient_level(
+    train_dl_patient_level(
         model=model,
         binned=binned,
         y=y,

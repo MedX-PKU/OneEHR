@@ -1,12 +1,7 @@
 from __future__ import annotations
 
-import math
-
 import torch
 from torch import nn
-
-
-from oneehr.models.utils import last_by_lengths
 
 
 def _make_pad_mask(lengths: torch.Tensor, t: int) -> torch.Tensor:
@@ -61,13 +56,14 @@ class FinalAttentionQKV(nn.Module):
         return ctx, a
 
 
-class ConCareEncoder(nn.Module):
+class _ConCareTransformer(nn.Module):
+    """Shared transformer backbone for ConCare patient and time modes."""
+
     def __init__(self, input_dim: int, hidden_dim: int = 128, num_heads: int = 4, dropout: float = 0.1):
         super().__init__()
         if hidden_dim % num_heads != 0:
             raise ValueError("hidden_dim must be divisible by num_heads")
         self.hidden_dim = int(hidden_dim)
-
         self.in_proj = nn.Linear(input_dim, hidden_dim)
         enc_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
@@ -77,14 +73,23 @@ class ConCareEncoder(nn.Module):
             batch_first=True,
         )
         self.encoder = nn.TransformerEncoder(enc_layer, num_layers=1)
-        self.final_attn = FinalAttentionQKV(hidden_dim, hidden_dim, attention_type="add", dropout=dropout)
 
-    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        # x: (B, T, D)
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         h = self.in_proj(x)
         t = h.shape[1]
         pad_mask = _make_pad_mask(lengths, t)
-        z = self.encoder(h, src_key_padding_mask=pad_mask)
+        return self.encoder(h, src_key_padding_mask=pad_mask)
+
+
+class ConCareEncoder(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int = 128, num_heads: int = 4, dropout: float = 0.1):
+        super().__init__()
+        self.hidden_dim = int(hidden_dim)
+        self.backbone = _ConCareTransformer(input_dim, hidden_dim, num_heads, dropout)
+        self.final_attn = FinalAttentionQKV(hidden_dim, hidden_dim, attention_type="add", dropout=dropout)
+
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        z = self.backbone(x, lengths)
         ctx, attn = self.final_attn(z)
         return ctx, attn
 
@@ -103,20 +108,9 @@ class ConCareModel(nn.Module):
 class ConCareTimeModel(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int = 128, num_heads: int = 4, dropout: float = 0.1):
         super().__init__()
-        self.in_proj = nn.Linear(input_dim, hidden_dim)
-        enc_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim,
-            nhead=num_heads,
-            dim_feedforward=hidden_dim * 2,
-            dropout=float(dropout),
-            batch_first=True,
-        )
-        self.encoder = nn.TransformerEncoder(enc_layer, num_layers=1)
+        self.backbone = _ConCareTransformer(input_dim, hidden_dim, num_heads, dropout)
         self.head = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
-        h = self.in_proj(x)
-        t = h.shape[1]
-        pad_mask = _make_pad_mask(lengths, t)
-        z = self.encoder(h, src_key_padding_mask=pad_mask)
+        z = self.backbone(x, lengths)
         return self.head(z)

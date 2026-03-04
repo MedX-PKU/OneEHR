@@ -16,7 +16,7 @@ def run_analyze(
     method: str | None,
 ) -> None:
     from oneehr.config.load import load_experiment_config
-    from oneehr.artifacts.read import read_run_manifest
+    from oneehr.cli._common import resolve_run_root, require_manifest
     from oneehr.artifacts.run_io import RunIO
     from oneehr.analysis.feature_importance import (
         xgboost_native_importance,
@@ -25,21 +25,16 @@ def run_analyze(
     )
 
     cfg0 = load_experiment_config(cfg_path)
-    if run_dir is not None:
-        run_root = Path(run_dir)
-    else:
-        run_root = cfg0.output.root / cfg0.output.run_name
+    run_root = resolve_run_root(cfg0, run_dir)
     if not run_root.exists():
         raise SystemExit(f"Run directory not found: {run_root}")
 
-    manifest = read_run_manifest(run_root)
-    if manifest is None:
-        raise SystemExit(f"Missing run_manifest.json under {run_root}. Run `oneehr preprocess` first.")
+    manifest = require_manifest(run_root)
 
     feat_cols = manifest.dynamic_feature_columns()
     task_kind = str((manifest.data.get("task") or {}).get("kind", "binary"))
 
-    TABULAR_MODELS = {"xgboost", "catboost", "rf", "dt", "gbdt"}
+    from oneehr.models.constants import TABULAR_MODELS
     models_dir = run_root / "models"
     if not models_dir.exists():
         raise SystemExit(f"No models directory found at {models_dir}")

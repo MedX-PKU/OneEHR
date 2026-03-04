@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
+from typing import Callable
 
 from oneehr.config.schema import ExperimentConfig
 
@@ -11,373 +13,196 @@ class BuiltModel:
     kind: str  # dl | ml
 
 
+@dataclass(frozen=True)
+class _ModelSpec:
+    module: str
+    patient_cls: str
+    time_cls: str | None
+    config_attr: str
+    build_kwargs: Callable  # (model_sub_cfg, input_dim, out_dim) -> dict
+    uses_static: bool = False
+
+
+def _standard_kwargs(mc, input_dim, out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        out_dim=out_dim,
+        num_layers=mc.num_layers,
+        dropout=mc.dropout,
+    )
+
+
+def _rnn_kwargs(mc, input_dim, out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        out_dim=out_dim,
+        num_layers=mc.num_layers,
+        dropout=mc.dropout,
+        bidirectional=mc.bidirectional,
+        nonlinearity=mc.nonlinearity,
+    )
+
+
+def _transformer_kwargs(mc, input_dim, out_dim):
+    return dict(
+        input_dim=input_dim,
+        d_model=mc.d_model,
+        out_dim=out_dim,
+        nhead=mc.nhead,
+        num_layers=mc.num_layers,
+        dim_feedforward=mc.dim_feedforward,
+        dropout=mc.dropout,
+    )
+
+
+def _transformer_patient_kwargs(mc, input_dim, out_dim):
+    kw = _transformer_kwargs(mc, input_dim, out_dim)
+    kw["pooling"] = mc.pooling
+    return kw
+
+
+def _tcn_kwargs(mc, input_dim, out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        out_dim=out_dim,
+        num_layers=mc.num_layers,
+        kernel_size=mc.kernel_size,
+        dropout=mc.dropout,
+    )
+
+
+def _stagenet_kwargs(mc, input_dim, _out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        conv_size=mc.conv_size,
+        levels=mc.levels,
+        dropconnect=mc.dropconnect,
+        dropout=mc.dropout,
+        dropres=mc.dropres,
+    )
+
+
+def _retain_kwargs(mc, input_dim, _out_dim):
+    return dict(input_dim=input_dim, hidden_dim=mc.hidden_dim, dropout=mc.dropout)
+
+
+def _adacare_kwargs(mc, input_dim, _out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        kernel_size=mc.kernel_size,
+        kernel_num=mc.kernel_num,
+        r_v=mc.r_v,
+        r_c=mc.r_c,
+        dropout=mc.dropout,
+    )
+
+
+def _concare_kwargs(mc, input_dim, _out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        num_heads=mc.num_heads,
+        dropout=mc.dropout,
+    )
+
+
+def _grasp_kwargs(mc, input_dim, _out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        cluster_num=mc.cluster_num,
+        dropout=mc.dropout,
+    )
+
+
+def _mlp_kwargs(mc, input_dim, _out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        num_layers=mc.num_layers,
+        dropout=mc.dropout,
+    )
+
+
+def _dragent_kwargs(mc, input_dim, _out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        dropout=mc.dropout,
+    )
+
+
+def _mcgru_kwargs(mc, input_dim, _out_dim):
+    return dict(
+        input_dim=input_dim,
+        hidden_dim=mc.hidden_dim,
+        feat_dim=mc.hidden_dim // 16 if mc.hidden_dim >= 16 else 8,
+        dropout=mc.dropout,
+    )
+
+
+_SPECS: dict[str, _ModelSpec] = {
+    "gru": _ModelSpec("oneehr.models.gru", "GRUModel", "GRUTimeModel", "gru", _standard_kwargs),
+    "lstm": _ModelSpec("oneehr.models.lstm", "LSTMModel", "LSTMTimeModel", "lstm", _standard_kwargs),
+    "rnn": _ModelSpec("oneehr.models.rnn", "RNNModel", "RNNTimeModel", "rnn", _rnn_kwargs),
+    "transformer": _ModelSpec("oneehr.models.transformer", "TransformerModel", "TransformerTimeModel", "transformer", _transformer_kwargs),
+    "tcn": _ModelSpec("oneehr.models.tcn", None, "TCNTimeModel", "tcn", _tcn_kwargs),
+    "stagenet": _ModelSpec("oneehr.models.stagenet", "StageNetModel", "StageNetTimeModel", "stagenet", _stagenet_kwargs),
+    "retain": _ModelSpec("oneehr.models.retain", "RETAINModel", "RETAINTimeModel", "retain", _retain_kwargs),
+    "adacare": _ModelSpec("oneehr.models.adacare", "AdaCareModel", "AdaCareTimeModel", "adacare", _adacare_kwargs),
+    "concare": _ModelSpec("oneehr.models.concare", "ConCareModel", "ConCareTimeModel", "concare", _concare_kwargs),
+    "grasp": _ModelSpec("oneehr.models.grasp", "GRASPModel", "GRASPTimeModel", "grasp", _grasp_kwargs),
+    "mlp": _ModelSpec("oneehr.models.mlp", "MLPModel", "MLPTimeModel", "mlp", _mlp_kwargs),
+    "dragent": _ModelSpec("oneehr.models.dragent", "DrAgentModel", "DrAgentTimeModel", "dragent", _dragent_kwargs, uses_static=True),
+    "mcgru": _ModelSpec("oneehr.models.mcgru", "MCGRUModel", "MCGRUTimeModel", "mcgru", _mcgru_kwargs, uses_static=True),
+}
+
+
 def build_model(cfg: ExperimentConfig) -> BuiltModel:
     """Build a model instance from config.
 
     This function centralizes the name->implementation mapping so the CLI and
     other entrypoints don't grow large if/elif ladders.
     """
-
     name = cfg.model.name
-
-    # For tabular models, input_dim is derived from the tabular view at runtime.
-    # For DL models, the real input_dim is the number of binned feature columns
-    # (computed at runtime); callers should set cfg._dynamic_dim accordingly.
     input_dim = int(getattr(cfg, "_dynamic_dim", 0) or 0)
     out_dim = 1
 
-    if name == "gru":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.gru import GRUTimeModel
-
-            return BuiltModel(
-                model=GRUTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.gru.hidden_dim,
-                    out_dim=out_dim,
-                    num_layers=cfg.model.gru.num_layers,
-                    dropout=cfg.model.gru.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.gru import GRUModel
-
-        return BuiltModel(
-            model=GRUModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.gru.hidden_dim,
-                out_dim=out_dim,
-                num_layers=cfg.model.gru.num_layers,
-                dropout=cfg.model.gru.dropout,
-            ),
-            kind="dl",
-        )
-
-    if name == "rnn":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.rnn import RNNTimeModel
-
-            return BuiltModel(
-                model=RNNTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.rnn.hidden_dim,
-                    out_dim=out_dim,
-                    num_layers=cfg.model.rnn.num_layers,
-                    dropout=cfg.model.rnn.dropout,
-                    bidirectional=cfg.model.rnn.bidirectional,
-                    nonlinearity=cfg.model.rnn.nonlinearity,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.rnn import RNNModel
-
-        return BuiltModel(
-            model=RNNModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.rnn.hidden_dim,
-                out_dim=out_dim,
-                num_layers=cfg.model.rnn.num_layers,
-                dropout=cfg.model.rnn.dropout,
-                bidirectional=cfg.model.rnn.bidirectional,
-                nonlinearity=cfg.model.rnn.nonlinearity,
-            ),
-            kind="dl",
-        )
-
-    if name == "transformer":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.transformer import TransformerTimeModel
-
-            return BuiltModel(
-                model=TransformerTimeModel(
-                    input_dim=input_dim,
-                    d_model=cfg.model.transformer.d_model,
-                    out_dim=out_dim,
-                    nhead=cfg.model.transformer.nhead,
-                    num_layers=cfg.model.transformer.num_layers,
-                    dim_feedforward=cfg.model.transformer.dim_feedforward,
-                    dropout=cfg.model.transformer.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.transformer import TransformerModel
-
-        return BuiltModel(
-            model=TransformerModel(
-                input_dim=input_dim,
-                d_model=cfg.model.transformer.d_model,
-                out_dim=out_dim,
-                nhead=cfg.model.transformer.nhead,
-                num_layers=cfg.model.transformer.num_layers,
-                dim_feedforward=cfg.model.transformer.dim_feedforward,
-                dropout=cfg.model.transformer.dropout,
-                pooling=cfg.model.transformer.pooling,
-            ),
-            kind="dl",
-        )
-
-    if name == "tcn":
-        if cfg.task.prediction_mode != "time":
-            raise ValueError("model.name='tcn' currently supports prediction_mode='time' only")
-        from oneehr.models.tcn import TCNTimeModel
-
-        return BuiltModel(
-            model=TCNTimeModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.tcn.hidden_dim,
-                out_dim=out_dim,
-                num_layers=cfg.model.tcn.num_layers,
-                kernel_size=cfg.model.tcn.kernel_size,
-                dropout=cfg.model.tcn.dropout,
-            ),
-            kind="dl",
-        )
-
-    if name == "stagenet":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.stagenet import StageNetTimeModel
-
-            return BuiltModel(
-                model=StageNetTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.stagenet.hidden_dim,
-                    conv_size=cfg.model.stagenet.conv_size,
-                    levels=cfg.model.stagenet.levels,
-                    dropconnect=cfg.model.stagenet.dropconnect,
-                    dropout=cfg.model.stagenet.dropout,
-                    dropres=cfg.model.stagenet.dropres,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.stagenet import StageNetModel
-
-        return BuiltModel(
-            model=StageNetModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.stagenet.hidden_dim,
-                conv_size=cfg.model.stagenet.conv_size,
-                levels=cfg.model.stagenet.levels,
-                dropconnect=cfg.model.stagenet.dropconnect,
-                dropout=cfg.model.stagenet.dropout,
-                dropres=cfg.model.stagenet.dropres,
-            ),
-            kind="dl",
-        )
-
-    if name == "retain":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.retain import RETAINTimeModel
-
-            return BuiltModel(
-                model=RETAINTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.retain.hidden_dim,
-                    dropout=cfg.model.retain.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.retain import RETAINModel
-
-        return BuiltModel(
-            model=RETAINModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.retain.hidden_dim,
-                dropout=cfg.model.retain.dropout,
-            ),
-            kind="dl",
-        )
-
-    if name == "adacare":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.adacare import AdaCareTimeModel
-
-            return BuiltModel(
-                model=AdaCareTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.adacare.hidden_dim,
-                    kernel_size=cfg.model.adacare.kernel_size,
-                    kernel_num=cfg.model.adacare.kernel_num,
-                    r_v=cfg.model.adacare.r_v,
-                    r_c=cfg.model.adacare.r_c,
-                    dropout=cfg.model.adacare.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.adacare import AdaCareModel
-
-        return BuiltModel(
-            model=AdaCareModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.adacare.hidden_dim,
-                kernel_size=cfg.model.adacare.kernel_size,
-                kernel_num=cfg.model.adacare.kernel_num,
-                r_v=cfg.model.adacare.r_v,
-                r_c=cfg.model.adacare.r_c,
-                dropout=cfg.model.adacare.dropout,
-            ),
-            kind="dl",
-        )
-
-    if name == "concare":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.concare import ConCareTimeModel
-
-            return BuiltModel(
-                model=ConCareTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.concare.hidden_dim,
-                    num_heads=cfg.model.concare.num_heads,
-                    dropout=cfg.model.concare.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.concare import ConCareModel
-
-        return BuiltModel(
-            model=ConCareModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.concare.hidden_dim,
-                num_heads=cfg.model.concare.num_heads,
-                dropout=cfg.model.concare.dropout,
-            ),
-            kind="dl",
-        )
-
-    if name == "grasp":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.grasp import GRASPTimeModel
-
-            return BuiltModel(
-                model=GRASPTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.grasp.hidden_dim,
-                    cluster_num=cfg.model.grasp.cluster_num,
-                    dropout=cfg.model.grasp.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.grasp import GRASPModel
-
-        return BuiltModel(
-            model=GRASPModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.grasp.hidden_dim,
-                cluster_num=cfg.model.grasp.cluster_num,
-                dropout=cfg.model.grasp.dropout,
-            ),
-            kind="dl",
-        )
-
-    # Static features: for models that implement a dedicated static branch, we
-    # pass `static_dim`. For other models, static is expected to be concatenated
-    # into the dynamic tensor upstream.
-    static_dim = int(getattr(cfg, "_static_dim", 0) or 0)
-
-    if name in {"dragent"}:
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.dragent import DrAgentTimeModel
-
-            return BuiltModel(
-                model=DrAgentTimeModel(
-                    input_dim=input_dim,
-                    static_dim=static_dim,
-                    hidden_dim=cfg.model.dragent.hidden_dim,
-                    dropout=cfg.model.dragent.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.dragent import DrAgentModel
-
-        return BuiltModel(
-            model=DrAgentModel(
-                input_dim=input_dim,
-                static_dim=static_dim,
-                hidden_dim=cfg.model.dragent.hidden_dim,
-                dropout=cfg.model.dragent.dropout,
-            ),
-            kind="dl",
-        )
-
-    if name in {"mcgru"}:
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.mcgru import MCGRUTimeModel
-
-            return BuiltModel(
-                model=MCGRUTimeModel(
-                    input_dim=input_dim,
-                    static_dim=static_dim,
-                    hidden_dim=cfg.model.mcgru.hidden_dim,
-                    feat_dim=cfg.model.mcgru.hidden_dim // 16 if cfg.model.mcgru.hidden_dim >= 16 else 8,
-                    dropout=cfg.model.mcgru.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.mcgru import MCGRUModel
-
-        return BuiltModel(
-            model=MCGRUModel(
-                input_dim=input_dim,
-                static_dim=static_dim,
-                hidden_dim=cfg.model.mcgru.hidden_dim,
-                feat_dim=cfg.model.mcgru.hidden_dim // 16 if cfg.model.mcgru.hidden_dim >= 16 else 8,
-                dropout=cfg.model.mcgru.dropout,
-            ),
-            kind="dl",
-        )
-
-    if name in {"xgboost", "catboost", "rf", "dt", "gbdt"}:
+    # Tabular models don't need instantiation.
+    from oneehr.models.constants import TABULAR_MODELS
+    if name in TABULAR_MODELS:
         return BuiltModel(model=None, kind="ml")
 
-    if name == "lstm":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.lstm import LSTMTimeModel
+    spec = _SPECS.get(name)
+    if spec is None:
+        raise ValueError(f"Unsupported model.name={name!r}")
 
-            return BuiltModel(
-                model=LSTMTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.lstm.hidden_dim,
-                    out_dim=out_dim,
-                    num_layers=cfg.model.lstm.num_layers,
-                    dropout=cfg.model.lstm.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.lstm import LSTMModel
+    mc = getattr(cfg.model, spec.config_attr)
+    kwargs = spec.build_kwargs(mc, input_dim, out_dim)
 
-        return BuiltModel(
-            model=LSTMModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.lstm.hidden_dim,
-                out_dim=out_dim,
-                num_layers=cfg.model.lstm.num_layers,
-                dropout=cfg.model.lstm.dropout,
-            ),
-            kind="dl",
-        )
+    if spec.uses_static:
+        kwargs["static_dim"] = int(getattr(cfg, "_static_dim", 0) or 0)
 
-    if name == "mlp":
-        if cfg.task.prediction_mode == "time":
-            from oneehr.models.mlp import MLPTimeModel
+    is_time = cfg.task.prediction_mode == "time"
 
-            return BuiltModel(
-                model=MLPTimeModel(
-                    input_dim=input_dim,
-                    hidden_dim=cfg.model.mlp.hidden_dim,
-                    num_layers=cfg.model.mlp.num_layers,
-                    dropout=cfg.model.mlp.dropout,
-                ),
-                kind="dl",
-            )
-        from oneehr.models.mlp import MLPModel
+    if is_time:
+        cls_name = spec.time_cls
+        if cls_name is None:
+            raise ValueError(f"model.name={name!r} does not support prediction_mode='time'")
+    else:
+        cls_name = spec.patient_cls
+        if cls_name is None:
+            raise ValueError(f"model.name={name!r} currently supports prediction_mode='time' only")
 
-        return BuiltModel(
-            model=MLPModel(
-                input_dim=input_dim,
-                hidden_dim=cfg.model.mlp.hidden_dim,
-                num_layers=cfg.model.mlp.num_layers,
-                dropout=cfg.model.mlp.dropout,
-            ),
-            kind="dl",
-        )
+    # Special handling: TransformerModel accepts `pooling` but TransformerTimeModel does not.
+    if name == "transformer" and not is_time:
+        kwargs = _transformer_patient_kwargs(mc, input_dim, out_dim)
 
-    raise ValueError(f"Unsupported model.name={name!r}")
+    mod = import_module(spec.module)
+    cls = getattr(mod, cls_name)
+    return BuiltModel(model=cls(**kwargs), kind="dl")

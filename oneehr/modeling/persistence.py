@@ -49,9 +49,8 @@ def write_dl_artifacts(
             "static_feature_columns": None,
             "static_feature_columns_sha256": None,
             "feature_columns": list(feature_columns),
-            "code_vocab": None if code_vocab is None else list(code_vocab),
             "feature_columns_sha256": sha256_lines(list(feature_columns)),
-            "code_vocab_sha256": None if code_vocab is None else sha256_lines(list(code_vocab)),
+            **({"code_vocab": list(code_vocab), "code_vocab_sha256": sha256_lines(list(code_vocab))} if code_vocab is not None else {}),
         },
         "preprocess": {
             "bin_size": str(cfg.preprocess.bin_size),
