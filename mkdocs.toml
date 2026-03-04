@@ -32,6 +32,8 @@ docs = "dir://docs"
 [context]
 title = "OneEHR"
 favicon = "🩺"
+tagline = "EHR predictive modeling toolkit"
+repository_url = "https://github.com/MedX-PKU/OneEHR"
 
 [markdown]
 extensions = [

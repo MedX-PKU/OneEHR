@@ -1,0 +1,124 @@
+:root {
+    --header-height: 3.5rem;
+    --bg-color: #0b1220;
+    --fg-color: #e2e8f0;
+    --muted-fg-color: #94a3b8;
+    --neutral-color: #273449;
+    --link-color: #7dd3fc;
+    --code-bg-color: #0f172a;
+}
+
+* {
+    font-weight: 400;
+}
+
+body {
+    background: radial-gradient(circle at top, #111b33, var(--bg-color) 45%);
+}
+
+.site-header {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 20;
+    height: var(--header-height);
+    padding: 0 1.25rem;
+    border-bottom: 1px solid var(--neutral-color);
+    background: rgba(11, 18, 32, 0.92);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.site-brand {
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    color: var(--fg-color);
+}
+
+.site-brand:hover {
+    text-decoration: none;
+    color: var(--link-color);
+}
+
+.site-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    color: var(--muted-fg-color);
+    font-size: 0.9rem;
+}
+
+.site-repo {
+    color: var(--link-color);
+}
+
+nav.left,
+nav.right {
+    top: var(--header-height);
+    height: calc(100% - var(--header-height));
+    background: rgba(15, 23, 42, 0.52);
+}
+
+nav.left {
+    border-right: 1px solid var(--neutral-color);
+    padding-top: 1.25rem;
+}
+
+nav.right {
+    border-left: 1px solid var(--neutral-color);
+    padding-top: 1.25rem;
+}
+
+main {
+    margin-top: var(--header-height);
+    min-height: calc(100vh - var(--header-height));
+    padding: 2rem 2.25rem;
+}
+
+h1 {
+    margin-top: 0.5rem;
+}
+
+h2 {
+    margin-top: 2.5rem;
+}
+
+code,
+pre {
+    border-radius: 0.5rem;
+}
+
+pre {
+    border: 1px solid var(--neutral-color);
+}
+
+table {
+    width: 100%;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    display: block;
+}
+
+th {
+    background: rgba(125, 211, 252, 0.08);
+    font-weight: 600;
+}
+
+.pagination {
+    margin-top: 2rem;
+}
+
+@media (max-width: 1000px) {
+    .site-tagline {
+        display: none;
+    }
+
+    nav.left {
+        top: var(--header-height);
+    }
+
+    main {
+        margin-top: var(--header-height);
+    }
+}

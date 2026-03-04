@@ -310,6 +310,8 @@ uv pip install -e ".[docs]"
 uv run mkdocs serve          # http://127.0.0.1:5000
 ```
 
+Docs deployment is automated by `.github/workflows/docs-deploy.yml` on pushes to `main`.
+
 The docs cover:
 
 - **Getting Started**: installation, quickstart, data model
