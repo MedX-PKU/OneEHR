@@ -63,6 +63,31 @@ uv run pytest -q
   - `train/val/test`
   - time-based split (still grouped by patient)
 
+## Supported Models
+
+| Model | Config key | Type | Patient (N-1) | Time (N-N) | Static branch |
+|-------|-----------|------|:---:|:---:|:---:|
+| XGBoost | `xgboost` | Tabular | Yes | Yes | -- |
+| CatBoost | `catboost` | Tabular | Yes | Yes | -- |
+| Random Forest | `rf` | Tabular | Yes | Yes | -- |
+| Decision Tree | `dt` | Tabular | Yes | Yes | -- |
+| GBDT | `gbdt` | Tabular | Yes | Yes | -- |
+| GRU | `gru` | DL | Yes | Yes | No |
+| LSTM | `lstm` | DL | Yes | Yes | No |
+| RNN | `rnn` | DL | Yes | Yes | No |
+| Transformer | `transformer` | DL | Yes | Yes | No |
+| TCN | `tcn` | DL | No | Yes | No |
+| MLP | `mlp` | DL | Yes | Yes | No |
+| AdaCare | `adacare` | DL | Yes | Yes | No |
+| StageNet | `stagenet` | DL | Yes | Yes | No |
+| RETAIN | `retain` | DL | Yes | Yes | No |
+| ConCare | `concare` | DL | Yes | Yes | No |
+| GRASP | `grasp` | DL | Yes | Yes | No |
+| MCGRU | `mcgru` | DL | Yes | Yes | Yes |
+| DrAgent | `dragent` | DL | Yes | Yes | Yes |
+
+Source of truth: `oneehr/config/schema.py` (config dataclasses) and `oneehr/models/registry.py` (model specs).
+
 ## How You Should Work In This Repo
 
 ## Repo Map (Where Things Live)
@@ -73,21 +98,81 @@ uv run pytest -q
   - `oneehr/cli/train.py`: training + optional HPO grid search
   - `oneehr/cli/test.py`: external test-set evaluation
   - `oneehr/cli/analyze.py`: analysis hooks
+  - `oneehr/cli/_common.py`: shared CLI helpers
+  - `oneehr/cli/_train_dl.py`: DL training helpers (patient/time level)
+  - `oneehr/cli/_train_eval.py`: evaluation and metric computation
+  - `oneehr/cli/_train_hpo.py`: HPO integration for training
 - `oneehr/config/`: TOML schema + loader
-  - `oneehr/config/schema.py`: dataclasses for config
+  - `oneehr/config/schema.py`: dataclasses for config (all 18 model configs + `ExperimentConfig`)
   - `oneehr/config/load.py`: TOML parsing, defaults, validation
+- `oneehr/models/`: model implementations (one file per model)
+  - `oneehr/models/registry.py`: model name -> implementation mapping
+  - `oneehr/models/constants.py`: `TABULAR_MODELS`, `DL_MODELS`, `STATIC_BRANCH_MODELS` sets
+  - `oneehr/models/tabular.py`: tabular model train/predict wrappers
+  - `oneehr/models/utils.py`: shared model utilities
+- `oneehr/data/`: data loading, binning, feature engineering
+  - `oneehr/data/binning.py`: irregular events -> fixed-time bins
+  - `oneehr/data/splits.py`: patient-level group split strategies
+  - `oneehr/data/labels.py`: label function loading and normalization
+  - `oneehr/data/postprocess.py`: post-split pipeline (standardize, impute, etc.)
+  - `oneehr/data/static_postprocess.py`: static feature encoding
+  - `oneehr/data/sequence.py`: build/pad 3D tensors for DL models
+  - `oneehr/data/tabular.py`: build patient/time tabular views
+  - `oneehr/data/features.py`: feature column utilities
+  - `oneehr/data/io.py`: CSV/parquet I/O
+  - `oneehr/data/patient_index.py`: patient index construction
+  - `oneehr/data/overview_light.py`: dataset overview generation
+- `oneehr/eval/`: evaluation and metrics
+  - `oneehr/eval/metrics.py`: metric computation (binary + regression)
+  - `oneehr/eval/calibration.py`: temperature/Platt scaling
+  - `oneehr/eval/bootstrap.py`: bootstrap test evaluation
+  - `oneehr/eval/tables.py`: paper-style summary table generation
+- `oneehr/artifacts/`: run directory contract and I/O
+  - `oneehr/artifacts/run_manifest.py`: write `run_manifest.json` (schema v2)
+  - `oneehr/artifacts/read.py`: `RunManifest` reader class
+  - `oneehr/artifacts/materialize.py`: preprocess artifact materialization
+  - `oneehr/artifacts/inference.py`: inference helpers for test pipeline
+  - `oneehr/artifacts/labels.py`: label artifact I/O
+  - `oneehr/artifacts/run_io.py`: run directory utilities
+- `oneehr/analysis/`: interpretability hooks
+  - `oneehr/analysis/feature_importance.py`: xgboost/shap/attention importance
+- `oneehr/modeling/`: training infrastructure
+  - `oneehr/modeling/trainer.py`: unified DL trainer (AdamW, early stopping, masked loss)
+  - `oneehr/modeling/persistence.py`: model save/load
 - `oneehr/hpo/`: minimal config-driven grid search utilities (used by `train`)
+  - `oneehr/hpo/grid.py`: grid iteration + config override application
+  - `oneehr/hpo/runner.py`: HPO trial runner
+- `oneehr/utils/`: shared utilities (I/O, time parsing, imports)
+- `docs/`: MkDocs Material documentation site (see below)
 - `examples/`: runnable reference configs and templates
 - `tests/`: unit/integration tests (keep them fast)
 
+## Documentation
+
+The docs site uses [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) and lives in `docs/`.
+
+```bash
+# Install docs dependencies
+uv pip install -e ".[docs]"
+
+# Local preview
+uv run mkdocs serve          # http://127.0.0.1:8000
+
+# Build (strict mode checks for broken links)
+uv run mkdocs build --strict
+```
+
+When changing CLI flags, config parameters, model behavior, or artifact layout, update the corresponding pages under `docs/reference/` and `docs/guide/`.
+
 ## Change Checklist (Do This Before You Finish)
 
-- Update docs if CLI/config/artifacts change (`README.md` and/or `examples/*.toml`).
+- Update docs if CLI/config/artifacts change (`README.md`, `examples/*.toml`, and `docs/`).
 - Add/adjust tests for user-visible behavior.
 - Run:
   - `uv run pytest -q`
   - `uv run oneehr --help`
   - `uv run oneehr preprocess --config examples/experiment.toml --overview` (quick smoke; avoids long training)
+  - `uv run mkdocs build --strict` (verify docs build without broken links)
 
 ### Conventional commits (do this often)
 
@@ -106,12 +191,13 @@ If any requirement is ambiguous: Ask me to confirm before implementing.
 
 Keep the questions concrete and choose defaults only after confirmation.
 
-## Documentation Rules (Keep README Trustworthy)
+## Documentation Rules (Keep README + Docs Trustworthy)
 
 - Do not document commands that do not exist. The authoritative source is `uv run oneehr --help`.
 - If a workflow step changes (e.g. HPO behavior), update:
   - `README.md` (user workflow)
   - `examples/experiment.toml` (reference config)
+  - `docs/reference/` and `docs/guide/` pages as appropriate
   - any CLI `--help` text if needed
 
 ## Design Notes (Implementation Intent)
