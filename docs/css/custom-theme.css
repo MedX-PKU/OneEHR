@@ -182,6 +182,32 @@ th {
     font-weight: 600;
 }
 
+.admonition {
+    margin: 1.25rem 0;
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+}
+
+.admonition .admonition-title {
+    margin-bottom: 0.6rem;
+}
+
+.admonition p,
+.admonition ul,
+.admonition ol {
+    margin: 0.7rem 0;
+}
+
+.highlight + .admonition,
+pre + .admonition,
+table + .admonition {
+    margin-top: 1.35rem;
+}
+
+.admonition > :last-child {
+    margin-bottom: 0;
+}
+
 .pagination {
     margin-top: 2rem;
 }
