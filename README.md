@@ -42,7 +42,7 @@ OneEHR is organized around an explicit pipeline:
 
 1. **Preprocess**: validate and bin irregular events into fixed time bins; build features; materialize tabular “views”.
 2. **Train**: fit one or more models; optionally run config-driven grid search (HPO) per model.
-3. **Test**: evaluate a trained run on external test data (dataset config can differ from train).
+3. **Test**: evaluate a trained run on the held-out test split, or on external test data (if a different dataset config is provided).
 4. **Analyze**: feature importance / interpretability hooks (method depends on model).
 
 ## Data Model (What You Provide)
@@ -243,7 +243,7 @@ Run `uv run oneehr --help` for authoritative flags. Current commands:
 
 - `oneehr preprocess --config <toml>`: preprocessing + artifact materialization
 - `oneehr train --config <toml> [--force]`: training + optional grid search + evaluation summaries
-- `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on external test data
+- `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on test data
 - `oneehr analyze --config <toml> [--run-dir <run>] --method <xgboost|shap|attention>`: feature importance analysis
 
 ## Outputs (Run Directory Contract)
@@ -293,12 +293,18 @@ prediction_mode = "time"
 
 Make sure `labels.fn` produces time-level labels (with `label_time`) that match your binning logic.
 
-### 3) External test set evaluation
+### 3) Test Set Evaluation
 
-Use `oneehr test` with an external dataset config:
+By default, `oneehr test` relies on the internal splits generated during training to evaluate the model on held-out test patients without data leakage:
 
 ```bash
-uv run oneehr test --config examples/experiment.toml --test-dataset path/to/test_dataset.toml
+uv run oneehr test --config examples/experiment.toml
+```
+
+If you have a completely separate external dataset, provide its config:
+
+```bash
+uv run oneehr test --config examples/experiment.toml --test-dataset path/to/external_test.toml
 ```
 
 ## Documentation

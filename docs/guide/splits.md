@@ -67,17 +67,17 @@ time_boundary = "2012-01-01"
 
 ## Nested cross-validation
 
-For time-based splits, you can run nested CV on the pre-boundary training pool. This gives multiple train/val folds within the temporal training set while preserving the prospective test set.
+For both `time` and `random` splits, you can run nested CV on the training pool. For `time` splits, this gives multiple train/val folds within the temporal training set while preserving the prospective test set. For `random` splits, it holds out a fixed random test set and runs CV on the remainder.
 
 ```toml
 [split]
-kind = "time"
-time_boundary = "2012-01-01"
+kind = "time"  # Or "random"
+time_boundary = "2012-01-01"  # Only needed for "time"
 inner_kind = "kfold"
 inner_n_splits = 5
 ```
 
-This creates `inner_n_splits` folds within the pre-boundary patients, with the post-boundary patients held out as the prospective test set.
+This creates `inner_n_splits` folds within the train/val pool, while holding out the single test set.
 
 ---
 

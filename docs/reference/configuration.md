@@ -137,7 +137,7 @@ Patient-level group split configuration. All strategies guarantee no patient app
 | `test_size` | `float` | `0.2` | Test fraction (for `random`) |
 | `time_boundary` | `str` | `None` | Datetime string for `time` split (e.g. `"2012-01-01"`) |
 | `fold_index` | `int` | `None` | Select a single fold from k-fold (0-indexed) |
-| `inner_kind` | `str` | `None` | Nested CV strategy for `time` split (e.g. `"kfold"`) |
+| `inner_kind` | `str` | `None` | Nested CV strategy for `time` or `random` split (e.g. `"kfold"`) |
 | `inner_n_splits` | `int` | `None` | Number of inner folds for nested CV |
 
 === "K-fold CV"
@@ -224,6 +224,7 @@ Training loop configuration (applies to all models, especially deep learning).
 | `final_model_source` | `str` | `"refit"` | Source for final model: `refit` or `best_split` |
 | `bootstrap_test` | `bool` | `false` | Run bootstrap test evaluation |
 | `bootstrap_n` | `int` | `200` | Number of bootstrap samples |
+| `repeat` | `int` | `1` | Number of training runs per split with different seeds |
 
 ```toml
 [trainer]

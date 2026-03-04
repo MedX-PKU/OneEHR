@@ -204,5 +204,5 @@ Keep the questions concrete and choose defaults only after confirmation.
 
 - **Preprocessing** turns irregular events into fixed-time bins (`preprocess.bin_size`) and materializes tabular “views”.
 - **Training** may run a small grid search (HPO) *inside* `oneehr train` controlled by `[hpo]` and `[hpo_models.*]`.
-- **Testing** is for external evaluation runs; it should read the run directory contract (manifest/artifacts) rather than re-deriving schema.
+- **Testing** is for evaluating on held-out test splits or external data; it reads the run directory contract (manifest/artifacts/splits) rather than re-deriving schemas.
 - **Analysis** methods are model-dependent; avoid claiming model-agnostic interpretability unless implemented.

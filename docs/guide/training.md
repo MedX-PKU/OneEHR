@@ -37,6 +37,19 @@ Each model is trained independently on the same splits. Results are organized pe
 
 ---
 
+## Multi-seed training
+
+You can run training multiple times per split with different random seeds to measure training variance:
+
+```toml
+[trainer]
+repeat = 3
+```
+
+This expands each split (e.g., `fold0`) into `repeat` variants (`fold0__r0`, `fold0__r1`, `fold0__r2`). Each variant uses `effective_seed = trainer.seed + r` for both tabular models (XGBoost/CatBoost/RF) and deep learning models. Metrics and predictions will be saved for each repeated split.
+
+---
+
 ## Training flow
 
 For each model and each split:

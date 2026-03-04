@@ -74,7 +74,7 @@ uv run oneehr train --config examples/experiment.toml --force
 
 ## `oneehr test`
 
-Evaluate trained models on an external test dataset.
+Evaluate trained models on a test dataset.
 
 ```
 oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]

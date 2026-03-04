@@ -1,6 +1,6 @@
 # Testing
 
-`oneehr test` evaluates trained models on an external test dataset. It reads the training run's manifest and applies the same feature schema to new data.
+`oneehr test` evaluates trained models on a test dataset. By default, it evaluates the model on the held-out test patients defined by the splits generated during training. It can also evaluate on completely external test datasets.
 
 ---
 
@@ -27,18 +27,15 @@ uv run oneehr test --config experiment.toml --test-dataset path/to/test_config.t
 ## How test evaluation works
 
 1. **Read the run manifest** from the training run directory
-2. **Load test data** from one of (in priority order):
-    - `--test-dataset` CLI flag
-    - `[datasets.test]` config section
-    - `[dataset]` config section (same data as training)
-3. **Re-bin test events** using the training-time code vocabulary (`code_selection = "list"` with the exact codes from training)
-4. **Align feature columns** to match the training schema (missing columns filled with 0, extra columns dropped)
-5. **Re-apply static feature postprocessing** from the manifest
-6. **For each trained model/split**:
+2. **Determine test mode**:
+    - **Self-split mode (default)**: Uses the exact train/val/test splits saved in `run_root/splits/` and filters the preprocessed training artifacts to evaluate ONLY on the held-out test patients. This guarantees no data leakage.
+    - **External mode**: If `--test-dataset` is provided (or `[datasets.test]`), loads the external data, re-bins events using the training-time code vocabulary, and aligns feature columns to match the training schema.
+3. **Re-apply static feature postprocessing** from the manifest or load the split-specific fitted postprocess pipeline.
+4. **For each trained model/split**:
     - Load the model checkpoint
-    - Generate predictions on test data
+    - Generate predictions on the test set
     - Compute metrics
-7. **Write results** to `test_runs/` (or `--out-dir`)
+5. **Write results** to `test_runs/` (or `--out-dir`)
 
 ---
 
