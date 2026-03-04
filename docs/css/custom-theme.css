@@ -6,6 +6,9 @@
     --neutral-color: #d5deea;
     --link-color: #2563eb;
     --code-bg-color: #eef2f7;
+    --code-block-bg-color: #0f172a;
+    --code-block-fg-color: #e2e8f0;
+    --code-block-border-color: #1e293b;
 }
 
 * {
@@ -146,8 +149,25 @@ pre {
     border-radius: 0.5rem;
 }
 
+code:not(pre code) {
+    background: var(--code-bg-color);
+    color: var(--fg-color);
+}
+
 pre {
-    border: 1px solid var(--neutral-color);
+    background: var(--code-block-bg-color) !important;
+    border: 1px solid var(--code-block-border-color);
+}
+
+div.highlight pre code,
+pre code {
+    color: var(--code-block-fg-color) !important;
+    background: transparent !important;
+}
+
+div.highlight pre code .normal,
+div.highlight pre code a {
+    color: inherit;
 }
 
 table {
