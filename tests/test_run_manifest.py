@@ -28,6 +28,7 @@ def test_write_run_manifest(tmp_path: Path):
     )
 
     data = json.loads((out / "run_manifest.json").read_text(encoding="utf-8"))
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
     assert data["features"]["dynamic"]["feature_columns"] == ["num__A", "cat__DX__X"]
     assert (data["artifacts"] or {}).get("binned_parquet_path") == "binned.parquet"
+    assert data["llm"]["enabled"] is False
