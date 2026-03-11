@@ -72,3 +72,11 @@ def write_json(path: str | Path, data: Any) -> None:
         json.dumps(data, indent=2, sort_keys=True, default=_default) + "\n",
         encoding="utf-8",
     )
+
+
+def write_jsonl(path: str | Path, rows: list[dict[str, Any]]) -> None:
+    path = Path(path)
+    with path.open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(as_jsonable(row), sort_keys=True))
+            fh.write("\n")

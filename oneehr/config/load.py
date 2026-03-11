@@ -14,6 +14,10 @@ from oneehr.config.schema import (
     HPOConfig,
     LabelTableConfig,
     LabelsConfig,
+    LLMConfig,
+    LLMModelConfig,
+    LLMOutputConfig,
+    LLMPromptConfig,
     ModelConfig,
     OutputConfig,
     PreprocessConfig,
@@ -61,14 +65,21 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     split_raw = _require(raw, "split")
     model_raw = raw.get("model")
     models_raw = raw.get("models", [])
-    if model_raw is None and not models_raw:
-        raise ValueError("Missing required key: model or models")
     output_raw = raw.get("output", {})
     labels_raw = raw.get("labels", {})
     trainer_raw = raw.get("trainer", {})
     hpo_raw = raw.get("hpo", {})
     hpo_models_raw = raw.get("hpo_models", {})
     calibration_raw = raw.get("calibration", {})
+    llm_raw = raw.get("llm", {})
+    llm_models_raw = raw.get("llm_models", [])
+    if not isinstance(llm_raw, dict):
+        raise ValueError("llm must be a table")
+    if not isinstance(llm_models_raw, list):
+        raise ValueError("llm_models must be an array of tables")
+    llm_enabled_raw = bool(llm_raw.get("enabled", False))
+    if model_raw is None and not models_raw and not llm_enabled_raw:
+        raise ValueError("Missing required key: model or models")
 
     dataset = None
     if dataset_raw is not None:
@@ -241,6 +252,12 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         models.append(_load_model(mraw))
     if model is not None and not models:
         models = [model]
+    if model is None and not models and llm_enabled_raw:
+        # LLM-only workflows do not require a trainable ML/DL model, but the
+        # broader config object still carries ``model`` for legacy commands.
+        model = ModelConfig(name="llm_placeholder")
+    elif model is None and models:
+        model = models[0]
 
     output = OutputConfig(
         root=Path(output_raw.get("root", "logs")),
@@ -301,6 +318,89 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         use_calibrated=bool(calibration_raw.get("use_calibrated", True)),
     )
 
+    llm_prompt_raw = llm_raw.get("prompt", {})
+    llm_output_raw = llm_raw.get("output", {})
+    if not isinstance(llm_prompt_raw, dict):
+        raise ValueError("llm.prompt must be a table")
+    if not isinstance(llm_output_raw, dict):
+        raise ValueError("llm.output must be a table")
+    llm_prompt = LLMPromptConfig(
+        include_static=bool(llm_prompt_raw.get("include_static", True)),
+        include_labels_context=bool(llm_prompt_raw.get("include_labels_context", False)),
+        history_window=(
+            None
+            if llm_prompt_raw.get("history_window") in {None, "", "null"}
+            else str(llm_prompt_raw.get("history_window"))
+        ),
+        max_events=int(llm_prompt_raw.get("max_events", 200)),
+        time_order=str(llm_prompt_raw.get("time_order", "asc")),
+        sections=[str(s) for s in llm_prompt_raw.get("sections", [])] or LLMPromptConfig().sections,
+    )
+    llm_output = LLMOutputConfig(
+        include_explanation=bool(llm_output_raw.get("include_explanation", True)),
+        include_confidence=bool(llm_output_raw.get("include_confidence", False)),
+    )
+    llm = LLMConfig(
+        enabled=bool(llm_raw.get("enabled", False)),
+        sample_unit=str(llm_raw.get("sample_unit", "patient")),
+        prompt_template=str(llm_raw.get("prompt_template", "summary_v1")),
+        json_schema_version=int(llm_raw.get("json_schema_version", 1)),
+        max_samples=(
+            None
+            if llm_raw.get("max_samples") in {None, "", "null"}
+            else int(llm_raw.get("max_samples"))
+        ),
+        save_prompts=bool(llm_raw.get("save_prompts", True)),
+        save_responses=bool(llm_raw.get("save_responses", True)),
+        save_parsed=bool(llm_raw.get("save_parsed", True)),
+        concurrency=int(llm_raw.get("concurrency", 1)),
+        max_retries=int(llm_raw.get("max_retries", 2)),
+        timeout_seconds=float(llm_raw.get("timeout_seconds", 60.0)),
+        temperature=float(llm_raw.get("temperature", 0.0)),
+        top_p=float(llm_raw.get("top_p", 1.0)),
+        seed=(
+            None
+            if llm_raw.get("seed") in {None, "", "null"}
+            else int(llm_raw.get("seed"))
+        ),
+        prompt=llm_prompt,
+        output=llm_output,
+    )
+    llm_models: list[LLMModelConfig] = []
+    for mraw in llm_models_raw or []:
+        if not isinstance(mraw, dict):
+            raise ValueError("llm_models entries must be tables")
+        headers = mraw.get("headers", {}) or {}
+        if not isinstance(headers, dict):
+            raise ValueError("llm_models.<entry>.headers must be a table")
+        llm_models.append(
+            LLMModelConfig(
+                name=_require(mraw, "name"),
+                provider=str(mraw.get("provider", "openai_compatible")),
+                base_url=str(mraw.get("base_url", "https://api.openai.com/v1")),
+                model=str(_require(mraw, "model")),
+                api_key_env=str(mraw.get("api_key_env", "OPENAI_API_KEY")),
+                system_prompt=(
+                    None
+                    if mraw.get("system_prompt") in {None, "", "null"}
+                    else str(mraw.get("system_prompt"))
+                ),
+                supports_json_schema=bool(mraw.get("supports_json_schema", True)),
+                headers={str(k): str(v) for k, v in headers.items()},
+            )
+        )
+
+    if llm.enabled:
+        if llm.sample_unit not in {"patient", "time"}:
+            raise ValueError("llm.sample_unit must be 'patient' or 'time'")
+        if llm.prompt.time_order not in {"asc", "desc"}:
+            raise ValueError("llm.prompt.time_order must be 'asc' or 'desc'")
+        if not llm_models:
+            raise ValueError("llm.enabled=true requires at least one [[llm_models]] entry")
+    for model_cfg in llm_models:
+        if model_cfg.provider != "openai_compatible":
+            raise ValueError("llm_models.provider must be 'openai_compatible' in v1")
+
     return ExperimentConfig(
         dataset=dataset,
         datasets=datasets,
@@ -314,5 +414,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         hpo=hpo,
         hpo_by_model=hpo_by_model,
         calibration=calibration,
+        llm=llm,
+        llm_models=llm_models,
         output=output,
     )

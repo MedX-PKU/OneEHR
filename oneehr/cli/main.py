@@ -5,6 +5,8 @@ Usage:
     oneehr train --config <toml> [--force]
     oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
     oneehr analyze --config <toml> [--run-dir DIR] [--method xgboost|shap|attention]
+    oneehr llm-preprocess --config <toml> [--run-dir DIR] [--force]
+    oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
 """
 from __future__ import annotations
 
@@ -40,6 +42,18 @@ def _build_parser() -> argparse.ArgumentParser:
     an.add_argument("--config", required=True, help="Path to TOML config")
     an.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
     an.add_argument("--method", default=None, choices=["xgboost", "shap", "attention"])
+
+    # llm-preprocess
+    lp = sub.add_parser("llm-preprocess", help="Materialize LLM prompt instances from EHR artifacts")
+    lp.add_argument("--config", required=True, help="Path to TOML config")
+    lp.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
+    lp.add_argument("--force", action="store_true", help="Overwrite existing LLM instance artifacts")
+
+    # llm-predict
+    lpr = sub.add_parser("llm-predict", help="Run OpenAI-compatible LLM prediction/evaluation")
+    lpr.add_argument("--config", required=True, help="Path to TOML config")
+    lpr.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
+    lpr.add_argument("--force", action="store_true", help="Overwrite existing LLM prediction artifacts")
 
     return parser
 
@@ -77,6 +91,16 @@ def main(argv: list[str] | None = None) -> None:
         from oneehr.cli.analyze import run_analyze
 
         run_analyze(args.config, run_dir=args.run_dir, method=args.method)
+
+    elif args.command == "llm-preprocess":
+        from oneehr.cli.llm_preprocess import run_llm_preprocess
+
+        run_llm_preprocess(args.config, run_dir=args.run_dir, force=args.force)
+
+    elif args.command == "llm-predict":
+        from oneehr.cli.llm_predict import run_llm_predict
+
+        run_llm_predict(args.config, run_dir=args.run_dir, force=args.force)
 
     else:
         parser.print_help()

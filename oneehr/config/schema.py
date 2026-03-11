@@ -147,6 +147,62 @@ class HPOConfig:
 
 
 @dataclass(frozen=True)
+class LLMPromptConfig:
+    include_static: bool = True
+    include_labels_context: bool = False
+    history_window: str | None = None
+    max_events: int = 200
+    time_order: str = "asc"  # asc | desc
+    sections: list[str] = field(
+        default_factory=lambda: [
+            "patient_profile",
+            "event_timeline",
+            "code_summary",
+            "prediction_task",
+            "output_schema",
+        ]
+    )
+
+
+@dataclass(frozen=True)
+class LLMOutputConfig:
+    include_explanation: bool = True
+    include_confidence: bool = False
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    enabled: bool = False
+    sample_unit: str = "patient"  # patient | time
+    prompt_template: str = "summary_v1"
+    json_schema_version: int = 1
+    max_samples: int | None = None
+    save_prompts: bool = True
+    save_responses: bool = True
+    save_parsed: bool = True
+    concurrency: int = 1
+    max_retries: int = 2
+    timeout_seconds: float = 60.0
+    temperature: float = 0.0
+    top_p: float = 1.0
+    seed: int | None = None
+    prompt: LLMPromptConfig = field(default_factory=LLMPromptConfig)
+    output: LLMOutputConfig = field(default_factory=LLMOutputConfig)
+
+
+@dataclass(frozen=True)
+class LLMModelConfig:
+    name: str
+    provider: str = "openai_compatible"
+    base_url: str = "https://api.openai.com/v1"
+    model: str = ""
+    api_key_env: str = "OPENAI_API_KEY"
+    system_prompt: str | None = None
+    supports_json_schema: bool = True
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class XGBoostConfig:
     max_depth: int = 6
     n_estimators: int = 500
@@ -327,6 +383,8 @@ class ExperimentConfig:
     hpo: HPOConfig = field(default_factory=HPOConfig)
     hpo_by_model: dict[str, HPOConfig] = field(default_factory=dict)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
+    llm_models: list[LLMModelConfig] = field(default_factory=list)
     output: OutputConfig = field(default_factory=OutputConfig)
     # Internal: runtime-derived static feature dimension for models that support
     # a dedicated static branch (e.g., MCGRU, DrAgent). This is populated by the
