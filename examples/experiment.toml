@@ -115,6 +115,51 @@ source = "val"
 threshold_strategy = "f1"
 use_calibrated = true
 
+# Optional LLM inference/evaluation workflow.
+# This uses grouped patient splits plus structured EHR prompts and
+# OpenAI-compatible chat completions.
+# If you create a dedicated LLM-only config for `preprocess`,
+# `llm-preprocess`, and `llm-predict`, you do not need `[model]` or `[[models]]`.
+#
+# [llm]
+# enabled = true
+# sample_unit = "patient" # patient | time; must match [task].prediction_mode
+# prompt_template = "summary_v1"
+# json_schema_version = 1
+# save_prompts = true
+# save_responses = true
+# save_parsed = true
+# concurrency = 1
+# max_retries = 2
+# timeout_seconds = 60.0
+# temperature = 0.0
+# top_p = 1.0
+#
+# [llm.prompt]
+# include_static = true
+# include_labels_context = false # must remain false in v1 to avoid leakage
+# history_window = "30d"         # optional
+# max_events = 200
+# time_order = "asc"             # asc | desc
+# sections = ["patient_profile", "event_timeline", "code_summary", "prediction_task", "output_schema"]
+#
+# [llm.output]
+# include_explanation = true
+# include_confidence = false
+#
+# [[llm_models]]
+# name = "gpt4o-mini"
+# provider = "openai_compatible"
+# base_url = "https://api.openai.com/v1"
+# model = "gpt-4o-mini"
+# api_key_env = "OPENAI_API_KEY"
+# supports_json_schema = true
+# headers = { }
+#
+# LLM commands:
+# uv run oneehr llm-preprocess --config examples/experiment.toml
+# uv run oneehr llm-predict --config examples/experiment.toml
+
 [output]
 root = "logs"
 run_name = "example"

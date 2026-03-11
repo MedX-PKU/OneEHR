@@ -5,7 +5,7 @@ OneEHR is an end-to-end EHR predictive modeling + analysis toolkit in Python, de
 - **Doctor-friendly input**: start from a single long-form event table (CSV/Excel).
 - **Leakage prevention by default**: all data splits are patient-level group splits.
 - **TOML-first experiments**: most behavior is configured via one `experiment.toml`.
-- **CLI-first workflow**: preprocess → train (with optional grid search) → test → analyze.
+- **CLI-first workflow**: preprocess → train/test/analyze for ML/DL, plus LLM-specific prompt materialization and prediction commands.
 
 This README is the user-facing guide. For full documentation, see the [docs site](https://medx-pku.github.io/OneEHR/) or build locally with `uv run mkdocs serve` (MkDocs 2 pre-release + `mkdocs.toml`). If you are using agents to modify the repo, read `AGENTS.md` too.
 
@@ -36,6 +36,14 @@ uv run oneehr analyze --config examples/experiment.toml
 
 Artifacts are written under `output.root/output.run_name` (defaults in config; the example uses `logs/example/`).
 
+For the LLM workflow, run:
+
+```bash
+uv run oneehr preprocess --config examples/experiment.toml
+uv run oneehr llm-preprocess --config examples/experiment.toml
+uv run oneehr llm-predict --config examples/experiment.toml
+```
+
 ## The Workflow (Conceptual)
 
 OneEHR is organized around an explicit pipeline:
@@ -44,6 +52,7 @@ OneEHR is organized around an explicit pipeline:
 2. **Train**: fit one or more models; optionally run config-driven grid search (HPO) per model.
 3. **Test**: evaluate a trained run on the held-out test split, or on external test data (if a different dataset config is provided).
 4. **Analyze**: feature importance / interpretability hooks (method depends on model).
+5. **LLM Preprocess / Predict**: materialize patient-level or time-window prompt instances, render structured summaries, call OpenAI-compatible chat completions, and score parsed predictions.
 
 ## Data Model (What You Provide)
 
@@ -121,7 +130,63 @@ High-level sections:
 - `[[models]]`: one or more models to train
 - `[hpo]` and `[hpo_models.<name>]`: optional config-driven grid search
 - `[trainer]`: generic training and selection behavior
+- `[llm]`, `[llm.prompt]`, `[llm.output]`: LLM inference/evaluation behavior
+- `[[llm_models]]`: one or more OpenAI-compatible chat completion endpoints/models
 - `[output]`: where run artifacts are written
+
+### LLM workflow
+
+OneEHR now includes an LLM-specific inference path for EHR prediction:
+
+- Input: raw EHR history rendered into the built-in `summary_v1` structured prompt
+- Backend: OpenAI-compatible `chat/completions`
+- Tasks: `binary` and `regression`
+- Units: `patient` and `time`
+- Output: strict JSON, parsed into prediction artifacts and evaluation summaries
+
+The current LLM path is inference/evaluation only. It does not fine-tune models and does not implement tool-calling or multi-turn agents yet.
+
+Minimal config shape:
+
+```toml
+[llm]
+enabled = true
+sample_unit = "patient"      # patient | time
+prompt_template = "summary_v1"
+json_schema_version = 1
+save_prompts = true
+save_responses = true
+save_parsed = true
+concurrency = 1
+max_retries = 2
+timeout_seconds = 60.0
+temperature = 0.0
+top_p = 1.0
+
+[llm.prompt]
+include_static = true
+include_labels_context = false
+max_events = 200
+time_order = "asc"
+
+[llm.output]
+include_explanation = true
+include_confidence = false
+
+[[llm_models]]
+name = "gpt4o-mini"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+supports_json_schema = true
+```
+
+Notes:
+
+- `llm.sample_unit` must match `task.prediction_mode`.
+- `labels` are optional for patient-level inference, but time-level LLM evaluation requires labels.
+- LLM-only configs are allowed. You do not need `[model]` or `[[models]]` when the run is only for `preprocess`, `llm-preprocess`, and `llm-predict`.
 
 ## Splits (Leakage Prevention)
 
@@ -245,6 +310,8 @@ Run `uv run oneehr --help` for authoritative flags. Current commands:
 - `oneehr train --config <toml> [--force]`: training + optional grid search + evaluation summaries
 - `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on test data
 - `oneehr analyze --config <toml> [--run-dir <run>] --method <xgboost|shap|attention>`: feature importance analysis
+- `oneehr llm-preprocess --config <toml> [--run-dir <run>] [--force]`: materialize LLM prompt instances from grouped patient splits
+- `oneehr llm-predict --config <toml> [--run-dir <run>] [--force]`: render prompts, call OpenAI-compatible chat completions, parse strict JSON, and write LLM evaluation artifacts
 
 ## Outputs (Run Directory Contract)
 
@@ -265,10 +332,17 @@ Key artifacts you can rely on:
   - `views/patient_tabular.parquet` or `views/time_tabular.parquet`: modeling-ready tabular views
   - `run_manifest.json`: single source of truth (artifact paths + schema)
 - Train outputs:
-  - `summary.csv`: per-split metrics
-  - `paper_table.csv`: aggregated “paper-style” table with 95% CI
+  - `summary.json`: structured per-model, per-split metrics
+  - `hpo_best.csv`: best HPO config per model
   - `preds/<model>/...`: predictions (if `output.save_preds = true`)
   - `hpo/<model>/...`: grid search trials and selected configs (if enabled)
+- LLM outputs:
+  - `llm/instances/*.parquet`: patient-level or time-level prompt instances
+  - `llm/prompts/<llm_model>/*.jsonl`: rendered prompts (default on)
+  - `llm/responses/<llm_model>/*.jsonl`: raw model responses (default on)
+  - `llm/preds/<llm_model>/*.parquet`: parsed prediction rows
+  - `llm/metrics/<llm_model>/*.json`: per-split metrics + parse coverage
+  - `llm/summary.json`: run-level LLM summary
 
 ## Common Recipes
 
@@ -306,6 +380,18 @@ If you have a completely separate external dataset, provide its config:
 ```bash
 uv run oneehr test --config examples/experiment.toml --test-dataset path/to/external_test.toml
 ```
+
+### 4) LLM EHR prediction
+
+Use the grouped split artifacts from preprocessing, render `summary_v1` prompts, and evaluate one or more OpenAI-compatible models:
+
+```bash
+uv run oneehr preprocess --config examples/experiment.toml
+uv run oneehr llm-preprocess --config examples/experiment.toml
+uv run oneehr llm-predict --config examples/experiment.toml
+```
+
+This writes all LLM outputs under `logs/<run_name>/llm/`.
 
 ## Documentation
 

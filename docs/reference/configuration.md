@@ -198,6 +198,9 @@ name = "gru"
 name = "xgboost"
 ```
 
+!!! note
+    The new LLM workflow uses `[llm]` and `[[llm_models]]` instead of the training model registry. LLM-only configs are allowed: for `preprocess`, `llm-preprocess`, and `llm-predict`, you do not need to define `[model]` or `[[models]]`.
+
 ---
 
 ## `[trainer]`
@@ -306,6 +309,140 @@ See [Calibration Guide](../guide/calibration.md) for details.
 enabled = true
 method = "temperature"
 threshold_strategy = "f1"
+```
+
+---
+
+## `[llm]`
+
+Top-level configuration for the LLM inference/evaluation workflow.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | `bool` | `false` | Enable the LLM workflow |
+| `sample_unit` | `str` | `"patient"` | LLM evaluation unit: `patient` or `time` |
+| `prompt_template` | `str` | `"summary_v1"` | Prompt renderer template (currently only `summary_v1`) |
+| `json_schema_version` | `int` | `1` | Output schema version (currently only `1`) |
+| `max_samples` | `int` | `None` | Optional cap on the number of materialized LLM instances |
+| `save_prompts` | `bool` | `true` | Save rendered prompts to `llm/prompts/` |
+| `save_responses` | `bool` | `true` | Save raw responses to `llm/responses/` |
+| `save_parsed` | `bool` | `true` | Save parsed outputs to `llm/parsed/` |
+| `concurrency` | `int` | `1` | Number of concurrent LLM requests |
+| `max_retries` | `int` | `2` | Retry count for retryable HTTP/network failures |
+| `timeout_seconds` | `float` | `60.0` | Per-request timeout |
+| `temperature` | `float` | `0.0` | Chat completion temperature |
+| `top_p` | `float` | `1.0` | Chat completion top-p |
+| `seed` | `int` | `None` | Optional request seed (provider support varies) |
+
+Rules and constraints:
+
+- `llm.sample_unit` must match `task.prediction_mode`
+- Supported task kinds are `binary` and `regression`
+- Supported providers are OpenAI-compatible `chat/completions` only
+- `llm.prompt.include_labels_context` is intentionally disabled in v1 to prevent leakage
+
+```toml
+[llm]
+enabled = true
+sample_unit = "patient"
+prompt_template = "summary_v1"
+json_schema_version = 1
+save_prompts = true
+save_responses = true
+save_parsed = true
+concurrency = 1
+max_retries = 2
+timeout_seconds = 60.0
+temperature = 0.0
+top_p = 1.0
+```
+
+---
+
+## `[llm.prompt]`
+
+Prompt construction options for `summary_v1`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include_static` | `bool` | `true` | Include static patient features when available |
+| `include_labels_context` | `bool` | `false` | Reserved; currently must remain `false` |
+| `history_window` | `str` | `None` | Optional retrospective window (e.g. `"7d"`, `"48h"`) |
+| `max_events` | `int` | `200` | Maximum number of raw events rendered into the prompt |
+| `time_order` | `str` | `"asc"` | Event order in the rendered timeline: `asc` or `desc` |
+| `sections` | `list[str]` | see below | Prompt sections to include |
+
+Default sections:
+
+- `patient_profile`
+- `event_timeline`
+- `code_summary`
+- `prediction_task`
+- `output_schema`
+
+```toml
+[llm.prompt]
+include_static = true
+history_window = "30d"
+max_events = 150
+time_order = "asc"
+sections = ["patient_profile", "event_timeline", "prediction_task", "output_schema"]
+```
+
+---
+
+## `[llm.output]`
+
+Controls optional non-metric fields requested from the LLM.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include_explanation` | `bool` | `true` | Ask the model for an explanation field |
+| `include_confidence` | `bool` | `false` | Ask the model for a confidence field in `[0, 1]` |
+
+Binary tasks always expect JSON containing `label` and preferably `probability`. If `probability` is missing but `label` parses correctly, OneEHR falls back to `0.0` or `1.0`.
+
+Regression tasks expect JSON containing `value`.
+
+```toml
+[llm.output]
+include_explanation = true
+include_confidence = false
+```
+
+---
+
+## `[[llm_models]]`
+
+One or more OpenAI-compatible chat completion backends to evaluate on the same instances.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `str` | *required* | Logical name used in `llm/` artifact paths |
+| `provider` | `str` | `"openai_compatible"` | Provider type (currently only `openai_compatible`) |
+| `base_url` | `str` | `"https://api.openai.com/v1"` | Base API URL; `llm-predict` appends `/chat/completions` |
+| `model` | `str` | *required* | Provider model identifier |
+| `api_key_env` | `str` | `"OPENAI_API_KEY"` | Environment variable containing the API key |
+| `system_prompt` | `str` | `None` | Optional system prompt |
+| `supports_json_schema` | `bool` | `true` | Send OpenAI-style `response_format = {type = "json_schema"}` |
+| `headers` | `table` | `{}` | Extra request headers for compatible vendors |
+
+```toml
+[[llm_models]]
+name = "gpt4o-mini"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+supports_json_schema = true
+
+[[llm_models]]
+name = "local-vllm"
+provider = "openai_compatible"
+base_url = "http://127.0.0.1:8000/v1"
+model = "meta-llama/Llama-3.1-8B-Instruct"
+api_key_env = "VLLM_API_KEY"
+supports_json_schema = false
 ```
 
 ---

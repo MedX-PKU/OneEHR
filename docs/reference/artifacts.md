@@ -42,6 +42,30 @@ OneEHR writes all experiment outputs to a structured run directory under `{outpu
         feature_importance_{model}_{split}_{method}.json  # (20)
     test_runs/                              # (21)
     final/                                  # (22)
+    llm/
+        instances/
+            patient_instances.parquet       # (23)
+            time_instances.parquet          # (24)
+            summary.json                    # (25)
+        prompts/
+            {llm_model}/
+                {split}.jsonl               # (26)
+        responses/
+            {llm_model}/
+                {split}.jsonl               # (27)
+        parsed/
+            {llm_model}/
+                {split}.parquet             # (28)
+        preds/
+            {llm_model}/
+                {split}.parquet             # (29)
+        failures/
+            {llm_model}/
+                {split}.jsonl               # (30)
+        metrics/
+            {llm_model}/
+                {split}.json                # (31)
+        summary.json                        # (32)
 ```
 
 ---
@@ -52,9 +76,9 @@ These are written by `oneehr preprocess` and read by all downstream commands.
 
 ### `run_manifest.json` { #run-manifest }
 
-The **single source of truth** for the run. Contains schema version, dataset paths, task/split/preprocess config snapshots, feature column lists, and artifact paths.
+The **single source of truth** for the run. Contains schema version, dataset paths, task/split/preprocess config snapshots, feature column lists, LLM config snapshots, and artifact paths.
 
-Schema version: **2**
+Schema version: **3**
 
 Key fields:
 
@@ -65,6 +89,7 @@ Key fields:
 | `task` | Task config snapshot |
 | `split` | Split config snapshot |
 | `preprocess` | Preprocess config snapshot |
+| `llm` | LLM workflow config snapshot |
 | `features.dynamic.feature_columns` | List of dynamic feature column names |
 | `features.static.feature_columns` | List of static feature column names |
 | `features.static.matrix_parquet_path` | Path to static feature matrix |
@@ -100,6 +125,101 @@ JSON array of static feature column names after encoding (e.g. `["num__age", "ca
 ### `features/static/static_all.parquet`
 
 Encoded static feature matrix. One row per patient with `patient_id` and all `num__*` / `cat__*` static columns.
+
+---
+
+## LLM artifacts
+
+Written by `oneehr llm-preprocess` and `oneehr llm-predict`.
+
+### `llm/instances/patient_instances.parquet`
+
+LLM evaluation instances for patient-level prediction. Each row corresponds to one held-out patient from one split.
+
+Columns include:
+
+- `instance_id`
+- `split`
+- `split_role` (currently always `test`)
+- `patient_id`
+- `task_kind`
+- `ground_truth` (nullable)
+- `event_count`
+- `first_event_time`
+- `last_event_time`
+- `has_static`
+
+### `llm/instances/time_instances.parquet`
+
+LLM evaluation instances for time-level prediction. Each row corresponds to one held-out `(patient_id, bin_time)` label instance.
+
+Columns include:
+
+- `instance_id`
+- `split`
+- `split_role` (currently always `test`)
+- `patient_id`
+- `bin_time`
+- `task_kind`
+- `ground_truth`
+
+### `llm/prompts/{llm_model}/{split}.jsonl`
+
+Rendered prompts for one LLM backend and one split. Written when `llm.save_prompts = true`.
+
+### `llm/responses/{llm_model}/{split}.jsonl`
+
+Raw response payloads for one LLM backend and one split. Written when `llm.save_responses = true`.
+
+### `llm/parsed/{llm_model}/{split}.parquet`
+
+Parsed JSON outputs with normalized prediction fields. Written when `llm.save_parsed = true`.
+
+### `llm/preds/{llm_model}/{split}.parquet`
+
+Prediction rows with audit fields. Common columns:
+
+- `instance_id`
+- `patient_id`
+- `split`
+- `split_role`
+- `ground_truth`
+- `parsed_ok`
+- `prediction`
+- `probability` (binary)
+- `value` (regression)
+- `explanation`
+- `confidence`
+- `prompt_sha256`
+- `response_sha256`
+- `token_usage_prompt`
+- `token_usage_completion`
+- `token_usage_total`
+- `latency_ms`
+- `error_code`
+- `error_message`
+
+Time-level outputs also include `bin_time`.
+
+### `llm/failures/{llm_model}/{split}.jsonl`
+
+Rows that failed request or JSON parsing, including `error_code`, `error_message`, and the raw response when available.
+
+### `llm/metrics/{llm_model}/{split}.json`
+
+Per-split LLM metrics plus audit coverage fields:
+
+- `total_rows`
+- `parsed_ok_rows`
+- `parse_success_rate`
+- `ground_truth_rows`
+- `scored_rows`
+- `coverage`
+- `metrics` (binary or regression metrics on successfully parsed rows)
+
+### `llm/summary.json`
+
+Run-level summary for all `[[llm_models]]` and splits.
 
 ---
 

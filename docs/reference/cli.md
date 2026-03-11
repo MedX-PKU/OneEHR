@@ -1,6 +1,6 @@
 # CLI Reference
 
-OneEHR provides a single `oneehr` CLI with four subcommands that map to the experiment pipeline: **preprocess**, **train**, **test**, **analyze**.
+OneEHR provides a single `oneehr` CLI with six subcommands that map to the experiment pipeline: **preprocess**, **train**, **test**, **analyze**, **llm-preprocess**, **llm-predict**.
 
 Run `uv run oneehr --help` for the authoritative list of flags.
 
@@ -139,4 +139,66 @@ oneehr analyze --config <toml> [--run-dir DIR] [--method xgboost|shap|attention]
 ```bash
 uv run oneehr analyze --config examples/experiment.toml
 uv run oneehr analyze --config examples/experiment.toml --method shap
+```
+
+---
+
+## `oneehr llm-preprocess`
+
+Materialize LLM evaluation instances from the run directory. This command uses the existing patient-level split contract and writes prompt-ready instance tables under `llm/instances/`.
+
+```
+oneehr llm-preprocess --config <toml> [--run-dir DIR] [--force]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | `str` | *required* | Path to experiment TOML config |
+| `--run-dir` | `str` | from config | Run directory (overrides `output.root/output.run_name`) |
+| `--force` | flag | `false` | Overwrite existing LLM instance artifacts |
+
+**What it does:**
+
+1. Loads the existing `run_manifest.json` produced by `oneehr preprocess`
+2. Reuses saved patient-group splits if present; otherwise materializes them from the current split config
+3. Builds patient-level or time-level LLM instances from held-out test patients only
+4. Writes `llm/instances/patient_instances.parquet` or `llm/instances/time_instances.parquet`
+5. Writes `llm/instances/summary.json`
+
+**Example:**
+
+```bash
+uv run oneehr llm-preprocess --config examples/experiment.toml
+uv run oneehr llm-preprocess --config examples/experiment.toml --run-dir logs/example --force
+```
+
+---
+
+## `oneehr llm-predict`
+
+Render structured EHR prompts, call OpenAI-compatible chat completions, parse strict JSON outputs, and score predictions.
+
+```
+oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | `str` | *required* | Path to experiment TOML config |
+| `--run-dir` | `str` | from config | Run directory (overrides `output.root/output.run_name`) |
+| `--force` | flag | `false` | Overwrite existing LLM prediction artifacts |
+
+**What it does:**
+
+1. Loads `llm/instances/*.parquet` (materializing them first if missing)
+2. Renders the built-in `summary_v1` prompt for each instance
+3. Calls each `[[llm_models]]` entry through an OpenAI-compatible `chat/completions` endpoint
+4. Parses strict JSON responses for `binary` or `regression` tasks
+5. Writes prompts, raw responses, parsed outputs, predictions, failures, per-split metrics, and `llm/summary.json`
+
+**Example:**
+
+```bash
+uv run oneehr llm-predict --config examples/experiment.toml
+uv run oneehr llm-predict --config examples/experiment.toml --run-dir logs/example --force
 ```

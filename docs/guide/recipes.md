@@ -69,6 +69,53 @@ Ensure your `label_fn` returns time-aligned labels with `label_time`, `label`, a
 
 ---
 
+## LLM EHR prediction
+
+Run the LLM workflow on the held-out test patients from the same grouped splits:
+
+```toml
+[task]
+kind = "binary"
+prediction_mode = "patient"
+
+[llm]
+enabled = true
+sample_unit = "patient"
+prompt_template = "summary_v1"
+
+[llm.prompt]
+include_static = true
+max_events = 200
+time_order = "asc"
+
+[llm.output]
+include_explanation = true
+
+[[llm_models]]
+name = "gpt4o-mini"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+supports_json_schema = true
+```
+
+```bash
+uv run oneehr preprocess --config experiment.toml
+uv run oneehr llm-preprocess --config experiment.toml
+uv run oneehr llm-predict --config experiment.toml
+```
+
+This writes prompts, raw responses, parsed outputs, predictions, and per-split metrics under `llm/`.
+
+!!! note
+    `llm.sample_unit` must match `task.prediction_mode`. Use `sample_unit = "time"` together with `prediction_mode = "time"` for time-window LLM evaluation.
+
+!!! note
+    For an LLM-only workflow, the config does not need `[model]` or `[[models]]`.
+
+---
+
 ## Prospective evaluation with time split
 
 Use a temporal boundary to simulate real-world deployment:
