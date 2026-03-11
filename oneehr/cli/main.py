@@ -5,6 +5,7 @@ Usage:
     oneehr train --config <toml> [--force]
     oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
     oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--format FMT] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
+    oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID]
     oneehr llm-preprocess --config <toml> [--run-dir DIR] [--force]
     oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
 """
@@ -59,6 +60,23 @@ def _build_parser() -> argparse.ArgumentParser:
     an.add_argument("--compare-run", default=None, help="Optional second run directory for comparison reporting")
     an.add_argument("--case-limit", type=int, default=None, help="Maximum number of case-level rows to save per analysis slice")
     an.add_argument("--method", default=None, choices=["xgboost", "shap", "attention"])
+
+    # inspect
+    ins = sub.add_parser("inspect", help="Read run and analysis artifacts as JSON for agents")
+    ins.add_argument("--tool", required=True, help="Tool name, e.g. runs.list, analysis.read_summary, cases.describe_patient")
+    ins.add_argument("--config", default=None, help="Optional config used to resolve the run directory")
+    ins.add_argument("--run-dir", default=None, help="Run directory for run-scoped tools")
+    ins.add_argument("--root", default="logs", help="Root directory for runs.list")
+    ins.add_argument("--module", default=None, help="Analysis or case module name")
+    ins.add_argument("--table", default=None, help="Analysis table name for analysis.read_table")
+    ins.add_argument("--plot", default=None, help="Plot name for analysis.read_plot_spec")
+    ins.add_argument("--patient-id", default=None, help="Patient identifier for cases.describe_patient")
+    ins.add_argument("--name", default=None, help="Optional failure case artifact name")
+    ins.add_argument("--split", default=None, help="Split name for cohorts.compare")
+    ins.add_argument("--left-role", default="train", choices=["train", "val", "test"])
+    ins.add_argument("--right-role", default="test", choices=["train", "val", "test"])
+    ins.add_argument("--limit", type=int, default=None, help="Optional max rows to return for table/case queries")
+    ins.add_argument("--top-k", type=int, default=10, help="Top-k feature drift rows for cohorts.compare")
 
     # llm-preprocess
     lp = sub.add_parser("llm-preprocess", help="Materialize LLM prompt instances from EHR artifacts")
@@ -115,6 +133,26 @@ def main(argv: list[str] | None = None) -> None:
             formats=args.format,
             compare_run=args.compare_run,
             case_limit=args.case_limit,
+        )
+
+    elif args.command == "inspect":
+        from oneehr.cli.inspect import run_inspect
+
+        run_inspect(
+            tool=args.tool,
+            config=args.config,
+            run_dir=args.run_dir,
+            root=args.root,
+            module=args.module,
+            table=args.table,
+            plot=args.plot,
+            patient_id=args.patient_id,
+            name=args.name,
+            split=args.split,
+            left_role=args.left_role,
+            right_role=args.right_role,
+            limit=args.limit,
+            top_k=args.top_k,
         )
 
     elif args.command == "llm-preprocess":
