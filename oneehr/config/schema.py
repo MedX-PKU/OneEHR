@@ -191,6 +191,26 @@ class LLMConfig:
 
 
 @dataclass(frozen=True)
+class AnalysisConfig:
+    default_modules: list[str] = field(
+        default_factory=lambda: [
+            "dataset_profile",
+            "cohort_analysis",
+            "prediction_audit",
+            "temporal_analysis",
+            "interpretability",
+            "llm_audit",
+        ]
+    )
+    formats: list[str] = field(default_factory=lambda: ["json", "csv", "md", "html"])
+    top_k: int = 20
+    stratify_by: list[str] = field(default_factory=list)
+    case_limit: int = 50
+    save_plot_specs: bool = True
+    shap_max_samples: int = 500
+
+
+@dataclass(frozen=True)
 class LLMModelConfig:
     name: str
     provider: str = "openai_compatible"
@@ -383,6 +403,7 @@ class ExperimentConfig:
     hpo: HPOConfig = field(default_factory=HPOConfig)
     hpo_by_model: dict[str, HPOConfig] = field(default_factory=dict)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     llm_models: list[LLMModelConfig] = field(default_factory=list)
     output: OutputConfig = field(default_factory=OutputConfig)

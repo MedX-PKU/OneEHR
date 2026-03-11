@@ -4,7 +4,7 @@ Usage:
     oneehr preprocess --config <toml> [--overview] [--overview-top-k-codes N]
     oneehr train --config <toml> [--force]
     oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
-    oneehr analyze --config <toml> [--run-dir DIR] [--method xgboost|shap|attention]
+    oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--format FMT] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
     oneehr llm-preprocess --config <toml> [--run-dir DIR] [--force]
     oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
 """
@@ -38,9 +38,26 @@ def _build_parser() -> argparse.ArgumentParser:
     te.add_argument("--out-dir", default=None, help="Output directory for test results")
 
     # analyze
-    an = sub.add_parser("analyze", help="Run feature importance analysis")
+    an = sub.add_parser("analyze", help="Run modular analysis, reports, and interpretability")
     an.add_argument("--config", required=True, help="Path to TOML config")
     an.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
+    an.add_argument(
+        "--module",
+        action="append",
+        default=None,
+        help=(
+            "Analysis module to run. Repeatable. "
+            "Examples: dataset_profile, cohort_analysis, prediction_audit, temporal_analysis, interpretability, llm_audit"
+        ),
+    )
+    an.add_argument(
+        "--format",
+        action="append",
+        default=None,
+        help="Output format to write. Repeatable. Choices are json, csv, md, html.",
+    )
+    an.add_argument("--compare-run", default=None, help="Optional second run directory for comparison reporting")
+    an.add_argument("--case-limit", type=int, default=None, help="Maximum number of case-level rows to save per analysis slice")
     an.add_argument("--method", default=None, choices=["xgboost", "shap", "attention"])
 
     # llm-preprocess
@@ -90,7 +107,15 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "analyze":
         from oneehr.cli.analyze import run_analyze
 
-        run_analyze(args.config, run_dir=args.run_dir, method=args.method)
+        run_analyze(
+            args.config,
+            run_dir=args.run_dir,
+            method=args.method,
+            modules=args.module,
+            formats=args.format,
+            compare_run=args.compare_run,
+            case_limit=args.case_limit,
+        )
 
     elif args.command == "llm-preprocess":
         from oneehr.cli.llm_preprocess import run_llm_preprocess

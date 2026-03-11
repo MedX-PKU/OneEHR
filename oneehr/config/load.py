@@ -6,6 +6,7 @@ from typing import Any
 import tomllib
 
 from oneehr.config.schema import (
+    AnalysisConfig,
     CalibrationConfig,
     DynamicTableConfig,
     DatasetConfig,
@@ -66,6 +67,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     model_raw = raw.get("model")
     models_raw = raw.get("models", [])
     output_raw = raw.get("output", {})
+    analysis_raw = raw.get("analysis", {})
     labels_raw = raw.get("labels", {})
     trainer_raw = raw.get("trainer", {})
     hpo_raw = raw.get("hpo", {})
@@ -265,6 +267,18 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         save_preds=bool(output_raw.get("save_preds", True)),
     )
 
+    if not isinstance(analysis_raw, dict):
+        raise ValueError("analysis must be a table")
+    analysis = AnalysisConfig(
+        default_modules=[str(m) for m in analysis_raw.get("default_modules", [])] or AnalysisConfig().default_modules,
+        formats=[str(f) for f in analysis_raw.get("formats", [])] or AnalysisConfig().formats,
+        top_k=int(analysis_raw.get("top_k", 20)),
+        stratify_by=[str(c) for c in analysis_raw.get("stratify_by", [])],
+        case_limit=int(analysis_raw.get("case_limit", 50)),
+        save_plot_specs=bool(analysis_raw.get("save_plot_specs", True)),
+        shap_max_samples=int(analysis_raw.get("shap_max_samples", 500)),
+    )
+
     trainer = TrainerConfig(
         device=str(trainer_raw.get("device", "auto")),
         precision=str(trainer_raw.get("precision", "fp32")),
@@ -400,6 +414,12 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     for model_cfg in llm_models:
         if model_cfg.provider != "openai_compatible":
             raise ValueError("llm_models.provider must be 'openai_compatible' in v1")
+    if analysis.top_k <= 0:
+        raise ValueError("analysis.top_k must be >= 1")
+    if analysis.case_limit <= 0:
+        raise ValueError("analysis.case_limit must be >= 1")
+    if analysis.shap_max_samples <= 0:
+        raise ValueError("analysis.shap_max_samples must be >= 1")
 
     return ExperimentConfig(
         dataset=dataset,
@@ -414,6 +434,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         hpo=hpo,
         hpo_by_model=hpo_by_model,
         calibration=calibration,
+        analysis=analysis,
         llm=llm,
         llm_models=llm_models,
         output=output,
