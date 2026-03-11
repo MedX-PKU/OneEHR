@@ -44,13 +44,19 @@ After training, check the results:
 
 ## 4. Analyze
 
-Run feature importance analysis:
+Run the default modular analysis suite:
 
 ```bash
 uv run oneehr analyze --config examples/experiment.toml
 ```
 
-Results are written to `logs/example/analysis/`.
+Results are written to `logs/example/analysis/`, including:
+
+- `analysis/index.json`
+- module summaries such as `analysis/prediction_audit/summary.json`
+- CSV tables such as `analysis/prediction_audit/slices.csv`
+- plot specs under `analysis/<module>/plots/`
+- static Markdown/HTML reports when enabled
 
 ## 5. (Optional) Test on external data
 

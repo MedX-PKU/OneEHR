@@ -115,6 +115,30 @@ source = "val"
 threshold_strategy = "f1"
 use_calibrated = true
 
+# Optional analysis/reporting workflow defaults for `oneehr analyze`.
+# The command always writes `analysis/index.json` and module summaries.
+#
+# [analysis]
+# default_modules = [
+#   "dataset_profile",
+#   "cohort_analysis",
+#   "prediction_audit",
+#   "temporal_analysis",
+#   "interpretability",
+#   "llm_audit",
+# ]
+# formats = ["json", "csv", "md", "html"]
+# top_k = 20
+# stratify_by = []
+# case_limit = 50
+# save_plot_specs = true
+# shap_max_samples = 500
+#
+# Example analysis commands:
+# uv run oneehr analyze --config examples/experiment.toml
+# uv run oneehr analyze --config examples/experiment.toml --module prediction_audit --module interpretability
+# uv run oneehr analyze --config examples/experiment.toml --compare-run logs/baseline_run
+
 # Optional LLM inference/evaluation workflow.
 # This uses grouped patient splits plus structured EHR prompts and
 # OpenAI-compatible chat completions.

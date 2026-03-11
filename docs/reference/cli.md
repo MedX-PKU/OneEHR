@@ -107,38 +107,49 @@ uv run oneehr test --config examples/experiment.toml --run-dir logs/example --te
 
 ## `oneehr analyze`
 
-Run feature importance analysis on trained models.
+Run modular analysis and static reporting on an existing run directory.
 
 ```
-oneehr analyze --config <toml> [--run-dir DIR] [--method xgboost|shap|attention]
+oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--format FMT] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--config` | `str` | *required* | Path to experiment TOML config |
 | `--run-dir` | `str` | from config | Run directory (overrides `output.root/output.run_name`) |
-| `--method` | `str` | `None` | Analysis method: `xgboost`, `shap`, or `attention` |
+| `--module` | repeatable `str` | from `[analysis].default_modules` | Analysis module to run |
+| `--format` | repeatable `str` | from `[analysis].formats` | Extra report formats: `json`, `csv`, `md`, `html` |
+| `--compare-run` | `str` | `None` | Optional second run directory for comparison reporting |
+| `--case-limit` | `int` | from `[analysis].case_limit` | Max case-level rows saved per slice |
+| `--method` | `str` | `None` | Compatibility shortcut for the `interpretability` module: `xgboost`, `shap`, or `attention` |
 
 **What it does:**
 
-1. Loads the run manifest and reads the tabular view (features + labels)
-2. For each trained model/split:
-    - **xgboost**: native feature importance (gain-based)
-    - **shap**: SHAP values via `shap.Explainer`
-    - **attention**: attention-weighted feature magnitudes (DL models with attention)
-3. Writes JSON results to `analysis/feature_importance_{model}_{split}_{method}.json`
+1. Loads the run manifest and existing train/LLM artifacts from the run directory
+2. Runs one or more analysis modules:
+    - `dataset_profile`
+    - `cohort_analysis`
+    - `prediction_audit`
+    - `temporal_analysis`
+    - `interpretability`
+    - `llm_audit`
+3. Writes `analysis/index.json` plus per-module summaries, CSV tables, plot specs, case tables, and optional Markdown/HTML reports
+4. Optionally writes `analysis/comparison/` when `--compare-run` is provided
+5. Preserves legacy `analysis/feature_importance_{model}_{split}_{method}.json` outputs for interpretability compatibility
 
-!!! note "Method availability"
-    - `xgboost` method works with XGBoost models only
-    - `shap` works with any model but requires `shap` (included in dependencies)
-    - `attention` works with DL models that expose attention weights
-    - For tabular models, `--method` is auto-selected if omitted
+!!! note "Interpretability compatibility"
+    - `--method` runs only the `interpretability` module
+    - `xgboost` works with XGBoost tabular models
+    - `shap` is attempted for supported tabular models; if the local SHAP stack is unavailable, the module records the error and continues
+    - `attention` is reserved for models that expose attention weights and may be skipped if unavailable in the current run
 
 **Example:**
 
 ```bash
 uv run oneehr analyze --config examples/experiment.toml
-uv run oneehr analyze --config examples/experiment.toml --method shap
+uv run oneehr analyze --config examples/experiment.toml --module prediction_audit --module interpretability
+uv run oneehr analyze --config examples/experiment.toml --compare-run logs/baseline_run
+uv run oneehr analyze --config examples/experiment.toml --method xgboost
 ```
 
 ---

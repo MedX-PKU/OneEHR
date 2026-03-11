@@ -39,33 +39,49 @@ OneEHR writes all experiment outputs to a structured run directory under `{outpu
     summary.json                            # (18)
     hpo_best.csv                            # (19)
     analysis/
-        feature_importance_{model}_{split}_{method}.json  # (20)
-    test_runs/                              # (21)
-    final/                                  # (22)
+        index.json                          # (20)
+        index.md                            # (21)
+        index.html                          # (22)
+        {module}/
+            summary.json                    # (23)
+            summary.md                      # (24)
+            summary.html                    # (25)
+            *.csv                           # (26)
+            plots/
+                *.json                      # (27)
+            cases/
+                *.parquet                   # (28)
+        comparison/
+            summary.json                    # (29)
+            train_metrics.csv               # (30)
+            llm_metrics.csv                 # (31)
+        feature_importance_{model}_{split}_{method}.json  # (32)
+    test_runs/                              # (33)
+    final/                                  # (34)
     llm/
         instances/
-            patient_instances.parquet       # (23)
-            time_instances.parquet          # (24)
-            summary.json                    # (25)
+            patient_instances.parquet       # (35)
+            time_instances.parquet          # (36)
+            summary.json                    # (37)
         prompts/
             {llm_model}/
-                {split}.jsonl               # (26)
+                {split}.jsonl               # (38)
         responses/
             {llm_model}/
-                {split}.jsonl               # (27)
+                {split}.jsonl               # (39)
         parsed/
             {llm_model}/
-                {split}.parquet             # (28)
+                {split}.parquet             # (40)
         preds/
             {llm_model}/
-                {split}.parquet             # (29)
+                {split}.parquet             # (41)
         failures/
             {llm_model}/
-                {split}.jsonl               # (30)
+                {split}.jsonl               # (42)
         metrics/
             {llm_model}/
-                {split}.json                # (31)
-        summary.json                        # (32)
+                {split}.json                # (43)
+        summary.json                        # (44)
 ```
 
 ---
@@ -277,9 +293,69 @@ Saved predictions (when `output.save_preds = true`). Columns:
 
 Written by `oneehr analyze`.
 
+### `analysis/index.json`
+
+Run-level index for the analysis bundle.
+
+Key fields:
+
+| Field | Description |
+|-------|-------------|
+| `schema_version` | Analysis schema version |
+| `run_name` | Run name from `[output].run_name` |
+| `task` | Task kind and prediction mode |
+| `modules` | Per-module artifact paths and statuses |
+| `comparison` | Optional compare-run outputs |
+
+### `analysis/{module}/summary.json`
+
+Module-level summary for one of:
+
+- `dataset_profile`
+- `cohort_analysis`
+- `prediction_audit`
+- `temporal_analysis`
+- `interpretability`
+- `llm_audit`
+
+Each summary includes `schema_version`, `module`, and `status`, plus module-specific summary fields.
+
+### `analysis/{module}/*.csv`
+
+Tabular exports for the module when `csv` output is enabled. Examples:
+
+- `analysis/dataset_profile/top_codes.csv`
+- `analysis/cohort_analysis/split_roles.csv`
+- `analysis/prediction_audit/slices.csv`
+- `analysis/temporal_analysis/segments.csv`
+- `analysis/llm_audit/slices.csv`
+
+### `analysis/{module}/plots/*.json`
+
+Serialized plot specifications written when `[analysis].save_plot_specs = true`.
+
+### `analysis/{module}/cases/*.parquet`
+
+Case-level audit exports. Current uses include:
+
+- `prediction_audit`: highest-error prediction rows per model/split
+- `llm_audit`: failure rows per LLM model/split when parse or request failures exist
+
+### `analysis/comparison/summary.json`
+
+Written only when `--compare-run` is provided. Summarizes metric deltas between the current run and the comparison run.
+
+### `analysis/comparison/train_metrics.csv`
+
+Per-model metric deltas derived from the two runs' `summary.json` files.
+
+### `analysis/comparison/llm_metrics.csv`
+
+Per-LLM-model metric deltas derived from the two runs' `llm/summary.json` files, when present in both runs.
+
 ### `analysis/feature_importance_{model}_{split}_{method}.json`
 
-Feature importance results. Fields:
+Legacy compatibility export written by the `interpretability` module. Fields:
 
 | Field | Description |
 |-------|-------------|

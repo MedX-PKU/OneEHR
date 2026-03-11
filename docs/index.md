@@ -2,7 +2,7 @@
 
 **An all-in-one EHR predictive modeling and analysis library in Python.**
 
-OneEHR is designed for researchers and clinicians who need to build predictive models from electronic health record (EHR) data. It provides an end-to-end pipeline from raw event tables to trained models with evaluation metrics.
+OneEHR is designed for researchers and clinicians who need to build predictive models from electronic health record (EHR) data. It provides an end-to-end pipeline from raw event tables to trained models, audit artifacts, and static analysis reports.
 
 ---
 
@@ -19,17 +19,17 @@ OneEHR is designed for researchers and clinicians who need to build predictive m
 ## The pipeline
 
 ```
-               preprocess          train           test           analyze
-dynamic.csv ──────────────→ features ────→ models ────→ metrics ────→ importance
-static.csv  ──┘               │                │
-label.csv   ──┘               ▼                ▼
-                         run_manifest    summary.json
+               preprocess          train           test              analyze
+dynamic.csv ──────────────→ features ────→ models ────→ metrics ────→ analysis bundle
+static.csv  ──┘               │                │                    │
+label.csv   ──┘               ▼                ▼                    ▼
+                         run_manifest    summary.json         index + reports
 ```
 
 1. **Preprocess**: bin irregular events into fixed time windows, build features, materialize tabular views
 2. **Train**: fit models with optional grid search, evaluate on patient-level splits
 3. **Test**: evaluate trained models on external datasets
-4. **Analyze**: compute feature importance (native, SHAP, attention)
+4. **Analyze**: write dataset/cohort/prediction/temporal/interpretability/LLM audit modules
 
 ## Quick start
 

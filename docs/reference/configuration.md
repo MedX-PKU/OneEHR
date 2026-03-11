@@ -313,6 +313,55 @@ threshold_strategy = "f1"
 
 ---
 
+## `[analysis]`
+
+Controls the default behavior of `oneehr analyze`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `default_modules` | `list[str]` | see below | Modules to run when `--module` is not specified |
+| `formats` | `list[str]` | `["json", "csv", "md", "html"]` | Extra report formats to emit |
+| `top_k` | `int` | `20` | Top-k rows/features retained in profile/drift tables |
+| `stratify_by` | `list[str]` | `[]` | Static columns used for subgroup metrics in `prediction_audit` |
+| `case_limit` | `int` | `50` | Max rows saved per case-level audit slice |
+| `save_plot_specs` | `bool` | `true` | Save serialized plot specs under `analysis/<module>/plots/` |
+| `shap_max_samples` | `int` | `500` | Max rows used when SHAP is attempted in `interpretability` |
+
+Default modules:
+
+- `dataset_profile`
+- `cohort_analysis`
+- `prediction_audit`
+- `temporal_analysis`
+- `interpretability`
+- `llm_audit`
+
+Notes:
+
+- `summary.json` and `analysis/index.json` are always written.
+- `--method` is a compatibility shortcut for the `interpretability` module.
+- `llm_audit` is skipped when the run has no `llm/summary.json`.
+
+```toml
+[analysis]
+default_modules = [
+  "dataset_profile",
+  "cohort_analysis",
+  "prediction_audit",
+  "temporal_analysis",
+  "interpretability",
+  "llm_audit",
+]
+formats = ["json", "csv", "md", "html"]
+top_k = 20
+stratify_by = []
+case_limit = 50
+save_plot_specs = true
+shap_max_samples = 500
+```
+
+---
+
 ## `[llm]`
 
 Top-level configuration for the LLM inference/evaluation workflow.

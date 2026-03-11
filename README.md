@@ -35,6 +35,7 @@ uv run oneehr analyze --config examples/experiment.toml
 ```
 
 Artifacts are written under `output.root/output.run_name` (defaults in config; the example uses `logs/example/`).
+The default analysis run writes a modular report bundle under `logs/example/analysis/`, including summaries, CSV tables, plot specs, and static Markdown/HTML reports.
 
 For the LLM workflow, run:
 
@@ -51,7 +52,7 @@ OneEHR is organized around an explicit pipeline:
 1. **Preprocess**: validate and bin irregular events into fixed time bins; build features; materialize tabular “views”.
 2. **Train**: fit one or more models; optionally run config-driven grid search (HPO) per model.
 3. **Test**: evaluate a trained run on the held-out test split, or on external test data (if a different dataset config is provided).
-4. **Analyze**: feature importance / interpretability hooks (method depends on model).
+4. **Analyze**: modular audit/reporting over the run directory, including dataset profiling, cohort drift, prediction audit, temporal slices, interpretability, and LLM audit.
 5. **LLM Preprocess / Predict**: materialize patient-level or time-window prompt instances, render structured summaries, call OpenAI-compatible chat completions, and score parsed predictions.
 
 ## Data Model (What You Provide)
@@ -130,6 +131,7 @@ High-level sections:
 - `[[models]]`: one or more models to train
 - `[hpo]` and `[hpo_models.<name>]`: optional config-driven grid search
 - `[trainer]`: generic training and selection behavior
+- `[analysis]`: default analysis modules, report formats, and audit limits
 - `[llm]`, `[llm.prompt]`, `[llm.output]`: LLM inference/evaluation behavior
 - `[[llm_models]]`: one or more OpenAI-compatible chat completion endpoints/models
 - `[output]`: where run artifacts are written
@@ -187,6 +189,43 @@ Notes:
 - `llm.sample_unit` must match `task.prediction_mode`.
 - `labels` are optional for patient-level inference, but time-level LLM evaluation requires labels.
 - LLM-only configs are allowed. You do not need `[model]` or `[[models]]` when the run is only for `preprocess`, `llm-preprocess`, and `llm-predict`.
+
+### Analysis workflow
+
+`oneehr analyze` now writes a modular analysis bundle instead of a single feature-importance file. The default module set is:
+
+- `dataset_profile`
+- `cohort_analysis`
+- `prediction_audit`
+- `temporal_analysis`
+- `interpretability`
+- `llm_audit`
+
+Minimal config shape:
+
+```toml
+[analysis]
+default_modules = [
+  "dataset_profile",
+  "cohort_analysis",
+  "prediction_audit",
+  "temporal_analysis",
+  "interpretability",
+  "llm_audit",
+]
+formats = ["json", "csv", "md", "html"]
+top_k = 20
+stratify_by = []
+case_limit = 50
+save_plot_specs = true
+shap_max_samples = 500
+```
+
+Notes:
+
+- `summary.json` and `analysis/index.json` are always written.
+- `formats` controls which extra human-readable report outputs are emitted; the default writes CSV tables plus Markdown/HTML reports.
+- `--method` remains a compatibility shortcut for the `interpretability` module.
 
 ## Splits (Leakage Prevention)
 
@@ -309,7 +348,7 @@ Run `uv run oneehr --help` for authoritative flags. Current commands:
 - `oneehr preprocess --config <toml>`: preprocessing + artifact materialization
 - `oneehr train --config <toml> [--force]`: training + optional grid search + evaluation summaries
 - `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on test data
-- `oneehr analyze --config <toml> [--run-dir <run>] --method <xgboost|shap|attention>`: feature importance analysis
+- `oneehr analyze --config <toml> [--run-dir <run>] [--module <name>] [--format <fmt>] [--compare-run <run>] [--case-limit <n>] [--method <xgboost|shap|attention>]`: modular run analysis and static report generation
 - `oneehr llm-preprocess --config <toml> [--run-dir <run>] [--force]`: materialize LLM prompt instances from grouped patient splits
 - `oneehr llm-predict --config <toml> [--run-dir <run>] [--force]`: render prompts, call OpenAI-compatible chat completions, parse strict JSON, and write LLM evaluation artifacts
 
@@ -336,6 +375,14 @@ Key artifacts you can rely on:
   - `hpo_best.csv`: best HPO config per model
   - `preds/<model>/...`: predictions (if `output.save_preds = true`)
   - `hpo/<model>/...`: grid search trials and selected configs (if enabled)
+- Analysis outputs:
+  - `analysis/index.json`: run-level analysis index
+  - `analysis/<module>/summary.json`: module summary
+  - `analysis/<module>/*.csv`: module tables (when `csv` format is enabled)
+  - `analysis/<module>/plots/*.json`: serialized plot specs
+  - `analysis/<module>/cases/*.parquet`: case-level audit exports
+  - `analysis/comparison/*`: optional compare-run outputs
+  - `analysis/feature_importance_{model}_{split}_{method}.json`: legacy compatibility exports from the interpretability module
 - LLM outputs:
   - `llm/instances/*.parquet`: patient-level or time-level prompt instances
   - `llm/prompts/<llm_model>/*.jsonl`: rendered prompts (default on)
@@ -392,6 +439,26 @@ uv run oneehr llm-predict --config examples/experiment.toml
 ```
 
 This writes all LLM outputs under `logs/<run_name>/llm/`.
+
+### 5) Modular analysis and static reports
+
+Run the full default analysis suite:
+
+```bash
+uv run oneehr analyze --config examples/experiment.toml
+```
+
+Run only selected modules and compare against another run:
+
+```bash
+uv run oneehr analyze \
+  --config examples/experiment.toml \
+  --module prediction_audit \
+  --module interpretability \
+  --compare-run logs/baseline_run
+```
+
+The analysis command writes `analysis/index.json` plus per-module summaries, CSV tables, plot specs, and optional Markdown/HTML reports.
 
 ## Documentation
 
