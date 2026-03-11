@@ -58,6 +58,12 @@ Results are written to `logs/example/analysis/`, including:
 - plot specs under `analysis/<module>/plots/`
 - static Markdown/HTML reports when enabled
 
+If you want machine-readable access to those artifacts for an external agent or script:
+
+```bash
+uv run oneehr inspect --tool analysis.read_summary --run-dir logs/example --module prediction_audit
+```
+
 ## 5. (Optional) Test on external data
 
 If you have a separate test dataset:

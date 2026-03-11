@@ -5,7 +5,7 @@ OneEHR is an end-to-end EHR predictive modeling + analysis toolkit in Python, de
 - **Doctor-friendly input**: start from a single long-form event table (CSV/Excel).
 - **Leakage prevention by default**: all data splits are patient-level group splits.
 - **TOML-first experiments**: most behavior is configured via one `experiment.toml`.
-- **CLI-first workflow**: preprocess → train/test/analyze for ML/DL, plus LLM-specific prompt materialization and prediction commands.
+- **CLI-first workflow**: preprocess → train/test/analyze/inspect for ML/DL, plus LLM-specific prompt materialization and prediction commands.
 
 This README is the user-facing guide. For full documentation, see the [docs site](https://medx-pku.github.io/OneEHR/) or build locally with `uv run mkdocs serve` (MkDocs 2 pre-release + `mkdocs.toml`). If you are using agents to modify the repo, read `AGENTS.md` too.
 
@@ -53,7 +53,8 @@ OneEHR is organized around an explicit pipeline:
 2. **Train**: fit one or more models; optionally run config-driven grid search (HPO) per model.
 3. **Test**: evaluate a trained run on the held-out test split, or on external test data (if a different dataset config is provided).
 4. **Analyze**: modular audit/reporting over the run directory, including dataset profiling, cohort drift, prediction audit, temporal slices, interpretability, and LLM audit.
-5. **LLM Preprocess / Predict**: materialize patient-level or time-window prompt instances, render structured summaries, call OpenAI-compatible chat completions, and score parsed predictions.
+5. **Inspect**: expose run, analysis, case, and cohort artifacts through a stable JSON contract for external agents and automation.
+6. **LLM Preprocess / Predict**: materialize patient-level or time-window prompt instances, render structured summaries, call OpenAI-compatible chat completions, and score parsed predictions.
 
 ## Data Model (What You Provide)
 
@@ -349,6 +350,7 @@ Run `uv run oneehr --help` for authoritative flags. Current commands:
 - `oneehr train --config <toml> [--force]`: training + optional grid search + evaluation summaries
 - `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on test data
 - `oneehr analyze --config <toml> [--run-dir <run>] [--module <name>] [--format <fmt>] [--compare-run <run>] [--case-limit <n>] [--method <xgboost|shap|attention>]`: modular run analysis and static report generation
+- `oneehr inspect --tool <name> [--config <toml> | --run-dir <run> | --root <dir>]`: read run, analysis, case, and cohort artifacts as JSON for agents
 - `oneehr llm-preprocess --config <toml> [--run-dir <run>] [--force]`: materialize LLM prompt instances from grouped patient splits
 - `oneehr llm-predict --config <toml> [--run-dir <run>] [--force]`: render prompts, call OpenAI-compatible chat completions, parse strict JSON, and write LLM evaluation artifacts
 
@@ -459,6 +461,32 @@ uv run oneehr analyze \
 ```
 
 The analysis command writes `analysis/index.json` plus per-module summaries, CSV tables, plot specs, and optional Markdown/HTML reports.
+
+### 6) Agent-facing JSON inspection
+
+Use `oneehr inspect` when an external agent or automation layer needs stable read-only access to OneEHR artifacts:
+
+```bash
+uv run oneehr inspect --tool runs.list --root logs
+uv run oneehr inspect --tool runs.describe --run-dir logs/example
+uv run oneehr inspect --tool analysis.read_summary --run-dir logs/example --module prediction_audit
+uv run oneehr inspect --tool cases.describe_patient --run-dir logs/example --patient-id p0001
+uv run oneehr inspect --tool cohorts.compare --run-dir logs/example --split fold0 --left-role train --right-role test
+```
+
+The inspect contract currently exposes:
+
+- `runs.list`
+- `runs.describe`
+- `analysis.list_modules`
+- `analysis.read_index`
+- `analysis.read_summary`
+- `analysis.read_table`
+- `analysis.read_plot_spec`
+- `cases.list_failures`
+- `cases.read_failures`
+- `cases.describe_patient`
+- `cohorts.compare`
 
 ## Documentation
 

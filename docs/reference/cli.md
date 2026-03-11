@@ -1,6 +1,6 @@
 # CLI Reference
 
-OneEHR provides a single `oneehr` CLI with six subcommands that map to the experiment pipeline: **preprocess**, **train**, **test**, **analyze**, **llm-preprocess**, **llm-predict**.
+OneEHR provides a single `oneehr` CLI with seven subcommands that map to the experiment pipeline: **preprocess**, **train**, **test**, **analyze**, **inspect**, **llm-preprocess**, **llm-predict**.
 
 Run `uv run oneehr --help` for the authoritative list of flags.
 
@@ -150,6 +150,64 @@ uv run oneehr analyze --config examples/experiment.toml
 uv run oneehr analyze --config examples/experiment.toml --module prediction_audit --module interpretability
 uv run oneehr analyze --config examples/experiment.toml --compare-run logs/baseline_run
 uv run oneehr analyze --config examples/experiment.toml --method xgboost
+```
+
+---
+
+## `oneehr inspect`
+
+Read existing run and analysis artifacts as machine-readable JSON. This command is intended for agents, scripts, notebooks, or external orchestration layers that need a stable read-only contract over OneEHR outputs.
+
+```
+oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--tool` | `str` | *required* | Inspect contract name |
+| `--config` | `str` | `None` | Optional config used to resolve the run directory |
+| `--run-dir` | `str` | `None` | Run directory for run-scoped tools |
+| `--root` | `str` | `"logs"` | Run root for `runs.list` |
+| `--module` | `str` | `None` | Analysis/case module name |
+| `--table` | `str` | `None` | Table name for `analysis.read_table` |
+| `--plot` | `str` | `None` | Plot name for `analysis.read_plot_spec` |
+| `--patient-id` | `str` | `None` | Patient identifier for `cases.describe_patient` |
+| `--name` | `str` | `None` | Optional case artifact name filter |
+| `--split` | `str` | `None` | Split name for `cohorts.compare` |
+| `--left-role` | `str` | `"train"` | Left cohort role for `cohorts.compare` |
+| `--right-role` | `str` | `"test"` | Right cohort role for `cohorts.compare` |
+| `--limit` | `int` | `None` | Max rows returned for table/case queries |
+| `--top-k` | `int` | `10` | Max feature-drift rows returned for `cohorts.compare` |
+
+Supported tools:
+
+- `runs.list`
+- `runs.describe`
+- `analysis.list_modules`
+- `analysis.read_index`
+- `analysis.read_summary`
+- `analysis.read_table`
+- `analysis.read_plot_spec`
+- `cases.list_failures`
+- `cases.read_failures`
+- `cases.describe_patient`
+- `cohorts.compare`
+
+**What it does:**
+
+1. Resolves a run directory from `--run-dir` or `--config` when needed
+2. Loads the requested run/analysis/case/cohort artifact
+3. Prints a stable JSON payload to stdout
+4. Never mutates repo-tracked state
+
+**Example:**
+
+```bash
+uv run oneehr inspect --tool runs.list --root logs
+uv run oneehr inspect --tool runs.describe --run-dir logs/example
+uv run oneehr inspect --tool analysis.read_table --run-dir logs/example --module prediction_audit --table slices --limit 5
+uv run oneehr inspect --tool cases.describe_patient --run-dir logs/example --patient-id p0001
+uv run oneehr inspect --tool cohorts.compare --run-dir logs/example --split fold0 --left-role train --right-role test
 ```
 
 ---

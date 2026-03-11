@@ -11,7 +11,7 @@ OneEHR is designed for researchers and clinicians who need to build predictive m
 - **Doctor-friendly input** -- start from a single long-form event table (CSV/Excel)
 - **Leakage prevention by default** -- all data splits are patient-level group splits
 - **TOML-first experiments** -- most behavior is configured via one `experiment.toml`
-- **CLI-first workflow** -- `preprocess` -> `train` -> `test` -> `analyze`
+- **CLI-first workflow** -- `preprocess` -> `train` -> `test` -> `analyze` -> `inspect`
 - **18 models** -- 5 tabular (XGBoost, CatBoost, RF, DT, GBDT) and 13 deep learning (GRU, LSTM, RNN, Transformer, TCN, MLP, AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent)
 - **Config-driven HPO** -- grid search built into the training pipeline
 - **Probability calibration** -- temperature and Platt scaling for binary tasks
