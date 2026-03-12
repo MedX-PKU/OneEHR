@@ -50,6 +50,43 @@ def create_app(*, root_dir: str | Path | None = None, static_dir: str | Path | N
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.get("/api/v1/runs/{run_name}/cases")
+    def cases_route(
+        run_name: str,
+        limit: int = Query(default=25, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+        split: str | None = None,
+        search: str | None = None,
+    ):
+        try:
+            return service.cases_payload(
+                run_name=run_name,
+                limit=limit,
+                offset=offset,
+                split=split,
+                search=search,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/v1/runs/{run_name}/cases/{case_id}")
+    def case_detail_route(
+        run_name: str,
+        case_id: str,
+        limit: int = Query(default=100, ge=1, le=2000),
+    ):
+        try:
+            return service.case_detail_payload(run_name=run_name, case_id=case_id, limit=limit)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/v1/runs/{run_name}/agents")
+    def agents_route(run_name: str):
+        try:
+            return service.agents_payload(run_name=run_name)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get("/api/v1/runs/{run_name}/analysis")
     def analysis_index_route(run_name: str):
         try:

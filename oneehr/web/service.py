@@ -6,20 +6,9 @@ from typing import Any
 
 import pandas as pd
 
-from oneehr.analysis.read import read_analysis_table as _read_analysis_table_df
-from oneehr.artifacts.read import read_run_manifest
-from oneehr.query import (
-    compare_cohorts,
-    describe_patient_case,
-    describe_run,
-    list_failure_cases,
-    list_runs,
-    read_analysis_index,
-    read_analysis_plot_spec,
-    read_analysis_summary,
-    read_failure_cases,
-)
+from oneehr.query import compare_cohorts
 from oneehr.utils.io import as_jsonable
+from oneehr.workspace import RunWorkspace, WorkspaceStore
 
 
 MODULE_META: dict[str, dict[str, str]] = {
@@ -93,15 +82,23 @@ TABLE_TITLES = {
     "failures": "Failures",
     "train_metrics": "Train Metric Deltas",
     "agent_predict_metrics": "Agent Predict Metric Deltas",
+    "timeline": "Case Timeline",
+    "predictions": "Case Predictions",
+    "static_features": "Static Features",
+    "analysis_modules": "Analysis References",
+    "patient_case_matches": "Patient Case Matches",
+    "agent_predict_records": "Agent Prediction Records",
+    "agent_review_records": "Agent Review Records",
 }
 
 
 class WebUIService:
     def __init__(self, *, root_dir: str | Path):
         self.root_dir = Path(root_dir).resolve()
+        self.store = WorkspaceStore(self.root_dir)
 
     def list_runs_payload(self) -> dict[str, Any]:
-        rows = list_runs(self.root_dir)
+        rows = self.store.list_runs()
         out = []
         for row in rows:
             item = dict(row)
@@ -117,8 +114,8 @@ class WebUIService:
         }
 
     def describe_run_payload(self, *, run_name: str) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
-        run = describe_run(run_root)
+        workspace = self._resolve_workspace(run_name)
+        run = workspace.describe()
         analysis = self.analysis_index_payload(run_name=run_name)
         hero = {
             "run_name": run["run_name"],
@@ -133,12 +130,18 @@ class WebUIService:
             "run": run,
             "hero": hero,
             "analysis": analysis,
+            "workspace": {
+                "overview_route": f"/runs/{run_name}",
+                "cases_route": f"/runs/{run_name}/cases",
+                "agents_route": f"/runs/{run_name}/agents",
+                "comparison_route": f"/runs/{run_name}/comparison",
+            },
         }
 
     def analysis_index_payload(self, *, run_name: str) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
+        workspace = self._resolve_workspace(run_name)
         try:
-            index = read_analysis_index(run_root)
+            index = workspace.analysis_index()
         except FileNotFoundError:
             return {
                 "run_name": str(run_name),
@@ -163,18 +166,18 @@ class WebUIService:
         }
 
     def analysis_dashboard_payload(self, *, run_name: str, module_name: str) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
+        workspace = self._resolve_workspace(run_name)
         module_item = self._get_module_index_item(run_name=run_name, module_name=module_name)
-        summary = self._read_module_summary(run_root=run_root, module_name=module_name)
-        tables = self._module_table_previews(run_root=run_root, module_name=module_name, module_item=module_item)
-        charts = self._module_charts(run_root=run_root, module_name=module_name, module_item=module_item)
+        summary = self._read_module_summary(workspace=workspace, module_name=module_name)
+        tables = self._module_table_previews(workspace=workspace, module_name=module_name, module_item=module_item)
+        charts = self._module_charts(workspace=workspace, module_name=module_name, module_item=module_item)
         highlights = self._module_highlights(
-            run_root=run_root,
+            workspace=workspace,
             module_name=module_name,
             summary=summary,
             tables=tables,
         )
-        case_artifacts = list_failure_cases(run_root, module_name=module_name) if self._supports_cases(module_name) else []
+        case_artifacts = workspace.failure_case_artifacts(module_name) if self._supports_cases(module_name) else []
         drilldowns = {
             "case_artifacts": case_artifacts,
             "patient_case_supported": bool(self._supports_cases(module_name)),
@@ -205,9 +208,9 @@ class WebUIService:
         filter_col: str | None = None,
         filter_value: str | None = None,
     ) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
+        workspace = self._resolve_workspace(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
-        df = _read_analysis_table_df(run_root, module_name, table_name)
+        df = workspace.analysis_table(module_name, table_name)
         df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
         df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
         total_rows = int(len(df))
@@ -226,7 +229,7 @@ class WebUIService:
         }
 
     def analysis_cases_index_payload(self, *, run_name: str, module_name: str) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
+        workspace = self._resolve_workspace(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
         if not self._supports_cases(module_name):
             return {
@@ -237,7 +240,7 @@ class WebUIService:
         return {
             "run_name": str(run_name),
             "module": str(module_name),
-            "case_artifacts": list_failure_cases(run_root, module_name=module_name),
+            "case_artifacts": workspace.failure_case_artifacts(module_name),
         }
 
     def analysis_case_rows_payload(
@@ -253,12 +256,12 @@ class WebUIService:
         filter_col: str | None = None,
         filter_value: str | None = None,
     ) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
+        workspace = self._resolve_workspace(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
-        cases = list_failure_cases(run_root, module_name=module_name)
+        cases = workspace.failure_case_artifacts(module_name)
         if case_name not in {row["name"] for row in cases}:
             raise FileNotFoundError(f"Unknown case artifact {case_name!r} for module {module_name!r}")
-        payload = read_failure_cases(run_root, module_name=module_name, name=case_name)
+        payload = workspace.failure_case_rows(module_name, name=case_name)
         df = pd.DataFrame(payload.get("records", []))
         df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
         df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
@@ -284,18 +287,135 @@ class WebUIService:
         patient_id: str,
         limit: int = 25,
     ) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
+        workspace = self._resolve_workspace(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
-        payload = describe_patient_case(run_root, patient_id, module_name=module_name, limit=limit)
+        payload = workspace.patient_case_matches(patient_id, module_name, limit=limit)
         return {
             "run_name": str(run_name),
             "module": str(module_name),
             "patient": payload,
         }
 
+    def cases_payload(
+        self,
+        *,
+        run_name: str,
+        limit: int = 25,
+        offset: int = 0,
+        split: str | None = None,
+        search: str | None = None,
+    ) -> dict[str, Any]:
+        workspace = self._resolve_workspace(run_name)
+        index = workspace.cases_index_optional()
+        if not index:
+            return {
+                "run_name": str(run_name),
+                "status": "missing",
+                "case_count": 0,
+                "offset": int(offset),
+                "limit": int(limit),
+                "row_count": 0,
+                "total_rows": 0,
+                "splits": [],
+                "columns": [],
+                "records": [],
+            }
+
+        df = pd.DataFrame(workspace.case_records())
+        if split is not None and not df.empty and "split" in df.columns:
+            df = df[df["split"].astype(str) == str(split)].reset_index(drop=True)
+        if search is not None and search.strip() and not df.empty:
+            query = search.strip().lower()
+            mask = (
+                df.get("case_id", pd.Series(dtype="object")).astype(str).str.lower().str.contains(query, na=False)
+                | df.get("patient_id", pd.Series(dtype="object")).astype(str).str.lower().str.contains(query, na=False)
+            )
+            df = df.loc[mask].reset_index(drop=True)
+
+        total_rows = int(len(df))
+        page = df.iloc[offset : offset + limit].reset_index(drop=True)
+        return {
+            "run_name": str(run_name),
+            "status": "ok",
+            "case_count": int(index.get("case_count", 0) or 0),
+            "offset": int(offset),
+            "limit": int(limit),
+            "row_count": int(len(page)),
+            "total_rows": total_rows,
+            "splits": sorted(df["split"].astype(str).unique().tolist()) if "split" in df.columns else [],
+            "columns": self._column_specs(page if not page.empty else df),
+            "records": as_jsonable(page.to_dict(orient="records")),
+        }
+
+    def case_detail_payload(self, *, run_name: str, case_id: str, limit: int = 100) -> dict[str, Any]:
+        workspace = self._resolve_workspace(run_name)
+        case = workspace.read_case(case_id, limit=limit)
+        static_payload = case.get("static", {})
+        static_features = {}
+        if isinstance(static_payload, dict):
+            maybe = static_payload.get("features", {})
+            if isinstance(maybe, dict):
+                static_features = maybe
+        static_rows = [{"feature": key, "value": value} for key, value in static_features.items()]
+
+        analysis_refs = case.get("analysis_refs", {})
+        ref_modules = analysis_refs.get("modules", []) if isinstance(analysis_refs, dict) else []
+        ref_matches = analysis_refs.get("patient_case_matches", []) if isinstance(analysis_refs, dict) else []
+
+        timeline_df = pd.DataFrame(case.get("events", []))
+        predictions_df = pd.DataFrame(case.get("predictions", []))
+        static_df = pd.DataFrame(static_rows)
+        modules_df = pd.DataFrame(ref_modules)
+        matches_df = pd.DataFrame(ref_matches)
+
+        case_meta = {
+            key: value
+            for key, value in case.items()
+            if key not in {"events", "predictions", "static", "analysis_refs"}
+        }
+        case_meta["route"] = f"/runs/{run_name}/cases/{case_id}"
+        return {
+            "run_name": str(run_name),
+            "case": as_jsonable(case_meta),
+            "timeline": self._table_payload_from_frame(name="timeline", df=timeline_df, preview_limit=None),
+            "predictions": self._table_payload_from_frame(name="predictions", df=predictions_df, preview_limit=None),
+            "static": {
+                "feature_count": int(len(static_rows)),
+                "table": self._table_payload_from_frame(name="static_features", df=static_df, preview_limit=None),
+            },
+            "analysis_refs": {
+                "module_count": int(len(ref_modules)),
+                "patient_case_match_count": int(len(ref_matches)),
+                "modules": self._table_payload_from_frame(name="analysis_modules", df=modules_df, preview_limit=None),
+                "patient_case_matches": self._table_payload_from_frame(
+                    name="patient_case_matches",
+                    df=matches_df,
+                    preview_limit=None,
+                ),
+            },
+        }
+
+    def agents_payload(self, *, run_name: str) -> dict[str, Any]:
+        workspace = self._resolve_workspace(run_name)
+        return {
+            "run_name": str(run_name),
+            "predict": self._agent_task_payload(
+                task_name="predict",
+                summary=workspace.agent_predict_summary_optional(),
+                records=workspace.agent_predict_records(),
+                actor_field="predictor_name",
+            ),
+            "review": self._agent_task_payload(
+                task_name="review",
+                summary=workspace.agent_review_summary_optional(),
+                records=workspace.agent_review_records(),
+                actor_field="reviewer_name",
+            ),
+        }
+
     def comparison_payload(self, *, run_name: str) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
-        comparison_dir = run_root / "analysis" / "comparison"
+        workspace = self._resolve_workspace(run_name)
+        comparison_dir = workspace.run_root / "analysis" / "comparison"
         summary_path = comparison_dir / "summary.json"
         if not summary_path.exists():
             return {
@@ -368,11 +488,11 @@ class WebUIService:
         right_role: str,
         top_k: int,
     ) -> dict[str, Any]:
-        run_root = self._resolve_run(run_name)
+        workspace = self._resolve_workspace(run_name)
         return {
             "run_name": str(run_name),
             "comparison": compare_cohorts(
-                run_root,
+                workspace.run_root,
                 split=split,
                 left_role=left_role,
                 right_role=right_role,
@@ -380,12 +500,74 @@ class WebUIService:
             ),
         }
 
-    def _resolve_run(self, run_name: str) -> Path:
-        run_root = (self.root_dir / run_name).resolve()
-        manifest = read_run_manifest(run_root)
-        if manifest is None:
-            raise FileNotFoundError(f"Missing run under {self.root_dir}: {run_name}")
-        return run_root
+    def _resolve_workspace(self, run_name: str) -> RunWorkspace:
+        return self.store.open_run(run_name)
+
+    def _agent_task_payload(
+        self,
+        *,
+        task_name: str,
+        summary: dict[str, Any],
+        records: list[dict[str, Any]],
+        actor_field: str,
+    ) -> dict[str, Any]:
+        if not summary:
+            return {
+                "status": "missing",
+                "summary": None,
+                "cards": [],
+                "table": None,
+                "actors": [],
+            }
+
+        df = pd.DataFrame(records)
+        cards = []
+        actors: list[str] = []
+        if actor_field in df.columns and not df.empty:
+            actors = sorted(df[actor_field].dropna().astype(str).unique().tolist())
+        cards.append(self._kpi_card(field=f"{task_name}_records", value=len(records)))
+        cards.append(self._kpi_card(field=f"{task_name}_actors", value=len(actors)))
+
+        if "parse_success_rate" in df.columns and not df.empty:
+            cards.append(
+                {
+                    "id": "parse_success_rate_mean",
+                    "label": "Mean Parse Success Rate",
+                    "value": float(pd.to_numeric(df["parse_success_rate"], errors="coerce").fillna(0.0).mean()),
+                    "format": "float",
+                }
+            )
+        if "coverage" in df.columns and not df.empty:
+            cards.append(
+                {
+                    "id": "coverage_mean",
+                    "label": "Mean Coverage",
+                    "value": float(pd.to_numeric(df["coverage"], errors="coerce").fillna(0.0).mean()),
+                    "format": "float",
+                }
+            )
+
+        agent_block = summary.get(f"agent_{task_name}", {})
+        if isinstance(agent_block, dict):
+            prompt_template = agent_block.get("prompt_template")
+            if prompt_template:
+                cards.append(
+                    {
+                        "id": "prompt_template",
+                        "label": "Prompt Template",
+                        "value": str(prompt_template),
+                        "format": "text",
+                    }
+                )
+
+        table_name = f"agent_{task_name}_records"
+        return {
+            "status": "ok",
+            "summary": as_jsonable(summary),
+            "cards": cards,
+            "table": self._table_payload_from_frame(name=table_name, df=df, preview_limit=None),
+            "actors": actors,
+        }
 
     def _normalize_module_index_item(self, *, run_name: str, item: dict[str, Any]) -> dict[str, Any]:
         name = str(item.get("name"))
@@ -418,27 +600,39 @@ class WebUIService:
                 return item
         raise FileNotFoundError(f"Missing analysis module {module_name!r} for run {run_name!r}")
 
-    def _read_module_summary(self, *, run_root: Path, module_name: str) -> dict[str, Any]:
+    def _read_module_summary(self, *, workspace: RunWorkspace, module_name: str) -> dict[str, Any]:
         try:
-            return read_analysis_summary(run_root, module_name)
+            return workspace.analysis_summary(module_name)
         except FileNotFoundError:
             return {"module": module_name, "status": "missing"}
 
-    def _module_table_previews(self, *, run_root: Path, module_name: str, module_item: dict[str, Any]) -> list[dict[str, Any]]:
+    def _module_table_previews(
+        self,
+        *,
+        workspace: RunWorkspace,
+        module_name: str,
+        module_item: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         previews = []
         for table_name in module_item.get("table_names", []):
             try:
-                df = _read_analysis_table_df(run_root, module_name, table_name)
+                df = workspace.analysis_table(module_name, table_name)
             except FileNotFoundError:
                 continue
             previews.append(self._table_payload_from_frame(name=table_name, df=df, preview_limit=8))
         return previews
 
-    def _module_charts(self, *, run_root: Path, module_name: str, module_item: dict[str, Any]) -> list[dict[str, Any]]:
+    def _module_charts(
+        self,
+        *,
+        workspace: RunWorkspace,
+        module_name: str,
+        module_item: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         charts = []
         for plot_name in module_item.get("plot_names", []):
             try:
-                spec = read_analysis_plot_spec(run_root, module_name, plot_name)
+                spec = workspace.analysis_plot_spec(module_name, plot_name)
             except FileNotFoundError:
                 continue
             charts.append(
@@ -459,7 +653,7 @@ class WebUIService:
         fallback = []
         table_names = module_item.get("table_names", [])
         if module_name == "interpretability" and "artifacts" in table_names:
-            df = _read_analysis_table_df(run_root, module_name, "artifacts")
+            df = workspace.analysis_table(module_name, "artifacts")
             ok_rows = df[df.get("status", "").astype(str) == "ok"].copy() if "status" in df.columns else df
             if not ok_rows.empty:
                 fallback.append(
@@ -523,7 +717,7 @@ class WebUIService:
     def _module_highlights(
         self,
         *,
-        run_root: Path,
+        workspace: RunWorkspace,
         module_name: str,
         summary: dict[str, Any],
         tables: list[dict[str, Any]],
@@ -541,7 +735,13 @@ class WebUIService:
                 )
         elif module_name == "cohort_analysis":
             try:
-                comparison = compare_cohorts(run_root, split=None, left_role="train", right_role="test", top_k=3)
+                comparison = compare_cohorts(
+                    workspace.run_root,
+                    split=None,
+                    left_role="train",
+                    right_role="test",
+                    top_k=3,
+                )
             except Exception:
                 comparison = None
             if comparison is not None:
@@ -603,8 +803,16 @@ class WebUIService:
             highlights.append({"title": "Module state", "body": str(summary["reason"])})
         return highlights
 
-    def _table_payload_from_frame(self, *, name: str, df: pd.DataFrame, preview_limit: int) -> dict[str, Any]:
-        preview = df.head(preview_limit).reset_index(drop=True)
+    def _table_payload_from_frame(
+        self,
+        *,
+        name: str,
+        df: pd.DataFrame,
+        preview_limit: int | None,
+    ) -> dict[str, Any]:
+        preview = df if preview_limit is None else df.head(preview_limit)
+        preview = preview.reset_index(drop=True)
+        preview = preview.astype(object).where(pd.notna(preview), None)
         return {
             "name": str(name),
             "title": TABLE_TITLES.get(name, self._titleize(name)),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import pytest
 from oneehr.web.service import WebUIService
 from test_analysis import _build_trained_run
 from test_inspect import _build_analyzed_run
+from test_review import _build_review_run, _mock_review_server
+from test_workspace import _build_cases_run
 
 
 def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
@@ -90,13 +93,49 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     assert len(comparison["charts"]) >= 1
 
 
+def test_webui_service_cases_payloads(tmp_path: Path) -> None:
+    run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="webui_cases", seed=19)
+    service = WebUIService(root_dir=run_root.parent)
+
+    cases = service.cases_payload(run_name="webui_cases", limit=10)
+    assert cases["status"] == "ok"
+    assert cases["case_count"] >= 1
+    assert cases["row_count"] >= 1
+
+    case_id = str(cases["records"][0]["case_id"])
+    detail = service.case_detail_payload(run_name="webui_cases", case_id=case_id, limit=3)
+    assert detail["case"]["case_id"] == case_id
+    assert detail["timeline"]["row_count"] >= 1
+    assert detail["predictions"]["row_count"] >= 1
+    assert detail["static"]["feature_count"] >= 1
+
+
+def test_webui_service_agents_payload(tmp_path: Path) -> None:
+    with _mock_review_server() as (_, base_url):
+        run_root, cfg_path = _build_review_run(
+            tmp_path=tmp_path,
+            run_name="webui_agents",
+            seed=41,
+            base_url=base_url,
+        )
+        env = os.environ.copy()
+        env["TEST_OPENAI_API_KEY"] = "dummy"
+        subprocess.check_call(["oneehr", "agent", "review", "--config", str(cfg_path)], env=env)
+
+    service = WebUIService(root_dir=run_root.parent)
+    payload = service.agents_payload(run_name="webui_agents")
+    assert payload["predict"]["status"] == "missing"
+    assert payload["review"]["status"] == "ok"
+    assert payload["review"]["table"]["row_count"] >= 1
+
+
 def test_webui_fastapi_routes(tmp_path: Path) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
     from oneehr.web import create_app
 
-    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="webui_api", seed=17)
+    run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="webui_api", seed=17)
     client = TestClient(create_app(root_dir=run_root.parent))
 
     runs = client.get("/api/v1/runs")
@@ -110,6 +149,19 @@ def test_webui_fastapi_routes(tmp_path: Path) -> None:
     cases = client.get(f"/api/v1/runs/{run_root.name}/analysis/prediction_audit/cases")
     assert cases.status_code == 200
     assert len(cases.json()["case_artifacts"]) > 0
+
+    workspace_cases = client.get(f"/api/v1/runs/{run_root.name}/cases")
+    assert workspace_cases.status_code == 200
+    assert workspace_cases.json()["case_count"] >= 1
+
+    case_id = workspace_cases.json()["records"][0]["case_id"]
+    case_detail = client.get(f"/api/v1/runs/{run_root.name}/cases/{case_id}")
+    assert case_detail.status_code == 200
+    assert case_detail.json()["case"]["case_id"] == case_id
+
+    agents = client.get(f"/api/v1/runs/{run_root.name}/agents")
+    assert agents.status_code == 200
+    assert agents.json()["predict"]["status"] == "missing"
 
 
 def test_cli_webui_help() -> None:

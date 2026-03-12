@@ -1,6 +1,6 @@
 # Web UI
 
-OneEHR ships a first-party Web UI for run discovery, analysis dashboards, comparison views, and audit drill-downs.
+OneEHR ships a first-party Web UI for run discovery, workspace overviews, analysis dashboards, case bundles, agent outputs, and comparison views.
 
 The architecture is intentionally artifact-first:
 
@@ -71,6 +71,8 @@ Current pages:
 
 - run explorer
 - run overview
+- cases workspace and case detail pages
+- agents workspace for prediction/review outputs
 - module dashboards for `dataset_profile`, `cohort_analysis`, `prediction_audit`, `temporal_analysis`, `interpretability`, and `agent_audit`
 - compare-run view when `analysis/comparison/*` exists
 
@@ -87,6 +89,9 @@ The Web UI uses these endpoints:
 GET /api/v1/health
 GET /api/v1/runs
 GET /api/v1/runs/{run_name}
+GET /api/v1/runs/{run_name}/cases
+GET /api/v1/runs/{run_name}/cases/{case_id}
+GET /api/v1/runs/{run_name}/agents
 GET /api/v1/runs/{run_name}/analysis
 GET /api/v1/runs/{run_name}/analysis/{module}/dashboard
 GET /api/v1/runs/{run_name}/analysis/{module}/tables/{table}
@@ -96,4 +101,4 @@ GET /api/v1/runs/{run_name}/analysis/{module}/patient-case/{patient_id}
 GET /api/v1/runs/{run_name}/comparison
 ```
 
-These routes are read-only. They normalize existing JSON, CSV, and parquet artifacts into frontend-friendly view models without changing the on-disk contract.
+These routes are read-only. They normalize existing JSON, CSV, and parquet artifacts into frontend-friendly workspace view models without changing the on-disk contract.

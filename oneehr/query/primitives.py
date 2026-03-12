@@ -10,12 +10,11 @@ from oneehr.agent.render import render_prompt
 from oneehr.agent.predict_schema import schema_prompt_text
 from oneehr.agent.templates import get_prompt_template
 from oneehr.agent.review_schema import review_schema_prompt_text
-
-from oneehr.cases.bundle import read_case
+from oneehr.workspace import open_run_workspace
 
 
 def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    case = read_case(run_root, case_id, limit=limit)
+    case = open_run_workspace(run_root).read_case(case_id, limit=limit)
     events = list(case.get("events", []))
     return {
         "case_id": str(case_id),
@@ -26,7 +25,7 @@ def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None =
 
 
 def get_case_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
-    case = read_case(run_root, case_id)
+    case = open_run_workspace(run_root).read_case(case_id)
     static_payload = case.get("static", {})
     features = {}
     if isinstance(static_payload, dict):
@@ -49,7 +48,7 @@ def get_case_predictions(
     predictor_name: str | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    case = read_case(run_root, case_id, limit=limit)
+    case = open_run_workspace(run_root).read_case(case_id, limit=limit)
     rows = pd.DataFrame(case.get("predictions", []))
     if not rows.empty and origin is not None:
         rows = rows[rows["origin"].astype(str) == str(origin)].copy()
@@ -65,7 +64,7 @@ def get_case_predictions(
 
 
 def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    case = read_case(run_root, case_id, limit=limit)
+    case = open_run_workspace(run_root).read_case(case_id, limit=limit)
     return {
         "case_id": str(case_id),
         "case": {
@@ -89,7 +88,7 @@ def render_case_prompt(
     origin: str | None = None,
     predictor_name: str | None = None,
 ) -> dict[str, Any]:
-    case = read_case(run_root, case_id)
+    case = open_run_workspace(run_root).read_case(case_id)
     template = get_prompt_template(template_name or cfg.agent.predict.prompt_template)
 
     static_payload = case.get("static", {})

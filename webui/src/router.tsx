@@ -10,6 +10,9 @@ import {
 } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { fetchRunDetail } from './lib/api'
+import { AgentsPage } from './routes/AgentsPage'
+import { CaseDetailPage } from './routes/CaseDetailPage'
+import { CasesPage } from './routes/CasesPage'
 import { ComparisonPage } from './routes/ComparisonPage'
 import { ModuleDashboardPage } from './routes/ModuleDashboardPage'
 import { RunOverviewPage } from './routes/RunOverviewPage'
@@ -72,6 +75,46 @@ function RunLayout() {
     <div className="workspace-shell">
       <aside className="workspace-rail">
         <div className="workspace-card">
+          <p className="eyebrow">Workspace</p>
+          <div className="stack-list">
+            <Link
+              to="/runs/$runName"
+              params={{ runName }}
+              activeProps={{ className: 'rail-link active' }}
+              className="rail-link"
+            >
+              <span>Overview</span>
+            </Link>
+            <Link
+              to="/runs/$runName/cases"
+              params={{ runName }}
+              activeProps={{ className: 'rail-link active' }}
+              className="rail-link"
+            >
+              <span>Cases</span>
+              <strong>{run.cases.case_count}</strong>
+            </Link>
+            <Link
+              to="/runs/$runName/agents"
+              params={{ runName }}
+              activeProps={{ className: 'rail-link active' }}
+              className="rail-link"
+            >
+              <span>Agents</span>
+              <strong>{run.agent_predict.record_count + run.agent_review.record_count}</strong>
+            </Link>
+            <Link
+              to="/runs/$runName/comparison"
+              params={{ runName }}
+              activeProps={{ className: 'rail-link active' }}
+              className="rail-link secondary"
+            >
+              Comparison
+            </Link>
+          </div>
+        </div>
+
+        <div className="workspace-card">
           <p className="eyebrow">Run</p>
           <h1>{run.run_name}</h1>
           <div className="detail-grid compact">
@@ -110,14 +153,6 @@ function RunLayout() {
               </Link>
             ))}
           </div>
-          <Link
-            to="/runs/$runName/comparison"
-            params={{ runName }}
-            activeProps={{ className: 'rail-link active' }}
-            className="rail-link secondary"
-          >
-            Comparison
-          </Link>
         </div>
       </aside>
 
@@ -156,6 +191,24 @@ const moduleRoute = createRoute({
   component: ModuleDashboardPage,
 })
 
+const casesRoute = createRoute({
+  getParentRoute: () => runRoute,
+  path: 'cases',
+  component: CasesPage,
+})
+
+const caseDetailRoute = createRoute({
+  getParentRoute: () => runRoute,
+  path: 'cases/$caseId',
+  component: CaseDetailPage,
+})
+
+const agentsRoute = createRoute({
+  getParentRoute: () => runRoute,
+  path: 'agents',
+  component: AgentsPage,
+})
+
 const comparisonRoute = createRoute({
   getParentRoute: () => runRoute,
   path: 'comparison',
@@ -164,7 +217,14 @@ const comparisonRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   runsRoute,
-  runRoute.addChildren([runOverviewRoute, moduleRoute, comparisonRoute]),
+  runRoute.addChildren([
+    runOverviewRoute,
+    moduleRoute,
+    casesRoute,
+    caseDetailRoute,
+    agentsRoute,
+    comparisonRoute,
+  ]),
 ])
 
 export const router = createRouter({

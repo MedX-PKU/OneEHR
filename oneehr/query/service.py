@@ -1,27 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from oneehr.analysis.read import (
-    describe_patient_case as _describe_patient_case,
-    list_analysis_modules as _list_analysis_modules,
-    list_failure_case_paths as _list_failure_case_paths,
-    read_analysis_index as _read_analysis_index,
-    read_analysis_plot_spec as _read_analysis_plot_spec,
-    read_analysis_summary as _read_analysis_summary,
-    read_analysis_table as _read_analysis_table,
-    read_failure_cases as _read_failure_cases,
-)
-from oneehr.artifacts.read import read_run_manifest
-from oneehr.cases.bundle import (
-    list_cases as _list_cases,
-    read_case as _read_case,
-    read_cases_index as _read_cases_index,
-)
 from oneehr.query.primitives import (
     collect_case_evidence as _collect_case_evidence,
     get_case_predictions as _get_case_predictions,
@@ -31,35 +14,11 @@ from oneehr.query.primitives import (
 )
 from oneehr.agent.templates import describe_prompt_template as _describe_prompt_template
 from oneehr.agent.templates import list_prompt_templates as _list_prompt_templates
+from oneehr.workspace import WorkspaceStore, open_run_workspace
 
 
 def list_runs(root: str | Path) -> list[dict[str, Any]]:
-    root = Path(root)
-    if not root.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    for path in sorted(root.iterdir(), key=lambda p: p.name):
-        if not path.is_dir():
-            continue
-        manifest = read_run_manifest(path)
-        if manifest is None:
-            continue
-        rows.append(
-            {
-                "run_name": path.name,
-                "run_dir": str(path),
-                "schema_version": int(manifest.schema_version),
-                "task": dict((manifest.data.get("task") or {})),
-                "split": dict((manifest.data.get("split") or {})),
-                "has_train_summary": bool((path / "summary.json").exists()),
-                "has_analysis_index": bool((path / "analysis" / "index.json").exists()),
-                "has_cases_index": bool((path / "cases" / "index.json").exists()),
-                "has_agent_predict_summary": bool((path / "agent" / "predict" / "summary.json").exists()),
-                "has_agent_review_summary": bool((path / "agent" / "review" / "summary.json").exists()),
-                "mtime_unix": float(path.stat().st_mtime),
-            }
-        )
-    return rows
+    return WorkspaceStore(root).list_runs()
 
 
 def list_prompt_templates(*, family: str | None = None) -> list[dict[str, Any]]:
@@ -71,23 +30,23 @@ def describe_prompt_template(name: str) -> dict[str, Any]:
 
 
 def read_agent_predict_summary(run_root: str | Path) -> dict[str, Any]:
-    return _read_json(Path(run_root) / "agent" / "predict" / "summary.json")
+    return open_run_workspace(run_root).agent_predict_summary()
 
 
 def read_agent_review_summary(run_root: str | Path) -> dict[str, Any]:
-    return _read_json(Path(run_root) / "agent" / "review" / "summary.json")
+    return open_run_workspace(run_root).agent_review_summary()
 
 
 def read_cases_index(run_root: str | Path) -> dict[str, Any]:
-    return _read_cases_index(run_root)
+    return open_run_workspace(run_root).cases_index()
 
 
 def list_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
-    return _list_cases(run_root, limit=limit)
+    return open_run_workspace(run_root).case_records(limit=limit)
 
 
 def read_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    return _read_case(run_root, case_id, limit=limit)
+    return open_run_workspace(run_root).read_case(case_id, limit=limit)
 
 
 def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
@@ -139,100 +98,19 @@ def render_case_prompt(
 
 
 def describe_run(run_root: str | Path) -> dict[str, Any]:
-    run_root = Path(run_root)
-    manifest = read_run_manifest(run_root)
-    if manifest is None:
-        raise FileNotFoundError(f"Missing run_manifest.json under {run_root}")
-
-    train_summary = _read_json(run_root / "summary.json")
-    agent_predict_summary = _read_json(run_root / "agent" / "predict" / "summary.json")
-    agent_review_summary = _read_json(run_root / "agent" / "review" / "summary.json")
-    analysis_index = _read_json(run_root / "analysis" / "index.json")
-
-    train_records = _ensure_records(train_summary)
-    agent_predict_records = _ensure_records(agent_predict_summary)
-    agent_review_records = _ensure_records(agent_review_summary)
-    modules = []
-    if isinstance(analysis_index.get("modules"), list):
-        modules = [
-            {
-                "name": str(item.get("name")),
-                "status": str(item.get("status")),
-                "summary_path": item.get("summary_path"),
-            }
-            for item in analysis_index["modules"]
-            if isinstance(item, dict)
-        ]
-
-    return {
-        "run_name": run_root.name,
-        "run_dir": str(run_root),
-        "manifest": {
-            "schema_version": int(manifest.schema_version),
-            "task": dict((manifest.data.get("task") or {})),
-            "split": dict((manifest.data.get("split") or {})),
-            "cases": dict((manifest.data.get("cases") or {})),
-            "agent": dict((manifest.data.get("agent") or {})),
-        },
-        "training": {
-            "record_count": int(len(train_records)),
-            "models": sorted({str(rec.get("model")) for rec in train_records if rec.get("model") is not None}),
-            "splits": sorted({str(rec.get("split")) for rec in train_records if rec.get("split") is not None}),
-            "summary_path": None if not train_summary else str((run_root / "summary.json").relative_to(run_root)),
-        },
-        "analysis": {
-            "has_index": bool(analysis_index),
-            "modules": modules,
-            "index_path": None if not analysis_index else str((run_root / "analysis" / "index.json").relative_to(run_root)),
-        },
-        "cases": {
-            "case_count": int((read_cases_index(run_root).get("case_count", 0)) if (run_root / "cases" / "index.json").exists() else 0),
-            "index_path": None
-            if not (run_root / "cases" / "index.json").exists()
-            else str((run_root / "cases" / "index.json").relative_to(run_root)),
-        },
-        "agent_predict": {
-            "record_count": int(len(agent_predict_records)),
-            "predictors": sorted(
-                {
-                    str(rec.get("predictor_name"))
-                    for rec in agent_predict_records
-                    if rec.get("predictor_name") is not None
-                }
-            ),
-            "summary_path": None
-            if not agent_predict_summary
-            else str((run_root / "agent" / "predict" / "summary.json").relative_to(run_root)),
-        },
-        "agent_review": {
-            "record_count": int(len(agent_review_records)),
-            "reviewers": sorted(
-                {str(rec.get("reviewer_name")) for rec in agent_review_records if rec.get("reviewer_name") is not None}
-            ),
-            "summary_path": None
-            if not agent_review_summary
-            else str((run_root / "agent" / "review" / "summary.json").relative_to(run_root)),
-        },
-        "artifacts": {
-            "has_models_dir": bool((run_root / "models").exists()),
-            "has_preds_dir": bool((run_root / "preds").exists()),
-            "has_splits_dir": bool((run_root / "splits").exists()),
-            "has_cases_dir": bool((run_root / "cases").exists()),
-            "has_agent_dir": bool((run_root / "agent").exists()),
-        },
-    }
+    return open_run_workspace(run_root).describe()
 
 
 def list_analysis_modules(run_root: str | Path) -> list[str]:
-    return _list_analysis_modules(run_root)
+    return open_run_workspace(run_root).analysis_modules()
 
 
 def read_analysis_index(run_root: str | Path) -> dict[str, Any]:
-    return _read_analysis_index(run_root)
+    return open_run_workspace(run_root).analysis_index()
 
 
 def read_analysis_summary(run_root: str | Path, module_name: str) -> dict[str, Any]:
-    return _read_analysis_summary(run_root, module_name)
+    return open_run_workspace(run_root).analysis_summary(module_name)
 
 
 def read_analysis_table(
@@ -242,7 +120,7 @@ def read_analysis_table(
     *,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    df = _read_analysis_table(run_root, module_name, table_name)
+    df = open_run_workspace(run_root).analysis_table(module_name, table_name)
     if limit is not None:
         df = df.head(int(limit)).reset_index(drop=True)
     return {
@@ -255,25 +133,11 @@ def read_analysis_table(
 
 
 def read_analysis_plot_spec(run_root: str | Path, module_name: str, plot_name: str) -> dict[str, Any]:
-    return _read_analysis_plot_spec(run_root, module_name, plot_name)
+    return open_run_workspace(run_root).analysis_plot_spec(module_name, plot_name)
 
 
 def list_failure_cases(run_root: str | Path, module_name: str = "prediction_audit") -> list[dict[str, Any]]:
-    run_root = Path(run_root)
-    rows: list[dict[str, Any]] = []
-    for path in _list_failure_case_paths(run_root, module_name=module_name):
-        df = pd.read_parquet(path)
-        rows.append(
-            {
-                "module": str(module_name),
-                "name": path.stem,
-                "path": str(path.relative_to(run_root)),
-                "row_count": int(len(df)),
-                "columns": [str(col) for col in df.columns],
-                "patient_count": int(df["patient_id"].astype(str).nunique()) if "patient_id" in df.columns else 0,
-            }
-        )
-    return rows
+    return open_run_workspace(run_root).failure_case_artifacts(module_name)
 
 
 def read_failure_cases(
@@ -283,16 +147,7 @@ def read_failure_cases(
     name: str | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    df = _read_failure_cases(run_root, module_name=module_name, name=name)
-    if limit is not None:
-        df = df.head(int(limit)).reset_index(drop=True)
-    return {
-        "module": str(module_name),
-        "name": None if name is None else str(name),
-        "row_count": int(len(df)),
-        "columns": [str(col) for col in df.columns],
-        "records": df.to_dict(orient="records"),
-    }
+    return open_run_workspace(run_root).failure_case_rows(module_name, name=name, limit=limit)
 
 
 def describe_patient_case(
@@ -302,16 +157,7 @@ def describe_patient_case(
     *,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    payload = _describe_patient_case(run_root, patient_id, module_name=module_name)
-    matches = list(payload.get("matches", []))
-    if limit is not None:
-        matches = matches[: int(limit)]
-    return {
-        "module": str(module_name),
-        "patient_id": str(patient_id),
-        "n_matches": int(payload.get("n_matches", len(matches))),
-        "matches": matches,
-    }
+    return open_run_workspace(run_root).patient_case_matches(patient_id, module_name, limit=limit)
 
 
 def compare_cohorts(
@@ -322,8 +168,9 @@ def compare_cohorts(
     right_role: str = "test",
     top_k: int = 10,
 ) -> dict[str, Any]:
-    split_roles = _read_analysis_table(run_root, "cohort_analysis", "split_roles")
-    drift = _read_analysis_table(run_root, "cohort_analysis", "feature_drift")
+    workspace = open_run_workspace(run_root)
+    split_roles = workspace.analysis_table("cohort_analysis", "split_roles")
+    drift = workspace.analysis_table("cohort_analysis", "feature_drift")
     if split_roles.empty:
         raise ValueError("cohort_analysis split_roles table is empty")
 
@@ -355,21 +202,6 @@ def compare_cohorts(
         "feature_drift_available": bool(drift_available),
         "top_feature_drift": drift_rows,
     }
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _ensure_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    records = payload.get("records", [])
-    if not isinstance(records, list):
-        return []
-    return [rec for rec in records if isinstance(rec, dict)]
-
-
 def _resolve_split_name(split_roles: pd.DataFrame, split: str | None) -> str:
     available = split_roles["split"].astype(str).unique().tolist()
     if split is not None:

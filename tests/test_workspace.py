@@ -17,6 +17,7 @@ from oneehr.query import (
     get_case_timeline,
     render_case_prompt,
 )
+from oneehr.workspace import WorkspaceStore, open_run_workspace
 
 
 def test_cases_cli_and_query_primitives(tmp_path: Path) -> None:
@@ -107,6 +108,34 @@ def test_cases_respect_saved_test_splits(tmp_path: Path) -> None:
     split_to_test = {sp.name: set(sp.test_patients.astype(str).tolist()) for sp in splits}
     for row in cases:
         assert str(row["patient_id"]) in split_to_test[str(row["split"])]
+
+
+def test_workspace_domain_unifies_run_case_and_analysis_reads(tmp_path: Path) -> None:
+    run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="workspace_domain", seed=29)
+
+    store = WorkspaceStore(run_root.parent)
+    runs = store.list_runs()
+    assert runs[0]["run_name"] == "workspace_domain"
+    assert runs[0]["has_cases_index"] is True
+
+    workspace = open_run_workspace(run_root)
+    desc = workspace.describe()
+    assert desc["cases"]["case_count"] >= 1
+    assert desc["analysis"]["has_index"] is True
+    assert "prediction_audit" in workspace.analysis_modules()
+
+    cases = workspace.case_records(limit=1)
+    assert len(cases) == 1
+    case_id = str(cases[0]["case_id"])
+    case = workspace.read_case(case_id, limit=2)
+    assert case["case_id"] == case_id
+    assert len(case["events"]) == 2
+
+    artifacts = workspace.failure_case_artifacts("prediction_audit")
+    assert len(artifacts) >= 1
+    patient_id = str(cases[0]["patient_id"])
+    patient_matches = workspace.patient_case_matches(patient_id, "prediction_audit", limit=2)
+    assert patient_matches["patient_id"] == patient_id
 
 
 def _run_json(argv: list[str], *, cwd: Path) -> dict[str, object]:
