@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from pandas.errors import EmptyDataError
 
 
 def read_analysis_index(run_root: str | Path) -> dict[str, Any]:
@@ -34,7 +35,10 @@ def read_analysis_table(run_root: str | Path, module_name: str, table_name: str)
     path = run_root / "analysis" / module_name / f"{table_name}.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing analysis table {table_name!r} for {module_name!r}: {path}")
-    return pd.read_csv(path)
+    try:
+        return pd.read_csv(path)
+    except EmptyDataError:
+        return pd.DataFrame()
 
 
 def read_analysis_plot_spec(run_root: str | Path, module_name: str, plot_name: str) -> dict[str, Any]:

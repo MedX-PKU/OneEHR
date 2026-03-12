@@ -6,6 +6,7 @@ import sys
 from oneehr.cli.agent import register_agent_parser
 from oneehr.cli.cases import register_cases_parser
 from oneehr.cli.query import register_query_parser
+from oneehr.cli.webui import register_webui_parser
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -51,6 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     register_cases_parser(sub)
     register_agent_parser(sub)
     register_query_parser(sub)
+    register_webui_parser(sub)
 
     return parser
 
