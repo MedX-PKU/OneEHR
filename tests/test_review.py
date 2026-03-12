@@ -131,6 +131,45 @@ def test_agent_review_cli_e2e(tmp_path: Path) -> None:
             cwd=Path.cwd(),
         )
         assert len(review_payload["summary"]["records"]) >= 1
+
+        review_records_payload = _run_json(
+            [
+                "oneehr",
+                "query",
+                "agent",
+                "review-records",
+                "--run-dir",
+                str(run_root),
+                "--actor",
+                "mock-review",
+                "--parsed-ok",
+                "true",
+                "--limit",
+                "2",
+            ],
+            cwd=Path.cwd(),
+        )
+        assert review_records_payload["records"]["task_name"] == "review"
+        assert review_records_payload["records"]["row_count"] >= 1
+        assert "review_summary" in review_records_payload["records"]["columns"]
+        assert review_records_payload["records"]["records"][0]["reviewer_name"] == "mock-review"
+
+        review_failures_payload = _run_json(
+            [
+                "oneehr",
+                "query",
+                "agent",
+                "review-failures",
+                "--run-dir",
+                str(run_root),
+                "--actor",
+                "mock-review",
+            ],
+            cwd=Path.cwd(),
+        )
+        assert review_failures_payload["failures"]["task_name"] == "review"
+        assert review_failures_payload["failures"]["row_count"] == 0
+        assert review_failures_payload["failures"]["actors"] == ["mock-review"]
         assert len(server.requests) > 0
 
 

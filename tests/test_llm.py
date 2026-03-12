@@ -308,6 +308,51 @@ def test_agent_predict_cli_e2e_patient_binary(tmp_path: Path) -> None:
         assert record["parse_success_rate"] == 1.0
         assert record["coverage"] > 0.0
         assert record["metrics"]["accuracy"] == 1.0
+
+        records_payload = json.loads(
+            subprocess.check_output(
+                [
+                    "oneehr",
+                    "query",
+                    "agent",
+                    "predict-records",
+                    "--run-dir",
+                    str(run_root),
+                    "--actor",
+                    "mock",
+                    "--parsed-ok",
+                    "true",
+                    "--limit",
+                    "2",
+                ],
+                cwd=Path.cwd(),
+                text=True,
+            )
+        )
+        assert records_payload["records"]["task_name"] == "predict"
+        assert records_payload["records"]["row_count"] >= 1
+        assert "prompt_sha256" in records_payload["records"]["columns"]
+        assert records_payload["records"]["records"][0]["predictor_name"] == "mock"
+
+        failures_payload = json.loads(
+            subprocess.check_output(
+                [
+                    "oneehr",
+                    "query",
+                    "agent",
+                    "predict-failures",
+                    "--run-dir",
+                    str(run_root),
+                    "--actor",
+                    "mock",
+                ],
+                cwd=Path.cwd(),
+                text=True,
+            )
+        )
+        assert failures_payload["failures"]["task_name"] == "predict"
+        assert failures_payload["failures"]["row_count"] == 0
+        assert failures_payload["failures"]["actors"] == ["mock"]
         assert len(server.requests) > 0
 
 

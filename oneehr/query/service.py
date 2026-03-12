@@ -37,6 +37,96 @@ def read_agent_review_summary(run_root: str | Path) -> dict[str, Any]:
     return open_run_workspace(run_root).agent_review_summary()
 
 
+def read_agent_predict_records(
+    run_root: str | Path,
+    *,
+    actor: str | None = None,
+    split: str | None = None,
+    parsed_ok: bool | None = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> dict[str, Any]:
+    return _read_agent_rows(
+        run_root,
+        task_name="predict",
+        kind="records",
+        actor=actor,
+        split=split,
+        parsed_ok=parsed_ok,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def read_agent_review_records(
+    run_root: str | Path,
+    *,
+    actor: str | None = None,
+    split: str | None = None,
+    parsed_ok: bool | None = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> dict[str, Any]:
+    return _read_agent_rows(
+        run_root,
+        task_name="review",
+        kind="records",
+        actor=actor,
+        split=split,
+        parsed_ok=parsed_ok,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def read_agent_predict_failures(
+    run_root: str | Path,
+    *,
+    actor: str | None = None,
+    split: str | None = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> dict[str, Any]:
+    return _read_agent_rows(
+        run_root,
+        task_name="predict",
+        kind="failures",
+        actor=actor,
+        split=split,
+        parsed_ok=None,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def read_agent_review_failures(
+    run_root: str | Path,
+    *,
+    actor: str | None = None,
+    split: str | None = None,
+    search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> dict[str, Any]:
+    return _read_agent_rows(
+        run_root,
+        task_name="review",
+        kind="failures",
+        actor=actor,
+        split=split,
+        parsed_ok=None,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
 def read_cases_index(run_root: str | Path) -> dict[str, Any]:
     return open_run_workspace(run_root).cases_index()
 
@@ -202,6 +292,8 @@ def compare_cohorts(
         "feature_drift_available": bool(drift_available),
         "top_feature_drift": drift_rows,
     }
+
+
 def _resolve_split_name(split_roles: pd.DataFrame, split: str | None) -> str:
     available = split_roles["split"].astype(str).unique().tolist()
     if split is not None:
@@ -218,3 +310,80 @@ def _select_cohort_row(split_roles: pd.DataFrame, split_name: str, role: str) ->
     if block.empty:
         raise ValueError(f"No cohort row for split={split_name!r} role={role!r}")
     return block.iloc[0]
+
+
+def _read_agent_rows(
+    run_root: str | Path,
+    *,
+    task_name: str,
+    kind: str,
+    actor: str | None,
+    split: str | None,
+    parsed_ok: bool | None,
+    search: str | None,
+    limit: int | None,
+    offset: int,
+) -> dict[str, Any]:
+    workspace = open_run_workspace(run_root)
+    summary = workspace.agent_task_summary_optional(task_name)
+    if not summary:
+        return {
+            "task_name": str(task_name),
+            "kind": str(kind),
+            "status": "missing",
+            "actors": [],
+            "splits": [],
+            "offset": int(offset),
+            "limit": None if limit is None else int(limit),
+            "row_count": 0,
+            "total_rows": 0,
+            "columns": [],
+            "records": [],
+        }
+
+    if kind == "records":
+        detail_artifacts = workspace.agent_task_detail_artifacts(task_name)
+        if not detail_artifacts:
+            return {
+                "task_name": str(task_name),
+                "kind": str(kind),
+                "status": "unavailable",
+                "actors": workspace.agent_task_actors(task_name),
+                "splits": workspace.agent_task_splits(task_name),
+                "offset": int(offset),
+                "limit": None if limit is None else int(limit),
+                "row_count": 0,
+                "total_rows": 0,
+                "columns": [],
+                "records": [],
+            }
+        df = workspace.agent_task_detail_rows(
+            task_name,
+            actor=actor,
+            split=split,
+            parsed_ok=parsed_ok,
+            search=search,
+        )
+    else:
+        df = workspace.agent_task_failure_rows(
+            task_name,
+            actor=actor,
+            split=split,
+            search=search,
+        )
+
+    total_rows = int(len(df))
+    page = df.iloc[offset : (offset + limit) if limit is not None else None].reset_index(drop=True)
+    return {
+        "task_name": str(task_name),
+        "kind": str(kind),
+        "status": "ok",
+        "actors": workspace.agent_task_actors(task_name),
+        "splits": workspace.agent_task_splits(task_name),
+        "offset": int(offset),
+        "limit": None if limit is None else int(limit),
+        "row_count": int(len(page)),
+        "total_rows": total_rows,
+        "columns": [str(column) for column in page.columns],
+        "records": page.to_dict(orient="records"),
+    }

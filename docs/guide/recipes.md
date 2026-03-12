@@ -50,6 +50,7 @@ Run it:
 ```bash
 uv run oneehr agent predict --config experiment.toml
 uv run oneehr query agent predict-summary --run-dir logs/example
+uv run oneehr query agent predict-records --run-dir logs/example --actor triage --parsed-ok true --limit 10
 ```
 
 Outputs are written under `agent/predict/`.
@@ -87,6 +88,7 @@ Run it:
 uv run oneehr cases build --config experiment.toml
 uv run oneehr agent review --config experiment.toml
 uv run oneehr query agent review-summary --run-dir logs/example
+uv run oneehr query agent review-records --run-dir logs/example --actor reviewer --parsed-ok true --limit 10
 ```
 
 Outputs are written under `agent/review/`.

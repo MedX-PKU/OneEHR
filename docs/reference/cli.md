@@ -134,11 +134,15 @@ oneehr query analysis patient-case [--config <toml> | --run-dir DIR] --patient-i
 oneehr query cohorts compare [--config <toml> | --run-dir DIR] [--split NAME] [--left-role train|val|test] [--right-role train|val|test] [--top-k N]
 ```
 
-### Agent Summaries
+### Agent Artifacts
 
 ```bash
 oneehr query agent predict-summary [--config <toml> | --run-dir DIR]
 oneehr query agent review-summary [--config <toml> | --run-dir DIR]
+oneehr query agent predict-records [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--parsed-ok true|false] [--search TEXT] [--limit N] [--offset N]
+oneehr query agent review-records [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--parsed-ok true|false] [--search TEXT] [--limit N] [--offset N]
+oneehr query agent predict-failures [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--search TEXT] [--limit N] [--offset N]
+oneehr query agent review-failures [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--search TEXT] [--limit N] [--offset N]
 ```
 
 ## `oneehr webui`

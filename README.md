@@ -322,11 +322,15 @@ uv run oneehr query analysis summary --run-dir logs/example --module prediction_
 uv run oneehr query analysis table --run-dir logs/example --module prediction_audit --table slices
 ```
 
-Read agent summaries:
+Read agent outputs:
 
 ```bash
 uv run oneehr query agent predict-summary --run-dir logs/example
+uv run oneehr query agent predict-records --run-dir logs/example --actor mock --parsed-ok true --limit 10
+uv run oneehr query agent predict-failures --run-dir logs/example --actor mock
 uv run oneehr query agent review-summary --run-dir logs/example
+uv run oneehr query agent review-records --run-dir logs/example --actor reviewer --parsed-ok true --limit 10
+uv run oneehr query agent review-failures --run-dir logs/example --actor reviewer
 ```
 
 ## Documentation

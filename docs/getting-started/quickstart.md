@@ -51,9 +51,11 @@ uv run oneehr agent predict --config examples/experiment.toml
 uv run oneehr agent review --config examples/experiment.toml
 ```
 
-You can then query their summaries:
+You can then inspect their summaries and row-level outputs:
 
 ```bash
 uv run oneehr query agent predict-summary --run-dir logs/example
+uv run oneehr query agent predict-records --run-dir logs/example --actor mock --parsed-ok true --limit 10
 uv run oneehr query agent review-summary --run-dir logs/example
+uv run oneehr query agent review-records --run-dir logs/example --actor reviewer --parsed-ok true --limit 10
 ```

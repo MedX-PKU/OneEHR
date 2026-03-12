@@ -159,7 +159,7 @@ def _register_cohorts_parser(query_sub) -> None:
 
 
 def _register_agent_parser(query_sub) -> None:
-    parser = query_sub.add_parser("agent", help="Query agent prediction and review summaries")
+    parser = query_sub.add_parser("agent", help="Query agent prediction and review artifacts")
     sub = parser.add_subparsers(dest="query_action")
 
     predict_cmd = sub.add_parser("predict-summary", help="Read agent prediction summary")
@@ -169,6 +169,26 @@ def _register_agent_parser(query_sub) -> None:
     review_cmd = sub.add_parser("review-summary", help="Read agent review summary")
     _add_run_locator_args(review_cmd)
     review_cmd.set_defaults(handler=_run_agent_review_summary)
+
+    predict_records_cmd = sub.add_parser("predict-records", help="Read detailed agent prediction rows")
+    _add_run_locator_args(predict_records_cmd)
+    _add_agent_query_args(predict_records_cmd, include_parsed_ok=True)
+    predict_records_cmd.set_defaults(handler=_run_agent_predict_records)
+
+    review_records_cmd = sub.add_parser("review-records", help="Read detailed agent review rows")
+    _add_run_locator_args(review_records_cmd)
+    _add_agent_query_args(review_records_cmd, include_parsed_ok=True)
+    review_records_cmd.set_defaults(handler=_run_agent_review_records)
+
+    predict_failures_cmd = sub.add_parser("predict-failures", help="Read agent prediction failure rows")
+    _add_run_locator_args(predict_failures_cmd)
+    _add_agent_query_args(predict_failures_cmd, include_parsed_ok=False)
+    predict_failures_cmd.set_defaults(handler=_run_agent_predict_failures)
+
+    review_failures_cmd = sub.add_parser("review-failures", help="Read agent review failure rows")
+    _add_run_locator_args(review_failures_cmd)
+    _add_agent_query_args(review_failures_cmd, include_parsed_ok=False)
+    review_failures_cmd.set_defaults(handler=_run_agent_review_failures)
 
 
 def _run_runs_list(args: argparse.Namespace) -> None:
@@ -447,6 +467,88 @@ def _run_agent_review_summary(args: argparse.Namespace) -> None:
     )
 
 
+def _run_agent_predict_records(args: argparse.Namespace) -> None:
+    from oneehr.query import read_agent_predict_records
+
+    run_root = _resolve_run_root(args, label="query agent predict-records")
+    _emit(
+        {
+            "query": "agent.predict_records",
+            "run_dir": str(run_root),
+            "records": read_agent_predict_records(
+                run_root,
+                actor=args.actor,
+                split=args.split,
+                parsed_ok=_optional_bool(args.parsed_ok),
+                search=args.search,
+                limit=args.limit,
+                offset=args.offset,
+            ),
+        }
+    )
+
+
+def _run_agent_review_records(args: argparse.Namespace) -> None:
+    from oneehr.query import read_agent_review_records
+
+    run_root = _resolve_run_root(args, label="query agent review-records")
+    _emit(
+        {
+            "query": "agent.review_records",
+            "run_dir": str(run_root),
+            "records": read_agent_review_records(
+                run_root,
+                actor=args.actor,
+                split=args.split,
+                parsed_ok=_optional_bool(args.parsed_ok),
+                search=args.search,
+                limit=args.limit,
+                offset=args.offset,
+            ),
+        }
+    )
+
+
+def _run_agent_predict_failures(args: argparse.Namespace) -> None:
+    from oneehr.query import read_agent_predict_failures
+
+    run_root = _resolve_run_root(args, label="query agent predict-failures")
+    _emit(
+        {
+            "query": "agent.predict_failures",
+            "run_dir": str(run_root),
+            "failures": read_agent_predict_failures(
+                run_root,
+                actor=args.actor,
+                split=args.split,
+                search=args.search,
+                limit=args.limit,
+                offset=args.offset,
+            ),
+        }
+    )
+
+
+def _run_agent_review_failures(args: argparse.Namespace) -> None:
+    from oneehr.query import read_agent_review_failures
+
+    run_root = _resolve_run_root(args, label="query agent review-failures")
+    _emit(
+        {
+            "query": "agent.review_failures",
+            "run_dir": str(run_root),
+            "failures": read_agent_review_failures(
+                run_root,
+                actor=args.actor,
+                split=args.split,
+                search=args.search,
+                limit=args.limit,
+                offset=args.offset,
+            ),
+        }
+    )
+
+
 def _add_run_locator_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", default=None, help="Optional config used to resolve the run directory")
     parser.add_argument("--run-dir", default=None, help="Run directory for run-scoped queries")
@@ -455,6 +557,21 @@ def _add_run_locator_args(parser: argparse.ArgumentParser) -> None:
 def _add_case_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--case-id", required=True, help="Case identifier")
     parser.add_argument("--limit", type=int, default=None, help="Optional max rows to return")
+
+
+def _add_agent_query_args(parser: argparse.ArgumentParser, *, include_parsed_ok: bool) -> None:
+    parser.add_argument("--actor", default=None, help="Optional agent backend/reviewer name")
+    parser.add_argument("--split", default=None, help="Optional split name")
+    parser.add_argument("--search", default=None, help="Optional case-insensitive text search")
+    parser.add_argument("--limit", type=int, default=None, help="Optional max rows to return")
+    parser.add_argument("--offset", type=int, default=0, help="Optional row offset")
+    if include_parsed_ok:
+        parser.add_argument(
+            "--parsed-ok",
+            choices=["true", "false"],
+            default=None,
+            help="Optional parsed_ok filter",
+        )
 
 
 def _resolve_run_root(args: argparse.Namespace, *, label: str) -> Path:
@@ -471,3 +588,9 @@ def _resolve_run_root(args: argparse.Namespace, *, label: str) -> Path:
 
 def _emit(payload: object) -> None:
     sys.stdout.write(json.dumps(as_jsonable(payload), indent=2, sort_keys=True) + "\n")
+
+
+def _optional_bool(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    return str(value).lower() == "true"

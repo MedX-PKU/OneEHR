@@ -192,6 +192,8 @@ use_calibrated = true
 # Agent prediction commands:
 # uv run oneehr agent predict --config examples/experiment.toml
 # uv run oneehr query agent predict-summary --run-dir logs/example
+# uv run oneehr query agent predict-records --run-dir logs/example --actor gpt4o-mini --parsed-ok true --limit 10
+# uv run oneehr query agent predict-failures --run-dir logs/example --actor gpt4o-mini
 
 # Optional agent review workflow over case bundles.
 # Cases must exist first, and review targets are selected by prediction origin:
@@ -242,6 +244,8 @@ use_calibrated = true
 # uv run oneehr cases build --config examples/experiment.toml
 # uv run oneehr agent review --config examples/experiment.toml
 # uv run oneehr query agent review-summary --run-dir logs/example
+# uv run oneehr query agent review-records --run-dir logs/example --actor gpt4o-mini-review --parsed-ok true --limit 10
+# uv run oneehr query agent review-failures --run-dir logs/example --actor gpt4o-mini-review
 
 [output]
 root = "logs"
