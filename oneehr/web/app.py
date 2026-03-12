@@ -87,6 +87,54 @@ def create_app(*, root_dir: str | Path | None = None, static_dir: str | Path | N
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.get("/api/v1/runs/{run_name}/agents/{task_name}/records")
+    def agent_records_route(
+        run_name: str,
+        task_name: str,
+        actor: str | None = None,
+        split: str | None = None,
+        parsed_ok: bool | None = None,
+        search: str | None = None,
+        limit: int = Query(default=100, ge=1, le=1000),
+        offset: int = Query(default=0, ge=0),
+    ):
+        try:
+            return service.agent_records_payload(
+                run_name=run_name,
+                task_name=task_name,
+                actor=actor,
+                split=split,
+                parsed_ok=parsed_ok,
+                search=search,
+                limit=limit,
+                offset=offset,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/v1/runs/{run_name}/agents/{task_name}/failures")
+    def agent_failures_route(
+        run_name: str,
+        task_name: str,
+        actor: str | None = None,
+        split: str | None = None,
+        search: str | None = None,
+        limit: int = Query(default=100, ge=1, le=1000),
+        offset: int = Query(default=0, ge=0),
+    ):
+        try:
+            return service.agent_failures_payload(
+                run_name=run_name,
+                task_name=task_name,
+                actor=actor,
+                split=split,
+                search=search,
+                limit=limit,
+                offset=offset,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get("/api/v1/runs/{run_name}/analysis")
     def analysis_index_route(run_name: str):
         try:

@@ -400,18 +400,126 @@ class WebUIService:
         return {
             "run_name": str(run_name),
             "predict": self._agent_task_payload(
+                workspace=workspace,
                 task_name="predict",
                 summary=workspace.agent_predict_summary_optional(),
                 records=workspace.agent_predict_records(),
                 actor_field="predictor_name",
             ),
             "review": self._agent_task_payload(
+                workspace=workspace,
                 task_name="review",
                 summary=workspace.agent_review_summary_optional(),
                 records=workspace.agent_review_records(),
                 actor_field="reviewer_name",
             ),
         }
+
+    def agent_records_payload(
+        self,
+        *,
+        run_name: str,
+        task_name: str,
+        actor: str | None = None,
+        split: str | None = None,
+        parsed_ok: bool | None = None,
+        search: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        workspace = self._resolve_workspace(run_name)
+        summary = workspace.agent_task_summary_optional(task_name)
+        if not summary:
+            return self._empty_agent_rows_payload(
+                run_name=run_name,
+                task_name=task_name,
+                kind="records",
+                status="missing",
+                actors=[],
+                splits=[],
+                detail_available=False,
+                limit=limit,
+                offset=offset,
+            )
+
+        detail_available = bool(workspace.agent_task_detail_artifacts(task_name))
+        actors = workspace.agent_task_actors(task_name)
+        splits = workspace.agent_task_splits(task_name)
+        if not detail_available:
+            return self._empty_agent_rows_payload(
+                run_name=run_name,
+                task_name=task_name,
+                kind="records",
+                status="unavailable",
+                actors=actors,
+                splits=splits,
+                detail_available=False,
+                limit=limit,
+                offset=offset,
+            )
+
+        df = workspace.agent_task_detail_rows(
+            task_name,
+            actor=actor,
+            split=split,
+            parsed_ok=parsed_ok,
+            search=search,
+        )
+        return self._agent_rows_payload(
+            run_name=run_name,
+            task_name=task_name,
+            kind="records",
+            actors=actors,
+            splits=splits,
+            detail_available=True,
+            df=df,
+            limit=limit,
+            offset=offset,
+        )
+
+    def agent_failures_payload(
+        self,
+        *,
+        run_name: str,
+        task_name: str,
+        actor: str | None = None,
+        split: str | None = None,
+        search: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        workspace = self._resolve_workspace(run_name)
+        summary = workspace.agent_task_summary_optional(task_name)
+        if not summary:
+            return self._empty_agent_rows_payload(
+                run_name=run_name,
+                task_name=task_name,
+                kind="failures",
+                status="missing",
+                actors=[],
+                splits=[],
+                detail_available=False,
+                limit=limit,
+                offset=offset,
+            )
+
+        df = workspace.agent_task_failure_rows(
+            task_name,
+            actor=actor,
+            split=split,
+            search=search,
+        )
+        return self._agent_rows_payload(
+            run_name=run_name,
+            task_name=task_name,
+            kind="failures",
+            actors=workspace.agent_task_actors(task_name),
+            splits=workspace.agent_task_splits(task_name),
+            detail_available=bool(workspace.agent_task_detail_artifacts(task_name)),
+            df=df,
+            limit=limit,
+            offset=offset,
+        )
 
     def comparison_payload(self, *, run_name: str) -> dict[str, Any]:
         workspace = self._resolve_workspace(run_name)
@@ -506,6 +614,7 @@ class WebUIService:
     def _agent_task_payload(
         self,
         *,
+        workspace: RunWorkspace,
         task_name: str,
         summary: dict[str, Any],
         records: list[dict[str, Any]],
@@ -518,6 +627,8 @@ class WebUIService:
                 "cards": [],
                 "table": None,
                 "actors": [],
+                "splits": [],
+                "detail_available": False,
             }
 
         df = pd.DataFrame(records)
@@ -567,6 +678,8 @@ class WebUIService:
             "cards": cards,
             "table": self._table_payload_from_frame(name=table_name, df=df, preview_limit=None),
             "actors": actors,
+            "splits": workspace.agent_task_splits(task_name),
+            "detail_available": bool(workspace.agent_task_detail_artifacts(task_name)),
         }
 
     def _normalize_module_index_item(self, *, run_name: str, item: dict[str, Any]) -> dict[str, Any]:
@@ -819,6 +932,66 @@ class WebUIService:
             "row_count": int(len(df)),
             "columns": self._column_specs(df),
             "preview": as_jsonable(preview.to_dict(orient="records")),
+        }
+
+    def _agent_rows_payload(
+        self,
+        *,
+        run_name: str,
+        task_name: str,
+        kind: str,
+        actors: list[str],
+        splits: list[str],
+        detail_available: bool,
+        df: pd.DataFrame,
+        limit: int,
+        offset: int,
+    ) -> dict[str, Any]:
+        total_rows = int(len(df))
+        page = df.iloc[offset : offset + limit].reset_index(drop=True)
+        return {
+            "run_name": str(run_name),
+            "task_name": str(task_name),
+            "kind": str(kind),
+            "status": "ok",
+            "actors": actors,
+            "splits": splits,
+            "detail_available": bool(detail_available),
+            "offset": int(offset),
+            "limit": int(limit),
+            "row_count": int(len(page)),
+            "total_rows": total_rows,
+            "columns": self._column_specs(page if not page.empty else df),
+            "records": as_jsonable(page.to_dict(orient="records")),
+        }
+
+    def _empty_agent_rows_payload(
+        self,
+        *,
+        run_name: str,
+        task_name: str,
+        kind: str,
+        status: str,
+        actors: list[str],
+        splits: list[str],
+        detail_available: bool,
+        limit: int,
+        offset: int,
+    ) -> dict[str, Any]:
+        return {
+            "run_name": str(run_name),
+            "task_name": str(task_name),
+            "kind": str(kind),
+            "status": str(status),
+            "actors": actors,
+            "splits": splits,
+            "detail_available": bool(detail_available),
+            "offset": int(offset),
+            "limit": int(limit),
+            "row_count": 0,
+            "total_rows": 0,
+            "columns": [],
+            "records": [],
         }
 
     def _find_table_preview(self, tables: list[dict[str, Any]], name: str) -> dict[str, Any] | None:

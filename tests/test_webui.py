@@ -127,6 +127,29 @@ def test_webui_service_agents_payload(tmp_path: Path) -> None:
     assert payload["predict"]["status"] == "missing"
     assert payload["review"]["status"] == "ok"
     assert payload["review"]["table"]["row_count"] >= 1
+    assert payload["review"]["detail_available"] is True
+
+    records = service.agent_records_payload(run_name="webui_agents", task_name="review", actor="mock-review", limit=5)
+    assert records["status"] == "ok"
+    assert records["row_count"] >= 1
+    assert any(column["name"] == "review_summary" for column in records["columns"])
+
+    failures = service.agent_failures_payload(run_name="webui_agents", task_name="review", actor="mock-review")
+    assert failures["status"] == "ok"
+    assert failures["row_count"] == 0
+
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from oneehr.web import create_app
+
+    client = TestClient(create_app(root_dir=run_root.parent))
+    route = client.get(
+        f"/api/v1/runs/{run_root.name}/agents/review/records",
+        params={"actor": "mock-review", "limit": 5},
+    )
+    assert route.status_code == 200
+    assert route.json()["row_count"] >= 1
 
 
 def test_webui_fastapi_routes(tmp_path: Path) -> None:

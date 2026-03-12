@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from oneehr.query import (
     render_case_prompt,
 )
 from oneehr.workspace import WorkspaceStore, open_run_workspace
+from test_review import _build_review_run, _mock_review_server
 
 
 def test_cases_cli_and_query_primitives(tmp_path: Path) -> None:
@@ -136,6 +138,33 @@ def test_workspace_domain_unifies_run_case_and_analysis_reads(tmp_path: Path) ->
     patient_id = str(cases[0]["patient_id"])
     patient_matches = workspace.patient_case_matches(patient_id, "prediction_audit", limit=2)
     assert patient_matches["patient_id"] == patient_id
+
+
+def test_workspace_domain_reads_agent_detail_artifacts(tmp_path: Path) -> None:
+    with _mock_review_server() as (_, base_url):
+        run_root, cfg_path = _build_review_run(
+            tmp_path=tmp_path,
+            run_name="workspace_agent_domain",
+            seed=37,
+            base_url=base_url,
+        )
+        subprocess.check_call(
+            ["oneehr", "agent", "review", "--config", str(cfg_path)],
+            env={**os.environ, "TEST_OPENAI_API_KEY": "dummy"},
+        )
+
+    workspace = open_run_workspace(run_root)
+    assert workspace.agent_task_actors("review") == ["mock-review"]
+    assert workspace.agent_task_splits("review") == ["split0"]
+    assert workspace.agent_task_detail_artifacts("review")
+
+    detail_rows = workspace.agent_task_detail_rows("review", actor="mock-review", parsed_ok=True)
+    assert not detail_rows.empty
+    assert "review_summary" in detail_rows.columns
+    assert set(detail_rows["reviewer_name"].astype(str)) == {"mock-review"}
+
+    failure_rows = workspace.agent_task_failure_rows("review", actor="mock-review")
+    assert failure_rows.empty
 
 
 def _run_json(argv: list[str], *, cwd: Path) -> dict[str, object]:
