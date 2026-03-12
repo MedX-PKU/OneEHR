@@ -35,7 +35,6 @@ def test_load_config_with_analysis_section(tmp_path: Path) -> None:
                 "",
                 "[analysis]",
                 'default_modules = ["dataset_profile", "prediction_audit"]',
-                'formats = ["json", "csv"]',
                 "top_k = 15",
                 'stratify_by = ["sex"]',
                 "case_limit = 10",
@@ -48,36 +47,34 @@ def test_load_config_with_analysis_section(tmp_path: Path) -> None:
 
     cfg = load_experiment_config(cfg_path)
     assert cfg.analysis.default_modules == ["dataset_profile", "prediction_audit"]
-    assert cfg.analysis.formats == ["json", "csv"]
     assert cfg.analysis.top_k == 15
     assert cfg.analysis.stratify_by == ["sex"]
     assert cfg.analysis.case_limit == 10
     assert cfg.analysis.shap_max_samples == 64
 
 
-def test_cli_analyze_default_writes_index_and_reports(tmp_path: Path) -> None:
+def test_cli_analyze_default_writes_structured_outputs(tmp_path: Path) -> None:
     run_root, cfg = _build_trained_run(tmp_path=tmp_path, run_name="analysis_default", seed=17)
 
     subprocess.check_call(["oneehr", "analyze", "--config", str(cfg)])
 
     analysis_root = run_root / "analysis"
-    index_path = analysis_root / "index.json"
-    assert index_path.exists()
     index = read_analysis_index(run_root)
     modules = list_analysis_modules(run_root)
     assert "dataset_profile" in modules
     assert "prediction_audit" in modules
     assert "interpretability" in modules
-    assert "llm_audit" in modules
+    assert "agent_audit" in modules
 
-    assert (analysis_root / "index.md").exists()
-    assert (analysis_root / "index.html").exists()
+    assert (analysis_root / "index.json").exists()
+    assert not (analysis_root / "index.md").exists()
+    assert not (analysis_root / "index.html").exists()
     assert (analysis_root / "dataset_profile" / "summary.json").exists()
     assert (analysis_root / "prediction_audit" / "slices.csv").exists()
     assert (analysis_root / "prediction_audit" / "cases").exists()
     assert (analysis_root / "cohort_analysis" / "feature_drift.csv").exists()
     assert (analysis_root / "temporal_analysis" / "segments.csv").exists()
-    assert (analysis_root / "llm_audit" / "summary.json").exists()
+    assert (analysis_root / "agent_audit" / "summary.json").exists()
     assert any(path.name.startswith("feature_importance_xgboost_") for path in analysis_root.iterdir())
 
     pred_summary = read_analysis_summary(run_root, "prediction_audit")
@@ -86,8 +83,8 @@ def test_cli_analyze_default_writes_index_and_reports(tmp_path: Path) -> None:
     assert not pred_table.empty
     assert set(pred_table.columns) >= {"model", "split", "error_rate"}
 
-    llm_summary = read_analysis_summary(run_root, "llm_audit")
-    assert llm_summary["status"] == "skipped"
+    agent_summary = read_analysis_summary(run_root, "agent_audit")
+    assert agent_summary["status"] == "skipped"
     assert index["comparison"] is None
 
 
@@ -105,10 +102,6 @@ def test_cli_analyze_compare_run_writes_comparison(tmp_path: Path) -> None:
             "prediction_audit",
             "--compare-run",
             str(run_root_b),
-            "--format",
-            "json",
-            "--format",
-            "csv",
         ]
     )
 
@@ -121,18 +114,18 @@ def test_cli_analyze_compare_run_writes_comparison(tmp_path: Path) -> None:
     assert index["comparison"]["summary_path"] == "analysis/comparison/summary.json"
 
 
-def test_cli_analyze_llm_audit_module(tmp_path: Path, monkeypatch) -> None:
+def test_cli_analyze_agent_audit_module(tmp_path: Path, monkeypatch) -> None:
     dynamic_csv = tmp_path / "dynamic.csv"
     label_fn = tmp_path / "label_fn.py"
     cfg_path = tmp_path / "exp.toml"
     out_root = tmp_path / "runs"
-    run_name = "llm_audit"
+    run_name = "agent_audit"
 
-    _write_llm_dynamic_csv(dynamic_csv)
+    _write_agent_dynamic_csv(dynamic_csv)
     _write_patient_parity_label_fn(label_fn)
 
     with _mock_chat_server() as (_, base_url):
-        _write_llm_experiment_toml(
+        _write_agent_experiment_toml(
             path=cfg_path,
             dynamic_csv=dynamic_csv,
             label_fn_ref=f"{label_fn}:build_labels",
@@ -145,8 +138,7 @@ def test_cli_analyze_llm_audit_module(tmp_path: Path, monkeypatch) -> None:
         env["TEST_OPENAI_API_KEY"] = "dummy"
 
         subprocess.check_call(["oneehr", "preprocess", "--config", str(cfg_path)], env=env)
-        subprocess.check_call(["oneehr", "llm-preprocess", "--config", str(cfg_path)], env=env)
-        subprocess.check_call(["oneehr", "llm-predict", "--config", str(cfg_path)], env=env)
+        subprocess.check_call(["oneehr", "agent", "predict", "--config", str(cfg_path)], env=env)
         subprocess.check_call(
             [
                 "oneehr",
@@ -154,22 +146,18 @@ def test_cli_analyze_llm_audit_module(tmp_path: Path, monkeypatch) -> None:
                 "--config",
                 str(cfg_path),
                 "--module",
-                "llm_audit",
-                "--format",
-                "json",
-                "--format",
-                "csv",
+                "agent_audit",
             ],
             env=env,
         )
 
     run_root = out_root / run_name
-    summary = read_analysis_summary(run_root, "llm_audit")
+    summary = read_analysis_summary(run_root, "agent_audit")
     assert summary["status"] == "ok"
-    slices = read_analysis_table(run_root, "llm_audit", "slices")
+    slices = read_analysis_table(run_root, "agent_audit", "slices")
     assert not slices.empty
-    assert set(slices.columns) >= {"llm_model", "split", "parse_success_rate", "coverage", "total_tokens"}
-    assert (run_root / "analysis" / "llm_audit" / "plots" / "parse_success_rate.json").exists()
+    assert set(slices.columns) >= {"predictor_name", "split", "parse_success_rate", "coverage", "total_tokens"}
+    assert (run_root / "analysis" / "agent_audit" / "plots" / "parse_success_rate.json").exists()
 
 
 def _build_trained_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[Path, Path]:
@@ -316,7 +304,7 @@ def _write_experiment_toml(
     )
 
 
-def _write_llm_dynamic_csv(path: Path) -> None:
+def _write_agent_dynamic_csv(path: Path) -> None:
     rows: list[dict[str, object]] = []
     for pid_int in range(12):
         patient_id = f"p{pid_int:04d}"
@@ -347,7 +335,7 @@ def _write_patient_parity_label_fn(path: Path) -> None:
     )
 
 
-def _write_llm_experiment_toml(
+def _write_agent_experiment_toml(
     *,
     path: Path,
     dynamic_csv: Path,
@@ -389,7 +377,7 @@ def _write_llm_experiment_toml(
                 'device = "cpu"',
                 "repeat = 1",
                 "",
-                "[llm]",
+                "[agent.predict]",
                 "enabled = true",
                 'sample_unit = "patient"',
                 'prompt_template = "summary_v1"',
@@ -400,17 +388,17 @@ def _write_llm_experiment_toml(
                 "temperature = 0.0",
                 "top_p = 1.0",
                 "",
-                "[llm.prompt]",
+                "[agent.predict.prompt]",
                 "include_static = false",
                 "max_events = 20",
                 'time_order = "asc"',
                 'sections = ["patient_profile", "event_timeline", "prediction_task", "output_schema"]',
                 "",
-                "[llm.output]",
+                "[agent.predict.output]",
                 "include_explanation = true",
                 "include_confidence = false",
                 "",
-                "[[llm_models]]",
+                "[[agent.predict.backends]]",
                 'name = "mock"',
                 'provider = "openai_compatible"',
                 f'base_url = "{base_url}"',
@@ -434,7 +422,9 @@ class _MockChatHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(length).decode("utf-8"))
         prompt = str(body["messages"][-1]["content"])
-        patient_id = prompt.split("patient_id: ", 1)[1].splitlines()[0].strip() if "patient_id: " in prompt else "p0000"
+        patient_id = (
+            prompt.split("patient_id: ", 1)[1].splitlines()[0].strip() if "patient_id: " in prompt else "p0000"
+        )
         label = int(patient_id[1:]) % 2
         payload = {
             "id": "chatcmpl-mock",

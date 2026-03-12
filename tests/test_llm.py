@@ -11,27 +11,29 @@ from pathlib import Path
 
 import pandas as pd
 
+from oneehr.agent.client import OpenAICompatibleAgentClient
+from oneehr.agent.contracts import AgentRequestSpec
+from oneehr.agent.instances import validate_agent_predict_setup
+from oneehr.agent.predict_schema import parse_prediction_response
+from oneehr.agent.render import render_prompt
+from oneehr.agent.templates import describe_prompt_template, list_prompt_templates
 from oneehr.config.load import load_experiment_config
 from oneehr.config.schema import (
+    AgentBackendConfig,
+    AgentConfig,
+    AgentPredictConfig,
+    AgentPredictOutputConfig,
+    AgentPredictPromptConfig,
     DatasetConfig,
     DynamicTableConfig,
     ExperimentConfig,
-    LLMConfig,
-    LLMOutputConfig,
-    LLMPromptConfig,
     ModelConfig,
     SplitConfig,
     TaskConfig,
 )
-from oneehr.llm.instances import validate_llm_setup
-from oneehr.llm.client import OpenAICompatibleChatClient
-from oneehr.llm.contracts import LLMRequestSpec
-from oneehr.llm.render import render_prompt
-from oneehr.llm.templates import describe_prompt_template, list_prompt_templates
-from oneehr.llm.schema import parse_prediction_response
 
 
-def test_load_config_with_llm_sections(tmp_path: Path) -> None:
+def test_load_config_with_agent_predict_sections(tmp_path: Path) -> None:
     cfg_path = tmp_path / "exp.toml"
     cfg_path.write_text(
         "\n".join(
@@ -46,20 +48,20 @@ def test_load_config_with_llm_sections(tmp_path: Path) -> None:
                 "[split]",
                 'kind = "random"',
                 "",
-                "[llm]",
+                "[agent.predict]",
                 "enabled = true",
                 'sample_unit = "patient"',
                 'prompt_template = "summary_v1"',
                 "concurrency = 2",
                 "",
-                "[llm.prompt]",
+                "[agent.predict.prompt]",
                 "max_events = 25",
                 'time_order = "desc"',
                 "",
-                "[llm.output]",
+                "[agent.predict.output]",
                 "include_explanation = true",
                 "",
-                "[[llm_models]]",
+                "[[agent.predict.backends]]",
                 'name = "mock"',
                 'provider = "openai_compatible"',
                 'base_url = "http://127.0.0.1:9999/v1"',
@@ -72,14 +74,14 @@ def test_load_config_with_llm_sections(tmp_path: Path) -> None:
     )
 
     cfg = load_experiment_config(cfg_path)
-    assert cfg.llm.enabled is True
-    assert cfg.llm.concurrency == 2
-    assert cfg.llm.prompt.max_events == 25
-    assert cfg.llm.prompt.time_order == "desc"
-    assert len(cfg.llm_models) == 1
-    assert cfg.model.name == "llm_placeholder"
-    assert cfg.llm_models[0].base_url == "http://127.0.0.1:9999/v1"
-    validate_llm_setup(cfg)
+    assert cfg.agent.predict.enabled is True
+    assert cfg.agent.predict.concurrency == 2
+    assert cfg.agent.predict.prompt.max_events == 25
+    assert cfg.agent.predict.prompt.time_order == "desc"
+    assert len(cfg.agent.predict.backends) == 1
+    assert cfg.model.name == "_agent_placeholder"
+    assert cfg.agent.predict.backends[0].base_url == "http://127.0.0.1:9999/v1"
+    validate_agent_predict_setup(cfg)
 
 
 def test_prompt_template_registry() -> None:
@@ -133,11 +135,14 @@ def test_render_prompt_time_excludes_future_events() -> None:
         task=TaskConfig(kind="binary", prediction_mode="time"),
         split=SplitConfig(kind="random"),
         model=ModelConfig(name="xgboost"),
-        llm=LLMConfig(
-            enabled=True,
-            sample_unit="time",
-            prompt=LLMPromptConfig(max_events=10),
-            output=LLMOutputConfig(include_explanation=True),
+        agent=AgentConfig(
+            predict=AgentPredictConfig(
+                enabled=True,
+                sample_unit="time",
+                prompt=AgentPredictPromptConfig(max_events=10),
+                output=AgentPredictOutputConfig(include_explanation=True),
+                backends=[AgentBackendConfig(name="mock", model="mock-model")],
+            )
         ),
     )
     dynamic = pd.DataFrame(
@@ -237,13 +242,13 @@ def _mock_chat_server(*, status_plan: list[int] | None = None):
         server.server_close()
 
 
-def test_openai_compatible_client_retries_on_500(monkeypatch) -> None:
+def test_openai_compatible_agent_client_retries_on_500(monkeypatch) -> None:
     with _mock_chat_server(status_plan=[500]) as (_, base_url):
         monkeypatch.setenv("TEST_OPENAI_API_KEY", "dummy")
-        client = OpenAICompatibleChatClient()
+        client = OpenAICompatibleAgentClient()
         resp = client.complete(
-            LLMRequestSpec(
-                model_name="mock",
+            AgentRequestSpec(
+                backend_name="mock",
                 provider_model="mock-model",
                 base_url=base_url,
                 api_key_env="TEST_OPENAI_API_KEY",
@@ -260,18 +265,18 @@ def test_openai_compatible_client_retries_on_500(monkeypatch) -> None:
         assert '"label": 1' in resp.raw_text
 
 
-def test_llm_cli_e2e_patient_binary(tmp_path: Path) -> None:
+def test_agent_predict_cli_e2e_patient_binary(tmp_path: Path) -> None:
     dynamic_csv = tmp_path / "dynamic.csv"
     label_fn = tmp_path / "label_fn.py"
     cfg_path = tmp_path / "exp.toml"
     out_root = tmp_path / "runs"
-    run_name = "llm_patient"
+    run_name = "agent_patient"
 
     _write_dynamic_csv(dynamic_csv)
     _write_patient_parity_label_fn(label_fn)
 
     with _mock_chat_server() as (server, base_url):
-        _write_llm_experiment_toml(
+        _write_agent_predict_experiment_toml(
             path=cfg_path,
             dynamic_csv=dynamic_csv,
             label_fn_ref=f"{label_fn}:build_labels",
@@ -283,13 +288,12 @@ def test_llm_cli_e2e_patient_binary(tmp_path: Path) -> None:
         env["TEST_OPENAI_API_KEY"] = "dummy"
 
         subprocess.check_call(["oneehr", "preprocess", "--config", str(cfg_path)], env=env)
-        subprocess.check_call(["oneehr", "llm-preprocess", "--config", str(cfg_path)], env=env)
-        subprocess.check_call(["oneehr", "llm-predict", "--config", str(cfg_path)], env=env)
+        subprocess.check_call(["oneehr", "agent", "predict", "--config", str(cfg_path)], env=env)
 
         run_root = out_root / run_name
-        instances_path = run_root / "llm" / "instances" / "patient_instances.parquet"
-        summary_path = run_root / "llm" / "summary.json"
-        preds_path = run_root / "llm" / "preds" / "mock" / "split0.parquet"
+        instances_path = run_root / "agent" / "predict" / "instances" / "patient_instances.parquet"
+        summary_path = run_root / "agent" / "predict" / "summary.json"
+        preds_path = run_root / "agent" / "predict" / "preds" / "mock" / "split0.parquet"
 
         assert instances_path.exists()
         assert preds_path.exists()
@@ -297,7 +301,7 @@ def test_llm_cli_e2e_patient_binary(tmp_path: Path) -> None:
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         assert len(summary["records"]) == 1
         record = summary["records"][0]
-        assert record["llm_model"] == "mock"
+        assert record["predictor_name"] == "mock"
         assert record["parse_success_rate"] == 1.0
         assert record["coverage"] > 0.0
         assert record["metrics"]["accuracy"] == 1.0
@@ -335,7 +339,7 @@ def _write_patient_parity_label_fn(path: Path) -> None:
     )
 
 
-def _write_llm_experiment_toml(
+def _write_agent_predict_experiment_toml(
     *,
     path: Path,
     dynamic_csv: Path,
@@ -370,14 +374,11 @@ def _write_llm_experiment_toml(
                 "val_size = 0.2",
                 "test_size = 0.25",
                 "",
-                "[model]",
-                'name = "xgboost"',
-                "",
                 "[trainer]",
                 'device = "cpu"',
                 "repeat = 1",
                 "",
-                "[llm]",
+                "[agent.predict]",
                 "enabled = true",
                 'sample_unit = "patient"',
                 'prompt_template = "summary_v1"',
@@ -388,17 +389,17 @@ def _write_llm_experiment_toml(
                 "temperature = 0.0",
                 "top_p = 1.0",
                 "",
-                "[llm.prompt]",
+                "[agent.predict.prompt]",
                 "include_static = false",
                 "max_events = 20",
                 'time_order = "asc"',
                 'sections = ["patient_profile", "event_timeline", "prediction_task", "output_schema"]',
                 "",
-                "[llm.output]",
+                "[agent.predict.output]",
                 "include_explanation = true",
                 "include_confidence = false",
                 "",
-                "[[llm_models]]",
+                "[[agent.predict.backends]]",
                 'name = "mock"',
                 'provider = "openai_compatible"',
                 f'base_url = "{base_url}"',

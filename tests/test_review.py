@@ -11,11 +11,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from oneehr.agent.review_schema import parse_review_response
 from oneehr.config.load import load_experiment_config
-from oneehr.review.schema import parse_review_response
 
 
-def test_load_config_with_review_sections(tmp_path: Path) -> None:
+def test_load_config_with_agent_review_sections(tmp_path: Path) -> None:
     cfg_path = tmp_path / "exp.toml"
     cfg_path.write_text(
         "\n".join(
@@ -33,16 +33,16 @@ def test_load_config_with_review_sections(tmp_path: Path) -> None:
                 "[model]",
                 'name = "xgboost"',
                 "",
-                "[review]",
+                "[agent.review]",
                 "enabled = true",
                 'prompt_template = "evidence_review_v1"',
-                'prediction_sources = ["train"]',
+                'prediction_origins = ["model"]',
                 "",
-                "[review.prompt]",
+                "[agent.review.prompt]",
                 "include_ground_truth = true",
                 'time_order = "desc"',
                 "",
-                "[[review_models]]",
+                "[[agent.review.backends]]",
                 'name = "mock-review"',
                 'provider = "openai_compatible"',
                 'base_url = "http://127.0.0.1:9999/v1"',
@@ -55,11 +55,11 @@ def test_load_config_with_review_sections(tmp_path: Path) -> None:
     )
 
     cfg = load_experiment_config(cfg_path)
-    assert cfg.review.enabled is True
-    assert cfg.review.prompt_template == "evidence_review_v1"
-    assert cfg.review.prediction_sources == ["train"]
-    assert cfg.review.prompt.time_order == "desc"
-    assert cfg.review_models[0].name == "mock-review"
+    assert cfg.agent.review.enabled is True
+    assert cfg.agent.review.prompt_template == "evidence_review_v1"
+    assert cfg.agent.review.prediction_origins == ["model"]
+    assert cfg.agent.review.prompt.time_order == "desc"
+    assert cfg.agent.review.backends[0].name == "mock-review"
 
 
 def test_parse_review_response() -> None:
@@ -74,37 +74,43 @@ def test_parse_review_response() -> None:
     assert parsed.key_evidence == ["lab trend"]
 
 
-def test_llm_review_cli_e2e(tmp_path: Path) -> None:
+def test_agent_review_cli_e2e(tmp_path: Path) -> None:
     with _mock_review_server() as (server, base_url):
-        run_root, cfg_path = _build_review_run(tmp_path=tmp_path, run_name="review_run", seed=31, base_url=base_url)
+        run_root, cfg_path = _build_review_run(
+            tmp_path=tmp_path,
+            run_name="review_run",
+            seed=31,
+            base_url=base_url,
+        )
         env = os.environ.copy()
         env["TEST_OPENAI_API_KEY"] = "dummy"
 
-        subprocess.check_call(["oneehr", "llm-review", "--config", str(cfg_path)], env=env)
+        subprocess.check_call(["oneehr", "agent", "review", "--config", str(cfg_path)], env=env)
 
-        summary_path = run_root / "review" / "summary.json"
+        summary_path = run_root / "agent" / "review" / "summary.json"
         assert summary_path.exists()
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         assert len(summary["records"]) >= 1
         record = summary["records"][0]
-        assert record["review_model"] == "mock-review"
-        assert record["target_source"] == "train"
+        assert record["reviewer_name"] == "mock-review"
+        assert record["target_origin"] == "model"
+        assert record["target_predictor_name"] == "xgboost"
         assert record["parse_success_rate"] == 1.0
         assert record["metrics"]["supported_rate"] == 1.0
 
-        parsed_files = sorted((run_root / "review" / "parsed" / "mock-review").glob("*.parquet"))
+        parsed_files = sorted((run_root / "agent" / "review" / "parsed" / "mock-review").glob("*.parquet"))
         assert parsed_files
         parsed = pd.read_parquet(parsed_files[0])
         assert parsed["parsed_ok"].all()
         assert parsed["supported"].all()
 
-        case_id = json.loads((run_root / "workspace" / "index.json").read_text(encoding="utf-8"))["records"][0]["case_id"]
+        case_id = json.loads((run_root / "cases" / "index.json").read_text(encoding="utf-8"))["records"][0]["case_id"]
         prompt_payload = _run_json(
             [
                 "oneehr",
-                "inspect",
-                "--tool",
-                "tasks.render_prompt",
+                "query",
+                "cases",
+                "render-prompt",
                 "--config",
                 str(cfg_path),
                 "--run-dir",
@@ -113,9 +119,9 @@ def test_llm_review_cli_e2e(tmp_path: Path) -> None:
                 case_id,
                 "--template",
                 "evidence_review_v1",
-                "--source",
-                "train",
-                "--model-name",
+                "--origin",
+                "model",
+                "--predictor-name",
                 "xgboost",
             ],
             cwd=Path.cwd(),
@@ -124,7 +130,7 @@ def test_llm_review_cli_e2e(tmp_path: Path) -> None:
         assert "Review Rubric" in prompt_payload["prompt"]["prompt"]
 
         review_payload = _run_json(
-            ["oneehr", "inspect", "--tool", "reviews.read_summary", "--run-dir", str(run_root)],
+            ["oneehr", "query", "agent", "review-summary", "--run-dir", str(run_root)],
             cwd=Path.cwd(),
         )
         assert len(review_payload["summary"]["records"]) >= 1
@@ -235,13 +241,8 @@ def _build_review_run(*, tmp_path: Path, run_name: str, seed: int, base_url: str
             "cohort_analysis",
             "--module",
             "prediction_audit",
-            "--format",
-            "json",
-            "--format",
-            "csv",
         ]
     )
-    subprocess.check_call(["oneehr", "workspace", "--config", str(cfg_path), "--force"])
     return out_root / run_name, cfg_path
 
 
@@ -344,35 +345,29 @@ def _write_review_experiment_toml(
                 "lr = 1e-3",
                 "early_stopping = false",
                 "",
-                "[llm]",
-                "enabled = false",
-                'sample_unit = "patient"',
-                'prompt_template = "summary_v1"',
-                "json_schema_version = 1",
-                "",
-                "[workspace]",
+                "[cases]",
                 "include_static = true",
                 "include_analysis_refs = true",
                 "max_events = 5",
                 "",
-                "[review]",
+                "[agent.review]",
                 "enabled = true",
                 'prompt_template = "evidence_review_v1"',
-                'prediction_sources = ["train"]',
+                'prediction_origins = ["model"]',
                 "concurrency = 1",
                 "max_retries = 1",
                 "timeout_seconds = 5.0",
                 "temperature = 0.0",
                 "top_p = 1.0",
                 "",
-                "[review.prompt]",
+                "[agent.review.prompt]",
                 "include_static = true",
                 "include_ground_truth = true",
                 "include_analysis_context = true",
                 "max_events = 5",
                 'time_order = "asc"',
                 "",
-                "[[review_models]]",
+                "[[agent.review.backends]]",
                 'name = "mock-review"',
                 'provider = "openai_compatible"',
                 f'base_url = "{base_url}"',

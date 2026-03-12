@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from oneehr.agent import (
+from oneehr.query import (
     compare_cohorts,
     describe_patient_case,
     describe_run,
@@ -17,49 +17,49 @@ from oneehr.agent import (
 )
 
 
-def test_agent_query_list_runs_and_describe_run(tmp_path: Path) -> None:
-    run_root, cfg_path = _build_analyzed_run(tmp_path=tmp_path, run_name="inspect_run", seed=21)
+def test_query_list_runs_and_describe_run(tmp_path: Path) -> None:
+    run_root, cfg_path = _build_analyzed_run(tmp_path=tmp_path, run_name="query_run", seed=21)
 
     runs = list_runs(run_root.parent)
     assert len(runs) == 1
-    assert runs[0]["run_name"] == "inspect_run"
+    assert runs[0]["run_name"] == "query_run"
     assert runs[0]["has_analysis_index"] is True
 
     desc = describe_run(run_root)
-    assert desc["run_name"] == "inspect_run"
+    assert desc["run_name"] == "query_run"
     assert desc["manifest"]["task"]["kind"] == "binary"
     assert desc["training"]["models"] == ["xgboost"]
     assert {item["name"] for item in desc["analysis"]["modules"]} >= {"cohort_analysis", "prediction_audit"}
 
     payload = _run_json(
-        ["oneehr", "inspect", "--tool", "runs.describe", "--config", str(cfg_path)],
+        ["oneehr", "query", "runs", "describe", "--config", str(cfg_path)],
         cwd=Path.cwd(),
     )
-    assert payload["tool"] == "runs.describe"
-    assert payload["run"]["run_name"] == "inspect_run"
+    assert payload["query"] == "runs.describe"
+    assert payload["run"]["run_name"] == "query_run"
 
 
-def test_inspect_cli_prompt_registry() -> None:
+def test_query_prompt_registry() -> None:
     payload = _run_json(
-        ["oneehr", "inspect", "--tool", "prompts.list", "--family", "prediction"],
+        ["oneehr", "query", "prompts", "list", "--family", "prediction"],
         cwd=Path.cwd(),
     )
     names = {item["name"] for item in payload["templates"]}
     assert "summary_v1" in names
 
     desc = _run_json(
-        ["oneehr", "inspect", "--tool", "prompts.describe", "--template", "evidence_review_v1"],
+        ["oneehr", "query", "prompts", "describe", "--template", "evidence_review_v1"],
         cwd=Path.cwd(),
     )
     assert desc["template"]["family"] == "review"
     assert "output_schema" in desc["template"]["default_sections"]
 
 
-def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
-    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="inspect_contracts", seed=9)
+def test_query_analysis_cases_and_cohorts(tmp_path: Path) -> None:
+    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="query_contracts", seed=9)
 
     modules = _run_json(
-        ["oneehr", "inspect", "--tool", "analysis.list_modules", "--run-dir", str(run_root)],
+        ["oneehr", "query", "analysis", "modules", "--run-dir", str(run_root)],
         cwd=Path.cwd(),
     )
     assert set(modules["modules"]) >= {"dataset_profile", "cohort_analysis", "prediction_audit"}
@@ -67,9 +67,9 @@ def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
     summary = _run_json(
         [
             "oneehr",
-            "inspect",
-            "--tool",
-            "analysis.read_summary",
+            "query",
+            "analysis",
+            "summary",
             "--run-dir",
             str(run_root),
             "--module",
@@ -82,9 +82,9 @@ def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
     table = _run_json(
         [
             "oneehr",
-            "inspect",
-            "--tool",
-            "analysis.read_table",
+            "query",
+            "analysis",
+            "table",
             "--run-dir",
             str(run_root),
             "--module",
@@ -102,9 +102,9 @@ def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
     cases = _run_json(
         [
             "oneehr",
-            "inspect",
-            "--tool",
-            "cases.list_failures",
+            "query",
+            "analysis",
+            "failures",
             "--run-dir",
             str(run_root),
         ],
@@ -119,9 +119,9 @@ def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
     patient = _run_json(
         [
             "oneehr",
-            "inspect",
-            "--tool",
-            "cases.describe_patient",
+            "query",
+            "analysis",
+            "patient-case",
             "--run-dir",
             str(run_root),
             "--patient-id",
@@ -137,9 +137,9 @@ def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
     cohort = _run_json(
         [
             "oneehr",
-            "inspect",
-            "--tool",
-            "cohorts.compare",
+            "query",
+            "cohorts",
+            "compare",
             "--run-dir",
             str(run_root),
             "--split",
@@ -158,8 +158,8 @@ def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
     assert len(cohort["comparison"]["top_feature_drift"]) <= 3
 
 
-def test_agent_query_case_helpers(tmp_path: Path) -> None:
-    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="inspect_helpers", seed=13)
+def test_query_helper_functions(tmp_path: Path) -> None:
+    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="query_helpers", seed=13)
 
     failure_sets = list_failure_cases(run_root)
     assert len(failure_sets) > 0
@@ -217,10 +217,6 @@ def _build_analyzed_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[Pa
             "cohort_analysis",
             "--module",
             "prediction_audit",
-            "--format",
-            "json",
-            "--format",
-            "csv",
         ]
     )
     return out_root / run_name, cfg
@@ -286,6 +282,7 @@ def _write_experiment_toml(
                 'categorical_strategy = "onehot"',
                 'code_selection = "frequency"',
                 "top_k_codes = 50",
+                "min_code_count = 1",
                 "",
                 "[task]",
                 'kind = "binary"',
@@ -293,12 +290,14 @@ def _write_experiment_toml(
                 "",
                 "[labels]",
                 f'fn = "{label_fn_ref}"',
+                "bin_from_time_col = true",
                 "",
                 "[split]",
                 'kind = "kfold"',
                 "seed = 0",
                 "n_splits = 2",
                 "val_size = 0.2",
+                "test_size = 0.2",
                 "",
                 "[model]",
                 'name = "xgboost"',
@@ -310,6 +309,10 @@ def _write_experiment_toml(
                 "batch_size = 16",
                 "lr = 1e-3",
                 "early_stopping = false",
+                'final_refit = "train_val"',
+                'final_model_source = "refit"',
+                "bootstrap_test = false",
+                "bootstrap_n = 10",
                 "",
                 "[output]",
                 f'root = "{out_root}"',

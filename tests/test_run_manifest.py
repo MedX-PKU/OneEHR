@@ -28,11 +28,12 @@ def test_write_run_manifest(tmp_path: Path):
     )
 
     data = json.loads((out / "run_manifest.json").read_text(encoding="utf-8"))
-    assert data["schema_version"] == 3
+    assert data["schema_version"] == 4
     assert data["features"]["dynamic"]["feature_columns"] == ["num__A", "cat__DX__X"]
     assert (data["artifacts"] or {}).get("binned_parquet_path") == "binned.parquet"
-    assert data["llm"]["enabled"] is False
-    assert data["workspace"]["include_static"] is True
-    assert data["workspace"]["max_events"] == 200
-    assert data["review"]["enabled"] is False
-    assert data["review"]["prompt_template"] == "evidence_review_v1"
+    assert data["cases"]["include_static"] is True
+    assert data["cases"]["max_events"] == 200
+    assert data["agent"]["predict"]["enabled"] is False
+    assert data["agent"]["predict"]["prompt_template"] == "summary_v1"
+    assert data["agent"]["review"]["enabled"] is False
+    assert data["agent"]["review"]["prediction_origins"] == ["model", "agent"]

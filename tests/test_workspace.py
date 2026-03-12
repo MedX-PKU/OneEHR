@@ -7,44 +7,44 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from oneehr.agent import (
-    collect_case_evidence,
-    get_case_predictions,
-    get_patient_static,
-    get_patient_timeline,
-    list_workspace_cases,
-    read_workspace_case,
-    render_case_prompt,
-)
+from oneehr.cases import list_cases, read_case
 from oneehr.config.load import load_experiment_config
 from oneehr.data.splits import load_splits
+from oneehr.query import (
+    collect_case_evidence,
+    get_case_predictions,
+    get_case_static,
+    get_case_timeline,
+    render_case_prompt,
+)
 
 
-def test_workspace_cli_and_task_primitives(tmp_path: Path) -> None:
-    run_root, cfg_path = _build_workspace_run(tmp_path=tmp_path, run_name="workspace_run", seed=17)
+def test_cases_cli_and_query_primitives(tmp_path: Path) -> None:
+    run_root, cfg_path = _build_cases_run(tmp_path=tmp_path, run_name="cases_run", seed=17)
 
-    cases = list_workspace_cases(run_root)
+    cases = list_cases(run_root)
     assert len(cases) > 0
     case_id = str(cases[0]["case_id"])
 
-    case = read_workspace_case(run_root, case_id, limit=3)
+    case = read_case(run_root, case_id, limit=3)
     assert case["case_id"] == case_id
     assert len(case["events"]) >= 1
     assert "artifacts" in case
 
-    timeline = get_patient_timeline(run_root, case_id, limit=2)
+    timeline = get_case_timeline(run_root, case_id, limit=2)
     assert timeline["row_count"] == 2
 
-    static_payload = get_patient_static(run_root, case_id)
+    static_payload = get_case_static(run_root, case_id)
     assert static_payload["feature_count"] >= 2
     assert "age" in static_payload["features"]
 
     preds = get_case_predictions(run_root, case_id)
     assert preds["row_count"] >= 1
-    assert preds["records"][0]["source"] == "train"
+    assert preds["records"][0]["origin"] == "model"
+    assert preds["records"][0]["predictor_name"] == "xgboost"
 
     evidence = collect_case_evidence(run_root, case_id, limit=2)
-    assert evidence["workspace"]["case_id"] == case_id
+    assert evidence["case"]["case_id"] == case_id
     assert len(evidence["timeline"]["records"]) == 2
     assert evidence["analysis_refs"]["modules"]
 
@@ -54,17 +54,18 @@ def test_workspace_cli_and_task_primitives(tmp_path: Path) -> None:
     assert "Prediction Task" in prompt["prompt"]
 
     cli_cases = _run_json(
-        ["oneehr", "inspect", "--tool", "workspace.list_cases", "--run-dir", str(run_root), "--limit", "1"],
+        ["oneehr", "query", "cases", "list", "--run-dir", str(run_root), "--limit", "1"],
         cwd=Path.cwd(),
     )
+    assert cli_cases["query"] == "cases.list"
     assert len(cli_cases["cases"]) == 1
 
     cli_evidence = _run_json(
         [
             "oneehr",
-            "inspect",
-            "--tool",
-            "tasks.collect_evidence",
+            "query",
+            "cases",
+            "evidence",
             "--run-dir",
             str(run_root),
             "--case-id",
@@ -79,9 +80,9 @@ def test_workspace_cli_and_task_primitives(tmp_path: Path) -> None:
     cli_prompt = _run_json(
         [
             "oneehr",
-            "inspect",
-            "--tool",
-            "tasks.render_prompt",
+            "query",
+            "cases",
+            "render-prompt",
             "--config",
             str(cfg_path),
             "--run-dir",
@@ -97,12 +98,12 @@ def test_workspace_cli_and_task_primitives(tmp_path: Path) -> None:
     assert "Patient Profile" in cli_prompt["prompt"]["prompt"]
 
 
-def test_workspace_cases_respect_saved_test_splits(tmp_path: Path) -> None:
-    run_root, _ = _build_workspace_run(tmp_path=tmp_path, run_name="workspace_split_guard", seed=23)
+def test_cases_respect_saved_test_splits(tmp_path: Path) -> None:
+    run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="cases_split_guard", seed=23)
     splits = load_splits(run_root / "splits")
     assert splits
 
-    cases = list_workspace_cases(run_root)
+    cases = list_cases(run_root)
     split_to_test = {sp.name: set(sp.test_patients.astype(str).tolist()) for sp in splits}
     for row in cases:
         assert str(row["patient_id"]) in split_to_test[str(row["split"])]
@@ -113,7 +114,7 @@ def _run_json(argv: list[str], *, cwd: Path) -> dict[str, object]:
     return json.loads(out)
 
 
-def _build_workspace_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[Path, Path]:
+def _build_cases_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[Path, Path]:
     dynamic = _make_simulated_dynamic_events(n_patients=24, seed=seed)
     static = _make_static_table(n_patients=24, seed=seed)
 
@@ -126,7 +127,7 @@ def _build_workspace_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[P
     dynamic.to_csv(dynamic_csv, index=False)
     static.to_csv(static_csv, index=False)
     _write_patient_label_fn(label_fn)
-    _write_workspace_experiment_toml(
+    _write_cases_experiment_toml(
         path=cfg_path,
         dynamic_csv=dynamic_csv,
         static_csv=static_csv,
@@ -149,13 +150,9 @@ def _build_workspace_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[P
             "cohort_analysis",
             "--module",
             "prediction_audit",
-            "--format",
-            "json",
-            "--format",
-            "csv",
         ]
     )
-    subprocess.check_call(["oneehr", "workspace", "--config", str(cfg_path), "--force"])
+    subprocess.check_call(["oneehr", "cases", "build", "--config", str(cfg_path), "--force"])
     return out_root / run_name, cfg_path
 
 
@@ -210,7 +207,7 @@ def _write_patient_label_fn(path: Path) -> None:
     )
 
 
-def _write_workspace_experiment_toml(
+def _write_cases_experiment_toml(
     *,
     path: Path,
     dynamic_csv: Path,
@@ -257,26 +254,10 @@ def _write_workspace_experiment_toml(
                 "lr = 1e-3",
                 "early_stopping = false",
                 "",
-                "[llm]",
-                "enabled = false",
-                'sample_unit = "patient"',
-                'prompt_template = "summary_v1"',
-                "json_schema_version = 1",
-                "",
-                "[llm.prompt]",
-                "include_static = true",
-                "max_events = 10",
-                'time_order = "asc"',
-                "",
-                "[llm.output]",
-                "include_explanation = true",
-                "include_confidence = false",
-                "",
-                "[workspace]",
+                "[cases]",
                 "include_static = true",
                 "include_analysis_refs = true",
                 "max_events = 5",
-                'time_order = "asc"',
                 "",
                 "[output]",
                 f'root = "{out_root}"',
