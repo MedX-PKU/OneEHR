@@ -184,6 +184,63 @@ use_calibrated = true
 # uv run oneehr llm-preprocess --config examples/experiment.toml
 # uv run oneehr llm-predict --config examples/experiment.toml
 
+# Optional evidence-grounded case workspace for agent workflows.
+#
+# [workspace]
+# include_static = true
+# include_analysis_refs = true
+# history_window = "30d"  # optional
+# max_events = 200
+# time_order = "asc"      # asc | desc
+# case_limit = 100        # optional
+#
+# Workspace command:
+# uv run oneehr workspace --config examples/experiment.toml
+
+# Optional LLM-as-judge / reviewer workflow over workspace cases.
+#
+# [review]
+# enabled = true
+# prompt_template = "evidence_review_v1"
+# json_schema_version = 1
+# prediction_sources = ["train", "llm"] # any subset of train / llm
+# save_prompts = true
+# save_responses = true
+# save_parsed = true
+# concurrency = 1
+# max_retries = 2
+# timeout_seconds = 60.0
+# temperature = 0.0
+# top_p = 1.0
+#
+# [review.prompt]
+# include_static = true
+# include_ground_truth = true
+# include_analysis_context = true
+# max_events = 100
+# time_order = "asc"
+# sections = [
+#   "case_profile",
+#   "observed_evidence",
+#   "target_prediction",
+#   "ground_truth",
+#   "analysis_context",
+#   "review_rubric",
+#   "output_schema",
+# ]
+#
+# [[review_models]]
+# name = "gpt4o-mini-review"
+# provider = "openai_compatible"
+# base_url = "https://api.openai.com/v1"
+# model = "gpt-4o-mini"
+# api_key_env = "OPENAI_API_KEY"
+# supports_json_schema = true
+# headers = { }
+#
+# Reviewer command:
+# uv run oneehr llm-review --config examples/experiment.toml
+
 [output]
 root = "logs"
 run_name = "example"

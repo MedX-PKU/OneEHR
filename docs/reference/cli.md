@@ -1,6 +1,6 @@
 # CLI Reference
 
-OneEHR provides a single `oneehr` CLI with seven subcommands that map to the experiment pipeline: **preprocess**, **train**, **test**, **analyze**, **inspect**, **llm-preprocess**, **llm-predict**.
+OneEHR provides a single `oneehr` CLI with nine subcommands that map to the experiment pipeline: **preprocess**, **train**, **test**, **analyze**, **workspace**, **inspect**, **llm-preprocess**, **llm-predict**, **llm-review**.
 
 Run `uv run oneehr --help` for the authoritative list of flags.
 
@@ -154,12 +154,42 @@ uv run oneehr analyze --config examples/experiment.toml --method xgboost
 
 ---
 
-## `oneehr inspect`
+## `oneehr workspace`
 
-Read existing run and analysis artifacts as machine-readable JSON. This command is intended for agents, scripts, notebooks, or external orchestration layers that need a stable read-only contract over OneEHR outputs.
+Materialize durable, evidence-grounded case bundles for agent workflows and reviewer loops.
 
 ```
-oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID]
+oneehr workspace --config <toml> [--run-dir DIR] [--force]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | `str` | *required* | Path to experiment TOML config |
+| `--run-dir` | `str` | from config | Run directory (overrides `output.root/output.run_name`) |
+| `--force` | flag | `false` | Overwrite existing workspace artifacts |
+
+**What it does:**
+
+1. Resolves a run directory and reuses the saved split contract
+2. Builds one workspace case per held-out patient or time-window case
+3. Collects evidence-grounded events, static features, predictions, and analysis refs
+4. Writes `workspace/index.json` and case bundles under `workspace/cases/`
+
+**Example:**
+
+```bash
+uv run oneehr workspace --config examples/experiment.toml
+uv run oneehr workspace --config examples/experiment.toml --run-dir logs/example --force
+```
+
+---
+
+## `oneehr inspect`
+
+Read existing prompt, run, workspace, analysis, and review artifacts as machine-readable JSON. This command is intended for agents, scripts, notebooks, or external orchestration layers that need a stable read-only contract over OneEHR outputs.
+
+```
+oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID] [--case-id ID] [--template NAME]
 ```
 
 | Flag | Type | Default | Description |
@@ -178,11 +208,22 @@ oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--mod
 | `--right-role` | `str` | `"test"` | Right cohort role for `cohorts.compare` |
 | `--limit` | `int` | `None` | Max rows returned for table/case queries |
 | `--top-k` | `int` | `10` | Max feature-drift rows returned for `cohorts.compare` |
+| `--template` | `str` | `None` | Prompt template name for prompt/task tools |
+| `--family` | `str` | `None` | Optional prompt family filter for `prompts.list` |
+| `--case-id` | `str` | `None` | Workspace case identifier for `workspace.*` and `tasks.*` |
+| `--model-name` | `str` | `None` | Optional prediction model filter for task tools |
+| `--source` | `str` | `None` | Optional prediction source filter (`train` or `llm`) |
 
 Supported tools:
 
+- `prompts.list`
+- `prompts.describe`
 - `runs.list`
 - `runs.describe`
+- `reviews.read_summary`
+- `workspace.read_index`
+- `workspace.list_cases`
+- `workspace.read_case`
 - `analysis.list_modules`
 - `analysis.read_index`
 - `analysis.read_summary`
@@ -192,19 +233,27 @@ Supported tools:
 - `cases.read_failures`
 - `cases.describe_patient`
 - `cohorts.compare`
+- `tasks.get_patient_timeline`
+- `tasks.get_patient_static`
+- `tasks.get_case_predictions`
+- `tasks.collect_evidence`
+- `tasks.render_prompt`
 
 **What it does:**
 
 1. Resolves a run directory from `--run-dir` or `--config` when needed
-2. Loads the requested run/analysis/case/cohort artifact
+2. Loads the requested prompt/run/workspace/task/analysis/case/cohort/review artifact
 3. Prints a stable JSON payload to stdout
 4. Never mutates repo-tracked state
 
 **Example:**
 
 ```bash
+uv run oneehr inspect --tool prompts.list
 uv run oneehr inspect --tool runs.list --root logs
 uv run oneehr inspect --tool runs.describe --run-dir logs/example
+uv run oneehr inspect --tool workspace.list_cases --run-dir logs/example
+uv run oneehr inspect --tool tasks.collect_evidence --run-dir logs/example --case-id fold0:p0001
 uv run oneehr inspect --tool analysis.read_table --run-dir logs/example --module prediction_audit --table slices --limit 5
 uv run oneehr inspect --tool cases.describe_patient --run-dir logs/example --patient-id p0001
 uv run oneehr inspect --tool cohorts.compare --run-dir logs/example --split fold0 --left-role train --right-role test
@@ -260,7 +309,7 @@ oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
 **What it does:**
 
 1. Loads `llm/instances/*.parquet` (materializing them first if missing)
-2. Renders the built-in `summary_v1` prompt for each instance
+2. Renders the selected prediction prompt template (default `summary_v1`) for each instance
 3. Calls each `[[llm_models]]` entry through an OpenAI-compatible `chat/completions` endpoint
 4. Parses strict JSON responses for `binary` or `regression` tasks
 5. Writes prompts, raw responses, parsed outputs, predictions, failures, per-split metrics, and `llm/summary.json`
@@ -270,4 +319,36 @@ oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
 ```bash
 uv run oneehr llm-predict --config examples/experiment.toml
 uv run oneehr llm-predict --config examples/experiment.toml --run-dir logs/example --force
+```
+
+---
+
+## `oneehr llm-review`
+
+Render reviewer prompts over materialized case workspaces, call OpenAI-compatible chat completions, parse strict review JSON outputs, and summarize judgment metrics.
+
+```
+oneehr llm-review --config <toml> [--run-dir DIR] [--force]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | `str` | *required* | Path to experiment TOML config |
+| `--run-dir` | `str` | from config | Run directory (overrides `output.root/output.run_name`) |
+| `--force` | flag | `false` | Overwrite existing reviewer artifacts |
+
+**What it does:**
+
+1. Ensures `workspace/` case bundles exist
+2. Selects train and/or LLM predictions per `[review].prediction_sources`
+3. Renders the selected review prompt template (default `evidence_review_v1`) for each target prediction
+4. Calls each `[[review_models]]` entry through an OpenAI-compatible `chat/completions` endpoint
+5. Parses structured reviewer JSON and writes prompts, raw responses, parsed outputs, grouped metrics, failures, and `review/summary.json`
+
+**Example:**
+
+```bash
+uv run oneehr workspace --config examples/experiment.toml
+uv run oneehr llm-review --config examples/experiment.toml
+uv run oneehr llm-review --config examples/experiment.toml --run-dir logs/example --force
 ```

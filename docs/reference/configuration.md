@@ -370,8 +370,8 @@ Top-level configuration for the LLM inference/evaluation workflow.
 |-----------|------|---------|-------------|
 | `enabled` | `bool` | `false` | Enable the LLM workflow |
 | `sample_unit` | `str` | `"patient"` | LLM evaluation unit: `patient` or `time` |
-| `prompt_template` | `str` | `"summary_v1"` | Prompt renderer template (currently only `summary_v1`) |
-| `json_schema_version` | `int` | `1` | Output schema version (currently only `1`) |
+| `prompt_template` | `str` | `"summary_v1"` | Prompt renderer template from the built-in prompt registry |
+| `json_schema_version` | `int` | `1` | Output schema version supported by the selected template |
 | `max_samples` | `int` | `None` | Optional cap on the number of materialized LLM instances |
 | `save_prompts` | `bool` | `true` | Save rendered prompts to `llm/prompts/` |
 | `save_responses` | `bool` | `true` | Save raw responses to `llm/responses/` |
@@ -410,7 +410,7 @@ top_p = 1.0
 
 ## `[llm.prompt]`
 
-Prompt construction options for `summary_v1`.
+Prompt construction options for the selected prediction template. The built-in `summary_v1` template uses the section list below.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -492,6 +492,136 @@ base_url = "http://127.0.0.1:8000/v1"
 model = "meta-llama/Llama-3.1-8B-Instruct"
 api_key_env = "VLLM_API_KEY"
 supports_json_schema = false
+```
+
+---
+
+## `[workspace]`
+
+Configuration for the durable, evidence-grounded case workspace written under `workspace/`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include_static` | `bool` | `true` | Include static patient features in each case bundle |
+| `include_analysis_refs` | `bool` | `true` | Include analysis module refs and patient-level audit matches |
+| `history_window` | `str` | `None` | Optional retrospective window applied when materializing case events |
+| `max_events` | `int` | `200` | Maximum number of events stored per case bundle |
+| `time_order` | `str` | `"asc"` | Event order in case timelines: `asc` or `desc` |
+| `case_limit` | `int` | `None` | Optional cap on the number of case bundles to materialize |
+
+```toml
+[workspace]
+include_static = true
+include_analysis_refs = true
+history_window = "30d"
+max_events = 200
+time_order = "asc"
+```
+
+---
+
+## `[review]`
+
+Configuration for the LLM-as-judge / reviewer workflow written under `review/`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | `bool` | `false` | Enable the reviewer workflow |
+| `prompt_template` | `str` | `"evidence_review_v1"` | Reviewer prompt template from the prompt registry |
+| `json_schema_version` | `int` | `1` | Reviewer output schema version |
+| `prediction_sources` | `list[str]` | `["train", "llm"]` | Prediction sources to review |
+| `max_cases` | `int` | `None` | Optional cap on reviewed workspace cases |
+| `save_prompts` | `bool` | `true` | Save rendered reviewer prompts to `review/prompts/` |
+| `save_responses` | `bool` | `true` | Save raw reviewer responses to `review/responses/` |
+| `save_parsed` | `bool` | `true` | Save parsed reviewer outputs to `review/parsed/` |
+| `concurrency` | `int` | `1` | Number of concurrent reviewer requests |
+| `max_retries` | `int` | `2` | Retry count for retryable HTTP/network failures |
+| `timeout_seconds` | `float` | `60.0` | Per-request timeout |
+| `temperature` | `float` | `0.0` | Chat completion temperature |
+| `top_p` | `float` | `1.0` | Chat completion top-p |
+| `seed` | `int` | `None` | Optional request seed |
+
+Rules and constraints:
+
+- `review.prediction_sources` may contain only `train` and/or `llm`
+- Supported reviewer providers are OpenAI-compatible `chat/completions` only
+- Reviewer prompts are rendered from workspace evidence and the target prediction, not from labels-only shortcuts
+
+```toml
+[review]
+enabled = true
+prompt_template = "evidence_review_v1"
+prediction_sources = ["train", "llm"]
+json_schema_version = 1
+save_prompts = true
+save_responses = true
+save_parsed = true
+concurrency = 1
+max_retries = 2
+timeout_seconds = 60.0
+temperature = 0.0
+top_p = 1.0
+```
+
+---
+
+## `[review.prompt]`
+
+Prompt construction options for the built-in `evidence_review_v1` template.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include_static` | `bool` | `true` | Include static patient features in the reviewer prompt |
+| `include_ground_truth` | `bool` | `true` | Include observed outcome / ground truth context |
+| `include_analysis_context` | `bool` | `true` | Include analysis bundle refs and patient-level audit matches |
+| `max_events` | `int` | `100` | Maximum number of case events rendered into the reviewer prompt |
+| `time_order` | `str` | `"asc"` | Event order in the rendered timeline: `asc` or `desc` |
+| `sections` | `list[str]` | see below | Reviewer prompt sections to include |
+
+Default sections:
+
+- `case_profile`
+- `observed_evidence`
+- `target_prediction`
+- `ground_truth`
+- `analysis_context`
+- `review_rubric`
+- `output_schema`
+
+```toml
+[review.prompt]
+include_static = true
+include_ground_truth = true
+include_analysis_context = true
+max_events = 100
+time_order = "asc"
+sections = [
+  "case_profile",
+  "observed_evidence",
+  "target_prediction",
+  "ground_truth",
+  "analysis_context",
+  "review_rubric",
+  "output_schema",
+]
+```
+
+---
+
+## `[[review_models]]`
+
+One or more OpenAI-compatible reviewer backends to evaluate on the same case workspace.
+
+`[[review_models]]` uses the same fields and semantics as `[[llm_models]]`, but writes outputs under `review/` instead of `llm/`.
+
+```toml
+[[review_models]]
+name = "gpt4o-mini-review"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+supports_json_schema = true
 ```
 
 ---

@@ -82,6 +82,32 @@ OneEHR writes all experiment outputs to a structured run directory under `{outpu
             {llm_model}/
                 {split}.json                # (43)
         summary.json                        # (44)
+    workspace/
+        index.json                          # (45)
+        cases/
+            {case_id}/
+                workspace.json              # (46)
+                events.csv                  # (47)
+                static.json                 # (48)
+                predictions.csv             # (49)
+                analysis_refs.json          # (50)
+    review/
+        prompts/
+            {review_model}/
+                {split}.jsonl               # (51)
+        responses/
+            {review_model}/
+                {split}.jsonl               # (52)
+        parsed/
+            {review_model}/
+                {split}.parquet             # (53)
+        failures/
+            {review_model}/
+                {split}.jsonl               # (54)
+        metrics/
+            {review_model}/
+                {split}__{source}__{target_model}.json  # (55)
+        summary.json                        # (56)
 ```
 
 ---
@@ -92,7 +118,7 @@ These are written by `oneehr preprocess` and read by all downstream commands.
 
 ### `run_manifest.json` { #run-manifest }
 
-The **single source of truth** for the run. Contains schema version, dataset paths, task/split/preprocess config snapshots, feature column lists, LLM config snapshots, and artifact paths.
+The **single source of truth** for the run. Contains schema version, dataset paths, task/split/preprocess config snapshots, feature column lists, LLM config snapshots, workspace/review config snapshots, and artifact paths.
 
 Schema version: **3**
 
@@ -106,6 +132,8 @@ Key fields:
 | `split` | Split config snapshot |
 | `preprocess` | Preprocess config snapshot |
 | `llm` | LLM workflow config snapshot |
+| `workspace` | Workspace materialization config snapshot |
+| `review` | Reviewer workflow config snapshot |
 | `features.dynamic.feature_columns` | List of dynamic feature column names |
 | `features.static.feature_columns` | List of static feature column names |
 | `features.static.matrix_parquet_path` | Path to static feature matrix |
@@ -236,6 +264,109 @@ Per-split LLM metrics plus audit coverage fields:
 ### `llm/summary.json`
 
 Run-level summary for all `[[llm_models]]` and splits.
+
+---
+
+## Workspace artifacts
+
+Written by `oneehr workspace`.
+
+### `workspace/index.json`
+
+Run-level index for the evidence-grounded case workspace.
+
+Key fields:
+
+- `schema_version`
+- `case_count`
+- `records[]` with `case_id`, `patient_id`, `split`, `prediction_mode`, `workspace_path`, and evidence counts
+
+### `workspace/cases/{case_id}/workspace.json`
+
+Case-level metadata, evidence counts, and relative paths to the materialized evidence bundle.
+
+### `workspace/cases/{case_id}/events.csv`
+
+Filtered, leakage-safe event timeline for the case. Patient-level cases include the observed history; time-level cases are truncated at `bin_time`.
+
+### `workspace/cases/{case_id}/static.json`
+
+Patient-level static features included in the case bundle.
+
+### `workspace/cases/{case_id}/predictions.csv`
+
+All matching train and/or LLM predictions for the case. Typical columns include:
+
+- `source`
+- `model_name`
+- `split`
+- `patient_id`
+- `prediction`
+- `probability`
+- `value`
+- `confidence`
+- `explanation`
+- `parsed_ok`
+- `error_code`
+- `ground_truth`
+
+### `workspace/cases/{case_id}/analysis_refs.json`
+
+References to available analysis modules plus patient-level audit matches when present.
+
+---
+
+## Review artifacts
+
+Written by `oneehr llm-review`.
+
+### `review/prompts/{review_model}/{split}.jsonl`
+
+Rendered reviewer prompts for one reviewer backend and one split.
+
+### `review/responses/{review_model}/{split}.jsonl`
+
+Raw reviewer responses for one reviewer backend and one split.
+
+### `review/parsed/{review_model}/{split}.parquet`
+
+Parsed structured reviewer outputs. Columns include:
+
+- `review_id`
+- `case_id`
+- `patient_id`
+- `target_source`
+- `target_model_name`
+- `parsed_ok`
+- `supported`
+- `clinically_grounded`
+- `leakage_suspected`
+- `needs_human_review`
+- `overall_score`
+- `review_summary`
+- `key_evidence_json`
+- `missing_evidence_json`
+
+### `review/failures/{review_model}/{split}.jsonl`
+
+Rows that failed reviewer request or JSON parsing, including `error_code`, `error_message`, and the raw response when available.
+
+### `review/metrics/{review_model}/{split}__{source}__{target_model}.json`
+
+Grouped reviewer metrics per split and reviewed prediction target. Fields include:
+
+- `total_rows`
+- `parsed_ok_rows`
+- `parse_success_rate`
+- `metrics.supported_rate`
+- `metrics.clinically_grounded_rate`
+- `metrics.leakage_suspected_rate`
+- `metrics.needs_human_review_rate`
+- `metrics.mean_overall_score`
+
+### `review/summary.json`
+
+Run-level summary for all `[[review_models]]`, grouped by split, prediction source, and target model.
 
 ---
 

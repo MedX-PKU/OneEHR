@@ -116,6 +116,56 @@ This writes prompts, raw responses, parsed outputs, predictions, and per-split m
 
 ---
 
+## Agent workspace and reviewer loop
+
+Materialize a portable case workspace for downstream agents:
+
+```toml
+[workspace]
+include_static = true
+include_analysis_refs = true
+max_events = 200
+time_order = "asc"
+```
+
+```bash
+uv run oneehr workspace --config experiment.toml
+uv run oneehr inspect --tool workspace.list_cases --run-dir logs/example
+uv run oneehr inspect --tool tasks.collect_evidence --run-dir logs/example --case-id fold0:p0001
+```
+
+Add a reviewer loop over existing train and/or LLM predictions:
+
+```toml
+[review]
+enabled = true
+prompt_template = "evidence_review_v1"
+prediction_sources = ["train", "llm"]
+
+[review.prompt]
+include_static = true
+include_ground_truth = true
+include_analysis_context = true
+max_events = 100
+time_order = "asc"
+
+[[review_models]]
+name = "gpt4o-mini-review"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+supports_json_schema = true
+```
+
+```bash
+uv run oneehr workspace --config experiment.toml
+uv run oneehr llm-review --config experiment.toml
+uv run oneehr inspect --tool reviews.read_summary --run-dir logs/example
+```
+
+---
+
 ## Prospective evaluation with time split
 
 Use a temporal boundary to simulate real-world deployment:

@@ -133,21 +133,24 @@ High-level sections:
 - `[hpo]` and `[hpo_models.<name>]`: optional config-driven grid search
 - `[trainer]`: generic training and selection behavior
 - `[analysis]`: default analysis modules, report formats, and audit limits
+- `[workspace]`: evidence-grounded case workspace materialization policy
 - `[llm]`, `[llm.prompt]`, `[llm.output]`: LLM inference/evaluation behavior
 - `[[llm_models]]`: one or more OpenAI-compatible chat completion endpoints/models
+- `[review]`, `[review.prompt]`: LLM reviewer behavior over materialized case workspaces
+- `[[review_models]]`: one or more OpenAI-compatible reviewer backends
 - `[output]`: where run artifacts are written
 
 ### LLM workflow
 
 OneEHR now includes an LLM-specific inference path for EHR prediction:
 
-- Input: raw EHR history rendered into the built-in `summary_v1` structured prompt
+- Input: raw EHR history rendered through the built-in prompt registry (`summary_v1`)
 - Backend: OpenAI-compatible `chat/completions`
 - Tasks: `binary` and `regression`
 - Units: `patient` and `time`
 - Output: strict JSON, parsed into prediction artifacts and evaluation summaries
 
-The current LLM path is inference/evaluation only. It does not fine-tune models and does not implement tool-calling or multi-turn agents yet.
+OneEHR also exposes agent-facing prompt discovery, case workspaces, tool-callable evidence primitives, and a reviewer loop through `evidence_review_v1`.
 
 Minimal config shape:
 
@@ -190,6 +193,49 @@ Notes:
 - `llm.sample_unit` must match `task.prediction_mode`.
 - `labels` are optional for patient-level inference, but time-level LLM evaluation requires labels.
 - LLM-only configs are allowed. You do not need `[model]` or `[[models]]` when the run is only for `preprocess`, `llm-preprocess`, and `llm-predict`.
+
+### Agent workspace and reviewer workflow
+
+The agentic layer is built on four contracts:
+
+- Prompt/template registry: discoverable built-in templates such as `summary_v1` and `evidence_review_v1`
+- Evidence-grounded case workspace: stable `workspace/` bundles with events, static features, predictions, and analysis refs per case
+- Tool-callable task primitives: read-only JSON tools exposed through `oneehr inspect`
+- LLM reviewer loop: `oneehr llm-review` scores evidence-grounding, leakage suspicion, and escalation need over existing case predictions
+
+Minimal config shape:
+
+```toml
+[workspace]
+include_static = true
+include_analysis_refs = true
+max_events = 200
+time_order = "asc"
+
+[review]
+enabled = true
+prompt_template = "evidence_review_v1"
+prediction_sources = ["train", "llm"]
+json_schema_version = 1
+save_prompts = true
+save_responses = true
+save_parsed = true
+
+[review.prompt]
+include_static = true
+include_ground_truth = true
+include_analysis_context = true
+max_events = 100
+time_order = "asc"
+
+[[review_models]]
+name = "gpt4o-mini-review"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+supports_json_schema = true
+```
 
 ### Analysis workflow
 
@@ -350,9 +396,11 @@ Run `uv run oneehr --help` for authoritative flags. Current commands:
 - `oneehr train --config <toml> [--force]`: training + optional grid search + evaluation summaries
 - `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on test data
 - `oneehr analyze --config <toml> [--run-dir <run>] [--module <name>] [--format <fmt>] [--compare-run <run>] [--case-limit <n>] [--method <xgboost|shap|attention>]`: modular run analysis and static report generation
-- `oneehr inspect --tool <name> [--config <toml> | --run-dir <run> | --root <dir>]`: read run, analysis, case, and cohort artifacts as JSON for agents
+- `oneehr workspace --config <toml> [--run-dir <run>] [--force]`: materialize evidence-grounded case workspaces
+- `oneehr inspect --tool <name> [--config <toml> | --run-dir <run> | --root <dir>]`: read prompt registry, run, workspace, task, analysis, case, cohort, and review artifacts as JSON for agents
 - `oneehr llm-preprocess --config <toml> [--run-dir <run>] [--force]`: materialize LLM prompt instances from grouped patient splits
 - `oneehr llm-predict --config <toml> [--run-dir <run>] [--force]`: render prompts, call OpenAI-compatible chat completions, parse strict JSON, and write LLM evaluation artifacts
+- `oneehr llm-review --config <toml> [--run-dir <run>] [--force]`: review existing case predictions with an OpenAI-compatible judge model
 
 ## Outputs (Run Directory Contract)
 
@@ -392,6 +440,15 @@ Key artifacts you can rely on:
   - `llm/preds/<llm_model>/*.parquet`: parsed prediction rows
   - `llm/metrics/<llm_model>/*.json`: per-split metrics + parse coverage
   - `llm/summary.json`: run-level LLM summary
+- Workspace outputs:
+  - `workspace/index.json`: run-level workspace index
+  - `workspace/cases/<case>/{workspace,events,static,predictions,analysis_refs}.*`: durable case bundles for agents and reviewers
+- Review outputs:
+  - `review/prompts/<review_model>/*.jsonl`: rendered reviewer prompts
+  - `review/responses/<review_model>/*.jsonl`: raw reviewer responses
+  - `review/parsed/<review_model>/*.parquet`: parsed structured review rows
+  - `review/metrics/<review_model>/*.json`: grouped reviewer metrics
+  - `review/summary.json`: run-level reviewer summary
 
 ## Common Recipes
 
@@ -462,13 +519,26 @@ uv run oneehr analyze \
 
 The analysis command writes `analysis/index.json` plus per-module summaries, CSV tables, plot specs, and optional Markdown/HTML reports.
 
-### 6) Agent-facing JSON inspection
+### 6) Evidence-grounded case workspaces
+
+Materialize portable case bundles before handing the run to an external agent or reviewer:
+
+```bash
+uv run oneehr workspace --config examples/experiment.toml
+```
+
+This writes `workspace/index.json` plus case-level evidence bundles under `workspace/cases/`.
+
+### 7) Agent-facing JSON inspection
 
 Use `oneehr inspect` when an external agent or automation layer needs stable read-only access to OneEHR artifacts:
 
 ```bash
+uv run oneehr inspect --tool prompts.list
 uv run oneehr inspect --tool runs.list --root logs
 uv run oneehr inspect --tool runs.describe --run-dir logs/example
+uv run oneehr inspect --tool workspace.list_cases --run-dir logs/example
+uv run oneehr inspect --tool tasks.collect_evidence --run-dir logs/example --case-id fold0:p0001
 uv run oneehr inspect --tool analysis.read_summary --run-dir logs/example --module prediction_audit
 uv run oneehr inspect --tool cases.describe_patient --run-dir logs/example --patient-id p0001
 uv run oneehr inspect --tool cohorts.compare --run-dir logs/example --split fold0 --left-role train --right-role test
@@ -476,8 +546,14 @@ uv run oneehr inspect --tool cohorts.compare --run-dir logs/example --split fold
 
 The inspect contract currently exposes:
 
+- `prompts.list`
+- `prompts.describe`
 - `runs.list`
 - `runs.describe`
+- `reviews.read_summary`
+- `workspace.read_index`
+- `workspace.list_cases`
+- `workspace.read_case`
 - `analysis.list_modules`
 - `analysis.read_index`
 - `analysis.read_summary`
@@ -487,6 +563,22 @@ The inspect contract currently exposes:
 - `cases.read_failures`
 - `cases.describe_patient`
 - `cohorts.compare`
+- `tasks.get_patient_timeline`
+- `tasks.get_patient_static`
+- `tasks.get_case_predictions`
+- `tasks.collect_evidence`
+- `tasks.render_prompt`
+
+### 8) Reviewer / judge loop
+
+Run an LLM reviewer over existing train and/or LLM predictions in the case workspace:
+
+```bash
+uv run oneehr workspace --config examples/experiment.toml
+uv run oneehr llm-review --config examples/experiment.toml
+```
+
+This writes reviewer prompts, raw responses, parsed judgments, grouped metrics, and `review/summary.json`.
 
 ## Documentation
 
