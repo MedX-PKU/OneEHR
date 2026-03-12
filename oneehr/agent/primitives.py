@@ -9,6 +9,7 @@ from oneehr.config.schema import ExperimentConfig
 from oneehr.llm.render import render_prompt
 from oneehr.llm.schema import schema_prompt_text
 from oneehr.llm.templates import get_prompt_template
+from oneehr.review.schema import review_schema_prompt_text
 
 from oneehr.agent.workspace import read_workspace_case
 
@@ -125,7 +126,28 @@ def render_case_prompt(
         )
         return {"template": template.name, "family": template.family, "prompt": prompt}
 
-    raise ValueError(
-        "tasks.render_prompt currently supports prediction templates only. "
-        "Reviewer prompt rendering is enabled through `oneehr llm-review`."
-    )
+    if template.family == "review":
+        preds = pd.DataFrame(case.get("predictions", []))
+        if not preds.empty and source is not None:
+            preds = preds[preds["source"].astype(str) == str(source)].copy()
+        if not preds.empty and model_name is not None:
+            preds = preds[preds["model_name"].astype(str) == str(model_name)].copy()
+        preds = preds.reset_index(drop=True)
+        if preds.empty:
+            raise ValueError("No matching case prediction found for review prompt rendering.")
+        if len(preds) > 1:
+            raise ValueError("Multiple matching case predictions found. Use --source and/or --model-name.")
+        prompt = render_prompt(
+            cfg=cfg,
+            instance=instance,
+            dynamic=dynamic,
+            static_row=static_row,
+            schema_text=review_schema_prompt_text(),
+            template_name=template.name,
+            prompt_cfg=cfg.review.prompt,
+            target_prediction=preds.iloc[0].to_dict(),
+            analysis_refs=case.get("analysis_refs"),
+        )
+        return {"template": template.name, "family": template.family, "prompt": prompt}
+
+    raise ValueError(f"Unsupported template family {template.family!r}")

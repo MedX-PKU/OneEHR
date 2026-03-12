@@ -201,6 +201,45 @@ class WorkspaceConfig:
 
 
 @dataclass(frozen=True)
+class ReviewPromptConfig:
+    include_static: bool = True
+    include_ground_truth: bool = True
+    include_analysis_context: bool = True
+    max_events: int = 100
+    time_order: str = "asc"
+    sections: list[str] = field(
+        default_factory=lambda: [
+            "case_profile",
+            "observed_evidence",
+            "target_prediction",
+            "ground_truth",
+            "analysis_context",
+            "review_rubric",
+            "output_schema",
+        ]
+    )
+
+
+@dataclass(frozen=True)
+class ReviewConfig:
+    enabled: bool = False
+    prompt_template: str = "evidence_review_v1"
+    json_schema_version: int = 1
+    prediction_sources: list[str] = field(default_factory=lambda: ["train", "llm"])
+    max_cases: int | None = None
+    save_prompts: bool = True
+    save_responses: bool = True
+    save_parsed: bool = True
+    concurrency: int = 1
+    max_retries: int = 2
+    timeout_seconds: float = 60.0
+    temperature: float = 0.0
+    top_p: float = 1.0
+    seed: int | None = None
+    prompt: ReviewPromptConfig = field(default_factory=ReviewPromptConfig)
+
+
+@dataclass(frozen=True)
 class AnalysisConfig:
     default_modules: list[str] = field(
         default_factory=lambda: [
@@ -417,6 +456,8 @@ class ExperimentConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     llm_models: list[LLMModelConfig] = field(default_factory=list)
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
+    review: ReviewConfig = field(default_factory=ReviewConfig)
+    review_models: list[LLMModelConfig] = field(default_factory=list)
     output: OutputConfig = field(default_factory=OutputConfig)
     # Internal: runtime-derived static feature dimension for models that support
     # a dedicated static branch (e.g., MCGRU, DrAgent). This is populated by the

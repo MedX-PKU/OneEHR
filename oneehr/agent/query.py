@@ -55,6 +55,7 @@ def list_runs(root: str | Path) -> list[dict[str, Any]]:
                 "has_analysis_index": bool((path / "analysis" / "index.json").exists()),
                 "has_llm_summary": bool((path / "llm" / "summary.json").exists()),
                 "has_workspace_index": bool((path / "workspace" / "index.json").exists()),
+                "has_review_summary": bool((path / "review" / "summary.json").exists()),
                 "mtime_unix": float(path.stat().st_mtime),
             }
         )
@@ -67,6 +68,10 @@ def list_prompt_templates(*, family: str | None = None) -> list[dict[str, Any]]:
 
 def describe_prompt_template(name: str) -> dict[str, Any]:
     return _describe_prompt_template(name)
+
+
+def read_review_summary(run_root: str | Path) -> dict[str, Any]:
+    return _read_json(Path(run_root) / "review" / "summary.json")
 
 
 def read_workspace_index(run_root: str | Path) -> dict[str, Any]:
@@ -131,10 +136,12 @@ def describe_run(run_root: str | Path) -> dict[str, Any]:
 
     train_summary = _read_json(run_root / "summary.json")
     llm_summary = _read_json(run_root / "llm" / "summary.json")
+    review_summary = _read_json(run_root / "review" / "summary.json")
     analysis_index = _read_json(run_root / "analysis" / "index.json")
 
     train_records = _ensure_records(train_summary)
     llm_records = _ensure_records(llm_summary)
+    review_records = _ensure_records(review_summary)
     modules = []
     if isinstance(analysis_index.get("modules"), list):
         modules = [
@@ -173,11 +180,17 @@ def describe_run(run_root: str | Path) -> dict[str, Any]:
             "models": sorted({str(rec.get("llm_model")) for rec in llm_records if rec.get("llm_model") is not None}),
             "summary_path": None if not llm_summary else str((run_root / "llm" / "summary.json").relative_to(run_root)),
         },
+        "review": {
+            "record_count": int(len(review_records)),
+            "models": sorted({str(rec.get("review_model")) for rec in review_records if rec.get("review_model") is not None}),
+            "summary_path": None if not review_summary else str((run_root / "review" / "summary.json").relative_to(run_root)),
+        },
         "artifacts": {
             "has_models_dir": bool((run_root / "models").exists()),
             "has_preds_dir": bool((run_root / "preds").exists()),
             "has_splits_dir": bool((run_root / "splits").exists()),
             "has_workspace_dir": bool((run_root / "workspace").exists()),
+            "has_review_dir": bool((run_root / "review").exists()),
         },
     }
 

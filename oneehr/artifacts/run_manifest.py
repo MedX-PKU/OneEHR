@@ -98,6 +98,43 @@ def write_run_manifest(
             "time_order": str(cfg.workspace.time_order),
             "case_limit": None if cfg.workspace.case_limit is None else int(cfg.workspace.case_limit),
         },
+        "review": {
+            "enabled": bool(cfg.review.enabled),
+            "prompt_template": str(cfg.review.prompt_template),
+            "json_schema_version": int(cfg.review.json_schema_version),
+            "prediction_sources": list(cfg.review.prediction_sources),
+            "max_cases": None if cfg.review.max_cases is None else int(cfg.review.max_cases),
+            "save_prompts": bool(cfg.review.save_prompts),
+            "save_responses": bool(cfg.review.save_responses),
+            "save_parsed": bool(cfg.review.save_parsed),
+            "concurrency": int(cfg.review.concurrency),
+            "max_retries": int(cfg.review.max_retries),
+            "timeout_seconds": float(cfg.review.timeout_seconds),
+            "temperature": float(cfg.review.temperature),
+            "top_p": float(cfg.review.top_p),
+            "seed": None if cfg.review.seed is None else int(cfg.review.seed),
+            "prompt": {
+                "include_static": bool(cfg.review.prompt.include_static),
+                "include_ground_truth": bool(cfg.review.prompt.include_ground_truth),
+                "include_analysis_context": bool(cfg.review.prompt.include_analysis_context),
+                "max_events": int(cfg.review.prompt.max_events),
+                "time_order": str(cfg.review.prompt.time_order),
+                "sections": list(cfg.review.prompt.sections),
+            },
+            "models": [
+                {
+                    "name": str(m.name),
+                    "provider": str(m.provider),
+                    "base_url": str(m.base_url),
+                    "model": str(m.model),
+                    "api_key_env": str(m.api_key_env),
+                    "system_prompt": None if m.system_prompt is None else str(m.system_prompt),
+                    "supports_json_schema": bool(m.supports_json_schema),
+                    "headers": dict(m.headers),
+                }
+                for m in cfg.review_models
+            ],
+        },
         "features": {
             "dynamic": {
                 "feature_columns": dyn_cols,

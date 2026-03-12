@@ -34,3 +34,5 @@ def test_write_run_manifest(tmp_path: Path):
     assert data["llm"]["enabled"] is False
     assert data["workspace"]["include_static"] is True
     assert data["workspace"]["max_events"] == 200
+    assert data["review"]["enabled"] is False
+    assert data["review"]["prompt_template"] == "evidence_review_v1"

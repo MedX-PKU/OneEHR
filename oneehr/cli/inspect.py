@@ -13,6 +13,7 @@ SUPPORTED_TOOLS = (
     "prompts.describe",
     "runs.list",
     "runs.describe",
+    "reviews.read_summary",
     "workspace.read_index",
     "workspace.list_cases",
     "workspace.read_case",
@@ -76,6 +77,7 @@ def run_inspect(
         read_analysis_summary,
         read_analysis_table,
         read_failure_cases,
+        read_review_summary,
         render_case_prompt,
     )
     from oneehr.config.load import load_experiment_config
@@ -98,6 +100,8 @@ def run_inspect(
         }
     elif tool == "runs.describe":
         payload = {"tool": tool, "run": describe_run(run_root)}
+    elif tool == "reviews.read_summary":
+        payload = {"tool": tool, "run_dir": str(run_root), "summary": read_review_summary(run_root)}
     elif tool == "workspace.read_index":
         payload = {"tool": tool, "run_dir": str(run_root), "index": read_workspace_index(run_root)}
     elif tool == "workspace.list_cases":

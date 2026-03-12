@@ -22,6 +22,8 @@ from oneehr.config.schema import (
     ModelConfig,
     OutputConfig,
     PreprocessConfig,
+    ReviewConfig,
+    ReviewPromptConfig,
     StaticTableConfig,
     SplitConfig,
     TaskConfig,
@@ -77,10 +79,16 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     calibration_raw = raw.get("calibration", {})
     llm_raw = raw.get("llm", {})
     llm_models_raw = raw.get("llm_models", [])
+    review_raw = raw.get("review", {})
+    review_models_raw = raw.get("review_models", [])
     if not isinstance(llm_raw, dict):
         raise ValueError("llm must be a table")
     if not isinstance(llm_models_raw, list):
         raise ValueError("llm_models must be an array of tables")
+    if not isinstance(review_raw, dict):
+        raise ValueError("review must be a table")
+    if not isinstance(review_models_raw, list):
+        raise ValueError("review_models must be an array of tables")
     llm_enabled_raw = bool(llm_raw.get("enabled", False))
     if model_raw is None and not models_raw and not llm_enabled_raw:
         raise ValueError("Missing required key: model or models")
@@ -423,6 +431,65 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
                 headers={str(k): str(v) for k, v in headers.items()},
             )
         )
+    review_prompt_raw = review_raw.get("prompt", {})
+    if not isinstance(review_prompt_raw, dict):
+        raise ValueError("review.prompt must be a table")
+    review_prompt = ReviewPromptConfig(
+        include_static=bool(review_prompt_raw.get("include_static", True)),
+        include_ground_truth=bool(review_prompt_raw.get("include_ground_truth", True)),
+        include_analysis_context=bool(review_prompt_raw.get("include_analysis_context", True)),
+        max_events=int(review_prompt_raw.get("max_events", 100)),
+        time_order=str(review_prompt_raw.get("time_order", "asc")),
+        sections=[str(s) for s in review_prompt_raw.get("sections", [])] or ReviewPromptConfig().sections,
+    )
+    review = ReviewConfig(
+        enabled=bool(review_raw.get("enabled", False)),
+        prompt_template=str(review_raw.get("prompt_template", "evidence_review_v1")),
+        json_schema_version=int(review_raw.get("json_schema_version", 1)),
+        prediction_sources=[str(s) for s in review_raw.get("prediction_sources", [])] or ReviewConfig().prediction_sources,
+        max_cases=(
+            None
+            if review_raw.get("max_cases") in {None, "", "null"}
+            else int(review_raw.get("max_cases"))
+        ),
+        save_prompts=bool(review_raw.get("save_prompts", True)),
+        save_responses=bool(review_raw.get("save_responses", True)),
+        save_parsed=bool(review_raw.get("save_parsed", True)),
+        concurrency=int(review_raw.get("concurrency", 1)),
+        max_retries=int(review_raw.get("max_retries", 2)),
+        timeout_seconds=float(review_raw.get("timeout_seconds", 60.0)),
+        temperature=float(review_raw.get("temperature", 0.0)),
+        top_p=float(review_raw.get("top_p", 1.0)),
+        seed=(
+            None
+            if review_raw.get("seed") in {None, "", "null"}
+            else int(review_raw.get("seed"))
+        ),
+        prompt=review_prompt,
+    )
+    review_models: list[LLMModelConfig] = []
+    for mraw in review_models_raw or []:
+        if not isinstance(mraw, dict):
+            raise ValueError("review_models entries must be tables")
+        headers = mraw.get("headers", {}) or {}
+        if not isinstance(headers, dict):
+            raise ValueError("review_models.<entry>.headers must be a table")
+        review_models.append(
+            LLMModelConfig(
+                name=_require(mraw, "name"),
+                provider=str(mraw.get("provider", "openai_compatible")),
+                base_url=str(mraw.get("base_url", "https://api.openai.com/v1")),
+                model=str(_require(mraw, "model")),
+                api_key_env=str(mraw.get("api_key_env", "OPENAI_API_KEY")),
+                system_prompt=(
+                    None
+                    if mraw.get("system_prompt") in {None, "", "null"}
+                    else str(mraw.get("system_prompt"))
+                ),
+                supports_json_schema=bool(mraw.get("supports_json_schema", True)),
+                headers={str(k): str(v) for k, v in headers.items()},
+            )
+        )
 
     if llm.enabled:
         if llm.sample_unit not in {"patient", "time"}:
@@ -434,6 +501,17 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     for model_cfg in llm_models:
         if model_cfg.provider != "openai_compatible":
             raise ValueError("llm_models.provider must be 'openai_compatible' in v1")
+    if review.enabled:
+        if review.prompt.time_order not in {"asc", "desc"}:
+            raise ValueError("review.prompt.time_order must be 'asc' or 'desc'")
+        if not review_models:
+            raise ValueError("review.enabled=true requires at least one [[review_models]] entry")
+        invalid_sources = [src for src in review.prediction_sources if src not in {"train", "llm"}]
+        if invalid_sources:
+            raise ValueError("review.prediction_sources must contain only 'train' and/or 'llm'")
+    for model_cfg in review_models:
+        if model_cfg.provider != "openai_compatible":
+            raise ValueError("review_models.provider must be 'openai_compatible' in v1")
     if analysis.top_k <= 0:
         raise ValueError("analysis.top_k must be >= 1")
     if analysis.case_limit <= 0:
@@ -446,6 +524,10 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError("workspace.time_order must be 'asc' or 'desc'")
     if workspace.case_limit is not None and workspace.case_limit <= 0:
         raise ValueError("workspace.case_limit must be >= 1 when provided")
+    if review.prompt.max_events <= 0:
+        raise ValueError("review.prompt.max_events must be >= 1")
+    if review.max_cases is not None and review.max_cases <= 0:
+        raise ValueError("review.max_cases must be >= 1 when provided")
 
     return ExperimentConfig(
         dataset=dataset,
@@ -464,5 +546,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         llm=llm,
         llm_models=llm_models,
         workspace=workspace,
+        review=review,
+        review_models=review_models,
         output=output,
     )

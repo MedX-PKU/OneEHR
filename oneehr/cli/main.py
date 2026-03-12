@@ -9,6 +9,7 @@ Usage:
     oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID] [--template NAME]
     oneehr llm-preprocess --config <toml> [--run-dir DIR] [--force]
     oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
+    oneehr llm-review --config <toml> [--run-dir DIR] [--force]
 """
 from __future__ import annotations
 
@@ -102,6 +103,12 @@ def _build_parser() -> argparse.ArgumentParser:
     lpr.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
     lpr.add_argument("--force", action="store_true", help="Overwrite existing LLM prediction artifacts")
 
+    # llm-review
+    lrv = sub.add_parser("llm-review", help="Run OpenAI-compatible reviewer / judge evaluation over case workspaces")
+    lrv.add_argument("--config", required=True, help="Path to TOML config")
+    lrv.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
+    lrv.add_argument("--force", action="store_true", help="Overwrite existing reviewer artifacts")
+
     return parser
 
 
@@ -186,6 +193,11 @@ def main(argv: list[str] | None = None) -> None:
         from oneehr.cli.llm_predict import run_llm_predict
 
         run_llm_predict(args.config, run_dir=args.run_dir, force=args.force)
+
+    elif args.command == "llm-review":
+        from oneehr.cli.llm_review import run_llm_review
+
+        run_llm_review(args.config, run_dir=args.run_dir, force=args.force)
 
     else:
         parser.print_help()
