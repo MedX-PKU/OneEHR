@@ -17,6 +17,18 @@ from oneehr.analysis.read import (
     read_failure_cases as _read_failure_cases,
 )
 from oneehr.artifacts.read import read_run_manifest
+from oneehr.agent.primitives import (
+    collect_case_evidence as _collect_case_evidence,
+    get_case_predictions as _get_case_predictions,
+    get_patient_static as _get_patient_static,
+    get_patient_timeline as _get_patient_timeline,
+    render_case_prompt as _render_case_prompt,
+)
+from oneehr.agent.workspace import (
+    list_workspace_cases as _list_workspace_cases,
+    read_workspace_case as _read_workspace_case,
+    read_workspace_index as _read_workspace_index,
+)
 from oneehr.llm.templates import describe_prompt_template as _describe_prompt_template
 from oneehr.llm.templates import list_prompt_templates as _list_prompt_templates
 
@@ -42,6 +54,7 @@ def list_runs(root: str | Path) -> list[dict[str, Any]]:
                 "has_train_summary": bool((path / "summary.json").exists()),
                 "has_analysis_index": bool((path / "analysis" / "index.json").exists()),
                 "has_llm_summary": bool((path / "llm" / "summary.json").exists()),
+                "has_workspace_index": bool((path / "workspace" / "index.json").exists()),
                 "mtime_unix": float(path.stat().st_mtime),
             }
         )
@@ -54,6 +67,60 @@ def list_prompt_templates(*, family: str | None = None) -> list[dict[str, Any]]:
 
 def describe_prompt_template(name: str) -> dict[str, Any]:
     return _describe_prompt_template(name)
+
+
+def read_workspace_index(run_root: str | Path) -> dict[str, Any]:
+    return _read_workspace_index(run_root)
+
+
+def list_workspace_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
+    return _list_workspace_cases(run_root, limit=limit)
+
+
+def read_workspace_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
+    return _read_workspace_case(run_root, case_id, limit=limit)
+
+
+def get_patient_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
+    return _get_patient_timeline(run_root, case_id, limit=limit)
+
+
+def get_patient_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
+    return _get_patient_static(run_root, case_id)
+
+
+def get_case_predictions(
+    run_root: str | Path,
+    case_id: str,
+    *,
+    source: str | None = None,
+    model_name: str | None = None,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    return _get_case_predictions(run_root, case_id, source=source, model_name=model_name, limit=limit)
+
+
+def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
+    return _collect_case_evidence(run_root, case_id, limit=limit)
+
+
+def render_case_prompt(
+    *,
+    cfg,
+    run_root: str | Path,
+    case_id: str,
+    template_name: str | None = None,
+    source: str | None = None,
+    model_name: str | None = None,
+) -> dict[str, Any]:
+    return _render_case_prompt(
+        cfg=cfg,
+        run_root=run_root,
+        case_id=case_id,
+        template_name=template_name,
+        source=source,
+        model_name=model_name,
+    )
 
 
 def describe_run(run_root: str | Path) -> dict[str, Any]:
@@ -88,6 +155,7 @@ def describe_run(run_root: str | Path) -> dict[str, Any]:
             "task": dict((manifest.data.get("task") or {})),
             "split": dict((manifest.data.get("split") or {})),
             "llm": dict((manifest.data.get("llm") or {})),
+            "workspace": dict((manifest.data.get("workspace") or {})),
         },
         "training": {
             "record_count": int(len(train_records)),
@@ -109,6 +177,7 @@ def describe_run(run_root: str | Path) -> dict[str, Any]:
             "has_models_dir": bool((run_root / "models").exists()),
             "has_preds_dir": bool((run_root / "preds").exists()),
             "has_splits_dir": bool((run_root / "splits").exists()),
+            "has_workspace_dir": bool((run_root / "workspace").exists()),
         },
     }
 

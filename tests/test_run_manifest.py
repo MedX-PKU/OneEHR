@@ -32,3 +32,5 @@ def test_write_run_manifest(tmp_path: Path):
     assert data["features"]["dynamic"]["feature_columns"] == ["num__A", "cat__DX__X"]
     assert (data["artifacts"] or {}).get("binned_parquet_path") == "binned.parquet"
     assert data["llm"]["enabled"] is False
+    assert data["workspace"]["include_static"] is True
+    assert data["workspace"]["max_events"] == 200

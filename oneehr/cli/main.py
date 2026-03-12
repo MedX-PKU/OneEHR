@@ -5,6 +5,7 @@ Usage:
     oneehr train --config <toml> [--force]
     oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
     oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--format FMT] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
+    oneehr workspace --config <toml> [--run-dir DIR] [--force]
     oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID] [--template NAME]
     oneehr llm-preprocess --config <toml> [--run-dir DIR] [--force]
     oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
@@ -79,6 +80,15 @@ def _build_parser() -> argparse.ArgumentParser:
     ins.add_argument("--top-k", type=int, default=10, help="Top-k feature drift rows for cohorts.compare")
     ins.add_argument("--template", default=None, help="Prompt template name for prompts.describe and tasks.render_prompt")
     ins.add_argument("--family", default=None, help="Optional prompt template family filter for prompts.list")
+    ins.add_argument("--case-id", default=None, help="Workspace case identifier for workspace.* and tasks.*")
+    ins.add_argument("--model-name", default=None, help="Optional model name filter for workspace/task tools")
+    ins.add_argument("--source", default=None, help="Optional prediction source filter, e.g. train or llm")
+
+    # workspace
+    ws = sub.add_parser("workspace", help="Materialize evidence-grounded case workspaces")
+    ws.add_argument("--config", required=True, help="Path to TOML config")
+    ws.add_argument("--run-dir", default=None, help="Run directory (overrides config)")
+    ws.add_argument("--force", action="store_true", help="Overwrite existing workspace artifacts")
 
     # llm-preprocess
     lp = sub.add_parser("llm-preprocess", help="Materialize LLM prompt instances from EHR artifacts")
@@ -157,7 +167,15 @@ def main(argv: list[str] | None = None) -> None:
             top_k=args.top_k,
             template=args.template,
             family=args.family,
+            case_id=args.case_id,
+            model_name=args.model_name,
+            source=args.source,
         )
+
+    elif args.command == "workspace":
+        from oneehr.cli.workspace import run_workspace
+
+        run_workspace(args.config, run_dir=args.run_dir, force=args.force)
 
     elif args.command == "llm-preprocess":
         from oneehr.cli.llm_preprocess import run_llm_preprocess

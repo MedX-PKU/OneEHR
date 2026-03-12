@@ -191,6 +191,16 @@ class LLMConfig:
 
 
 @dataclass(frozen=True)
+class WorkspaceConfig:
+    include_static: bool = True
+    include_analysis_refs: bool = True
+    history_window: str | None = None
+    max_events: int = 200
+    time_order: str = "asc"
+    case_limit: int | None = None
+
+
+@dataclass(frozen=True)
 class AnalysisConfig:
     default_modules: list[str] = field(
         default_factory=lambda: [
@@ -406,6 +416,7 @@ class ExperimentConfig:
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     llm_models: list[LLMModelConfig] = field(default_factory=list)
+    workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     # Internal: runtime-derived static feature dimension for models that support
     # a dedicated static branch (e.g., MCGRU, DrAgent). This is populated by the

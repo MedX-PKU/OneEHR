@@ -85,9 +85,18 @@ def write_run_manifest(
                     "api_key_env": str(m.api_key_env),
                     "system_prompt": None if m.system_prompt is None else str(m.system_prompt),
                     "supports_json_schema": bool(m.supports_json_schema),
+                    "headers": dict(m.headers),
                 }
                 for m in cfg.llm_models
             ],
+        },
+        "workspace": {
+            "include_static": bool(cfg.workspace.include_static),
+            "include_analysis_refs": bool(cfg.workspace.include_analysis_refs),
+            "history_window": None if cfg.workspace.history_window is None else str(cfg.workspace.history_window),
+            "max_events": int(cfg.workspace.max_events),
+            "time_order": str(cfg.workspace.time_order),
+            "case_limit": None if cfg.workspace.case_limit is None else int(cfg.workspace.case_limit),
         },
         "features": {
             "dynamic": {

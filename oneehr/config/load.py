@@ -26,6 +26,7 @@ from oneehr.config.schema import (
     SplitConfig,
     TaskConfig,
     TrainerConfig,
+    WorkspaceConfig,
     GRUConfig,
     LSTMConfig,
     RNNConfig,
@@ -68,6 +69,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     models_raw = raw.get("models", [])
     output_raw = raw.get("output", {})
     analysis_raw = raw.get("analysis", {})
+    workspace_raw = raw.get("workspace", {})
     labels_raw = raw.get("labels", {})
     trainer_raw = raw.get("trainer", {})
     hpo_raw = raw.get("hpo", {})
@@ -278,6 +280,24 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         save_plot_specs=bool(analysis_raw.get("save_plot_specs", True)),
         shap_max_samples=int(analysis_raw.get("shap_max_samples", 500)),
     )
+    if not isinstance(workspace_raw, dict):
+        raise ValueError("workspace must be a table")
+    workspace = WorkspaceConfig(
+        include_static=bool(workspace_raw.get("include_static", True)),
+        include_analysis_refs=bool(workspace_raw.get("include_analysis_refs", True)),
+        history_window=(
+            None
+            if workspace_raw.get("history_window") in {None, "", "null"}
+            else str(workspace_raw.get("history_window"))
+        ),
+        max_events=int(workspace_raw.get("max_events", 200)),
+        time_order=str(workspace_raw.get("time_order", "asc")),
+        case_limit=(
+            None
+            if workspace_raw.get("case_limit") in {None, "", "null"}
+            else int(workspace_raw.get("case_limit"))
+        ),
+    )
 
     trainer = TrainerConfig(
         device=str(trainer_raw.get("device", "auto")),
@@ -420,6 +440,12 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError("analysis.case_limit must be >= 1")
     if analysis.shap_max_samples <= 0:
         raise ValueError("analysis.shap_max_samples must be >= 1")
+    if workspace.max_events <= 0:
+        raise ValueError("workspace.max_events must be >= 1")
+    if workspace.time_order not in {"asc", "desc"}:
+        raise ValueError("workspace.time_order must be 'asc' or 'desc'")
+    if workspace.case_limit is not None and workspace.case_limit <= 0:
+        raise ValueError("workspace.case_limit must be >= 1 when provided")
 
     return ExperimentConfig(
         dataset=dataset,
@@ -437,5 +463,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         analysis=analysis,
         llm=llm,
         llm_models=llm_models,
+        workspace=workspace,
         output=output,
     )

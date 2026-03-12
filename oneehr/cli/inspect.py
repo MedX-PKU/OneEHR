@@ -13,6 +13,9 @@ SUPPORTED_TOOLS = (
     "prompts.describe",
     "runs.list",
     "runs.describe",
+    "workspace.read_index",
+    "workspace.list_cases",
+    "workspace.read_case",
     "analysis.list_modules",
     "analysis.read_index",
     "analysis.read_summary",
@@ -22,6 +25,11 @@ SUPPORTED_TOOLS = (
     "cases.read_failures",
     "cases.describe_patient",
     "cohorts.compare",
+    "tasks.get_patient_timeline",
+    "tasks.get_patient_static",
+    "tasks.get_case_predictions",
+    "tasks.collect_evidence",
+    "tasks.render_prompt",
 )
 
 
@@ -43,22 +51,34 @@ def run_inspect(
     top_k: int,
     template: str | None,
     family: str | None,
+    case_id: str | None,
+    model_name: str | None,
+    source: str | None,
 ) -> None:
     from oneehr.agent import (
+        collect_case_evidence,
         compare_cohorts,
         describe_patient_case,
         describe_prompt_template,
         describe_run,
+        get_case_predictions,
+        get_patient_static,
+        get_patient_timeline,
         list_analysis_modules,
         list_failure_cases,
         list_prompt_templates,
         list_runs,
+        list_workspace_cases,
+        read_workspace_case,
+        read_workspace_index,
         read_analysis_index,
         read_analysis_plot_spec,
         read_analysis_summary,
         read_analysis_table,
         read_failure_cases,
+        render_case_prompt,
     )
+    from oneehr.config.load import load_experiment_config
 
     if tool not in SUPPORTED_TOOLS:
         raise SystemExit(f"Unsupported inspect tool {tool!r}. Expected one of: {', '.join(SUPPORTED_TOOLS)}")
@@ -78,6 +98,16 @@ def run_inspect(
         }
     elif tool == "runs.describe":
         payload = {"tool": tool, "run": describe_run(run_root)}
+    elif tool == "workspace.read_index":
+        payload = {"tool": tool, "run_dir": str(run_root), "index": read_workspace_index(run_root)}
+    elif tool == "workspace.list_cases":
+        payload = {"tool": tool, "run_dir": str(run_root), "cases": list_workspace_cases(run_root, limit=limit)}
+    elif tool == "workspace.read_case":
+        payload = {
+            "tool": tool,
+            "run_dir": str(run_root),
+            "case": read_workspace_case(run_root, _require_arg("case-id", case_id), limit=limit),
+        }
     elif tool == "analysis.list_modules":
         payload = {"tool": tool, "run_dir": str(run_root), "modules": list_analysis_modules(run_root)}
     elif tool == "analysis.read_index":
@@ -129,6 +159,52 @@ def run_inspect(
                 left_role=left_role,
                 right_role=right_role,
                 top_k=top_k,
+            ),
+        }
+    elif tool == "tasks.get_patient_timeline":
+        payload = {
+            "tool": tool,
+            "run_dir": str(run_root),
+            "timeline": get_patient_timeline(run_root, _require_arg("case-id", case_id), limit=limit),
+        }
+    elif tool == "tasks.get_patient_static":
+        payload = {
+            "tool": tool,
+            "run_dir": str(run_root),
+            "static": get_patient_static(run_root, _require_arg("case-id", case_id)),
+        }
+    elif tool == "tasks.get_case_predictions":
+        payload = {
+            "tool": tool,
+            "run_dir": str(run_root),
+            "predictions": get_case_predictions(
+                run_root,
+                _require_arg("case-id", case_id),
+                source=source,
+                model_name=model_name,
+                limit=limit,
+            ),
+        }
+    elif tool == "tasks.collect_evidence":
+        payload = {
+            "tool": tool,
+            "run_dir": str(run_root),
+            "evidence": collect_case_evidence(run_root, _require_arg("case-id", case_id), limit=limit),
+        }
+    elif tool == "tasks.render_prompt":
+        if config is None:
+            raise SystemExit("tasks.render_prompt requires --config so prompt settings can be resolved")
+        cfg = load_experiment_config(config)
+        payload = {
+            "tool": tool,
+            "run_dir": str(run_root),
+            "prompt": render_case_prompt(
+                cfg=cfg,
+                run_root=run_root,
+                case_id=_require_arg("case-id", case_id),
+                template_name=template,
+                source=source,
+                model_name=model_name,
             ),
         }
     else:  # pragma: no cover
