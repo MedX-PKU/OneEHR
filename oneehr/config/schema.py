@@ -450,7 +450,7 @@ class ExperimentConfig:
     dataset: DatasetConfig
     task: TaskConfig
     split: SplitConfig
-    model: ModelConfig
+    model: ModelConfig | None = None
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
     datasets: DatasetsConfig | None = None
     models: list[ModelConfig] = field(default_factory=list)
@@ -470,3 +470,11 @@ class ExperimentConfig:
     # Internal: runtime-derived dynamic feature dimension (post-binning column count).
     # This avoids overloading preprocess.top_k_codes, whose semantics are "how many codes to select".
     _dynamic_dim: int = 0
+
+    def require_model(self, *, context: str = "this operation") -> ModelConfig:
+        if self.model is None:
+            raise ValueError(
+                f"A training model is required for {context}. "
+                "Set [model] or [[models]] in the config."
+            )
+        return self.model

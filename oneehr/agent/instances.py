@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from oneehr.agent.templates import get_prompt_template
+from oneehr.agent.validation import validate_agent_predict_setup
 from oneehr.artifacts.run_io import RunIO
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.io import load_dynamic_table_optional, load_static_table
@@ -18,50 +18,6 @@ from oneehr.utils.io import ensure_dir, write_json
 class MaterializedAgentInstances:
     path: Path
     frame: pd.DataFrame
-
-
-def validate_agent_predict_setup(cfg: ExperimentConfig) -> None:
-    predict_cfg = cfg.agent.predict
-    if not predict_cfg.enabled:
-        raise SystemExit("Agent prediction workflow is disabled. Set agent.predict.enabled = true in the config.")
-    if cfg.task.kind not in {"binary", "regression"}:
-        raise SystemExit("Agent prediction currently supports task.kind = 'binary' or 'regression' only.")
-    if predict_cfg.sample_unit != cfg.task.prediction_mode:
-        raise SystemExit(
-            "agent.predict.sample_unit must match task.prediction_mode to keep evaluation semantics consistent."
-        )
-    try:
-        template = get_prompt_template(predict_cfg.prompt_template)
-    except KeyError as exc:
-        raise SystemExit(str(exc)) from exc
-    if template.family != "prediction":
-        raise SystemExit(
-            f"agent.predict.prompt_template must resolve to a prediction template, got {template.family!r}."
-        )
-    if cfg.task.kind not in set(template.supported_task_kinds):
-        raise SystemExit(
-            f"agent.predict.prompt_template={predict_cfg.prompt_template!r} does not support "
-            f"task.kind={cfg.task.kind!r}."
-        )
-    if predict_cfg.sample_unit not in set(template.supported_sample_units):
-        raise SystemExit(
-            f"agent.predict.prompt_template={predict_cfg.prompt_template!r} does not support "
-            f"sample_unit={predict_cfg.sample_unit!r}."
-        )
-    if predict_cfg.json_schema_version not in set(template.supported_schema_versions):
-        raise SystemExit(
-            f"agent.predict.prompt_template={predict_cfg.prompt_template!r} does not support "
-            f"json_schema_version={predict_cfg.json_schema_version!r}."
-        )
-    if predict_cfg.prompt.include_labels_context and not template.allow_labels_context:
-        raise SystemExit(
-            "agent.predict.prompt.include_labels_context is not allowed for "
-            f"prompt template {predict_cfg.prompt_template!r}."
-        )
-    if not predict_cfg.backends:
-        raise SystemExit("At least one [[agent.predict.backends]] entry is required for agent prediction.")
-
-
 def agent_instance_path(run_root: Path, sample_unit: str) -> Path:
     base = ensure_dir(run_root / "agent" / "predict" / "instances")
     if sample_unit == "patient":

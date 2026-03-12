@@ -29,12 +29,13 @@ def write_dl_artifacts(
     ckpt_path = out_dir / "state_dict.ckpt"
     torch.save(model.state_dict(), ckpt_path)
 
-    model_cfg = getattr(cfg.model, cfg.model.name)
+    primary_model = cfg.require_model(context="DL artifact persistence")
+    model_cfg = getattr(primary_model, primary_model.name)
 
     meta = {
         "schema_version": 1,
         "model": {
-            "name": cfg.model.name,
+            "name": primary_model.name,
             "hyperparams": as_jsonable(asdict(model_cfg)) if hasattr(model_cfg, "__dataclass_fields__") else {},
         },
         "task": {"kind": str(cfg.task.kind), "prediction_mode": str(cfg.task.prediction_mode)},

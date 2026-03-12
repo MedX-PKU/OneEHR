@@ -164,7 +164,7 @@ Important sections:
 - `[task]`: `binary` or `regression`, `patient` or `time`
 - `[labels]`: label function configuration
 - `[split]`: patient-level split strategy
-- `[model]` or `[[models]]`: training models
+- `[model]` or `[[models]]`: training models for `oneehr train`
 - `[trainer]`: optimization and training controls
 - `[analysis]`: default modules and analysis settings
 - `[cases]`: durable case bundle materialization

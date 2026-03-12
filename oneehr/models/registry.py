@@ -169,7 +169,8 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
     This function centralizes the name->implementation mapping so the CLI and
     other entrypoints don't grow large if/elif ladders.
     """
-    name = cfg.model.name
+    primary_model = cfg.require_model(context="model construction")
+    name = primary_model.name
     input_dim = int(getattr(cfg, "_dynamic_dim", 0) or 0)
     out_dim = 1
 
@@ -182,7 +183,7 @@ def build_model(cfg: ExperimentConfig) -> BuiltModel:
     if spec is None:
         raise ValueError(f"Unsupported model.name={name!r}")
 
-    mc = getattr(cfg.model, spec.config_attr)
+    mc = getattr(primary_model, spec.config_attr)
     kwargs = spec.build_kwargs(mc, input_dim, out_dim)
 
     if spec.uses_static:

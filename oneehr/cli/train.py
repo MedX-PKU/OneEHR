@@ -22,6 +22,7 @@ def run_train(cfg_path: str, force: bool) -> None:
     from oneehr.artifacts.run_io import RunIO
 
     cfg0 = load_experiment_config(cfg_path)
+    _require_training_model(cfg0)
     out_root = cfg0.output.root / cfg0.output.run_name
 
     if out_root.exists() and not force:
@@ -70,6 +71,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     from oneehr.cli._train_hpo import run_single_hpo, run_cv_mean_hpo, run_per_split_hpo
 
     cfg0 = load_experiment_config(cfg_path)
+    primary_model = _require_training_model(cfg0)
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     dynamic = load_dynamic_table_optional(train_dataset.dynamic)
     static_raw = load_static_table(train_dataset.static)
@@ -128,7 +130,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
                 "Re-run `oneehr preprocess`."
             )
 
-    models = cfg0.models or [cfg0.model]
+    models = cfg0.models or [primary_model]
 
     rows = []
     run_records: list[dict[str, object]] = []
@@ -473,6 +475,13 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             cfg0=cfg0, binned=binned, labels_df=labels_df,
             patient_index=patient_index, out_root=out_root,
         )
+
+
+def _require_training_model(cfg):
+    try:
+        return cfg.require_model(context="training")
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def _run_final_prospective_eval(

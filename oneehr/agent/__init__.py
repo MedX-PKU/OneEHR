@@ -5,7 +5,6 @@ from oneehr.agent.instances import (
     agent_instance_path,
     ensure_agent_predict_splits,
     materialize_agent_instances,
-    validate_agent_predict_setup,
 )
 from oneehr.agent.predict_eval import summarize_prediction_rows
 from oneehr.agent.render import render_prompt
@@ -18,6 +17,7 @@ from oneehr.agent.templates import (
     safe_case_slug,
     select_events,
 )
+from oneehr.agent.validation import validate_agent_predict_setup, validate_agent_review_setup
 
 __all__ = [
     "AgentClientError",
@@ -39,4 +39,5 @@ __all__ = [
     "summarize_prediction_rows",
     "summarize_review_rows",
     "validate_agent_predict_setup",
+    "validate_agent_review_setup",
 ]

@@ -89,9 +89,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError("agent.predict must be a table")
     if not isinstance(agent_review_raw, dict):
         raise ValueError("agent.review must be a table")
-    agent_predict_enabled_raw = bool(agent_predict_raw.get("enabled", False))
-    if model_raw is None and not models_raw and not agent_predict_enabled_raw:
-        raise ValueError("Missing required key: model or models")
 
     dataset = None
     if dataset_raw is not None:
@@ -264,9 +261,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         models.append(_load_model(mraw))
     if model is not None and not models:
         models = [model]
-    if model is None and not models and agent_predict_enabled_raw:
-        model = ModelConfig(name="_agent_placeholder")
-    elif model is None and models:
+    if model is None and models:
         model = models[0]
 
     output = OutputConfig(
@@ -524,7 +519,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         task=task,
         labels=labels,
         split=split,
-        model=model if model is not None else models[0],
+        model=model,
         models=models,
         trainer=trainer,
         hpo=hpo,

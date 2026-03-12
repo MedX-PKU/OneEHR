@@ -199,7 +199,7 @@ name = "xgboost"
 ```
 
 !!! note
-    Agent workflows use `[cases]`, `[agent.predict]`, and `[agent.review]` as their dedicated config surface. If you are running an agent-only workflow, `preprocess`, `cases build`, `agent predict`, and `agent review` do not require `[model]` or `[[models]]`.
+    `[model]` / `[[models]]` are required for `oneehr train`. Read-only and agent-oriented workflows such as `preprocess`, `cases build`, `agent predict`, and `agent review` can load configs without a training model.
 
 ---
 

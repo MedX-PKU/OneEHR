@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from oneehr.agent.client import OpenAICompatibleAgentClient
 from oneehr.agent.contracts import AgentRequestSpec
@@ -79,9 +80,11 @@ def test_load_config_with_agent_predict_sections(tmp_path: Path) -> None:
     assert cfg.agent.predict.prompt.max_events == 25
     assert cfg.agent.predict.prompt.time_order == "desc"
     assert len(cfg.agent.predict.backends) == 1
-    assert cfg.model.name == "_agent_placeholder"
+    assert cfg.model is None
     assert cfg.agent.predict.backends[0].base_url == "http://127.0.0.1:9999/v1"
     validate_agent_predict_setup(cfg)
+    with pytest.raises(ValueError, match="training"):
+        cfg.require_model(context="training")
 
 
 def test_prompt_template_registry() -> None:

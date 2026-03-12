@@ -16,6 +16,7 @@ from oneehr.agent import (
     OpenAICompatibleAgentClient,
     render_prompt,
     safe_case_slug,
+    validate_agent_review_setup,
 )
 from oneehr.agent.instances import (
     agent_instance_path,
@@ -270,7 +271,7 @@ def run_agent_review(args: argparse.Namespace) -> None:
     from oneehr.config.load import load_experiment_config
 
     cfg = load_experiment_config(args.config)
-    _validate_agent_review_setup(cfg)
+    validate_agent_review_setup(cfg)
     run_root = resolve_run_root(cfg, args.run_dir)
     if not run_root.exists():
         raise SystemExit(f"Run directory not found: {run_root}. Run `oneehr preprocess` first.")
@@ -644,46 +645,6 @@ def _predict_one(
     if "bin_time" in instance:
         row["bin_time"] = pd.to_datetime(instance["bin_time"], errors="raise")
     return row
-
-
-def _validate_agent_review_setup(cfg) -> None:
-    if not cfg.agent.review.enabled:
-        raise SystemExit("Agent review workflow is disabled. Set agent.review.enabled = true in the config.")
-
-    from oneehr.agent.templates import get_prompt_template
-
-    try:
-        template = get_prompt_template(cfg.agent.review.prompt_template)
-    except KeyError as exc:
-        raise SystemExit(str(exc)) from exc
-    if template.family != "review":
-        raise SystemExit(
-            f"agent.review.prompt_template must resolve to a review template, got {template.family!r}."
-        )
-    if cfg.task.kind not in set(template.supported_task_kinds):
-        raise SystemExit(
-            f"agent.review.prompt_template={cfg.agent.review.prompt_template!r} "
-            f"does not support task.kind={cfg.task.kind!r}."
-        )
-    if cfg.task.prediction_mode not in set(template.supported_sample_units):
-        raise SystemExit(
-            f"agent.review.prompt_template={cfg.agent.review.prompt_template!r} "
-            f"does not support prediction_mode={cfg.task.prediction_mode!r}."
-        )
-    if cfg.agent.review.json_schema_version not in set(template.supported_schema_versions):
-        raise SystemExit(
-            f"agent.review.prompt_template={cfg.agent.review.prompt_template!r} "
-            f"does not support json_schema_version={cfg.agent.review.json_schema_version!r}."
-        )
-    if cfg.agent.review.prompt.include_ground_truth and not template.allow_labels_context:
-        raise SystemExit(
-            "agent.review.prompt.include_ground_truth is not allowed for "
-            f"prompt template {cfg.agent.review.prompt_template!r}."
-        )
-    if not cfg.agent.review.backends:
-        raise SystemExit("At least one [[agent.review.backends]] entry is required for agent review.")
-
-
 def _run_review_backend(
     *,
     cfg,
