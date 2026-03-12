@@ -125,9 +125,8 @@ use_calibrated = true
 #   "prediction_audit",
 #   "temporal_analysis",
 #   "interpretability",
-#   "llm_audit",
+#   "agent_audit",
 # ]
-# formats = ["json", "csv", "md", "html"]
 # top_k = 20
 # stratify_by = []
 # case_limit = 50
@@ -139,17 +138,27 @@ use_calibrated = true
 # uv run oneehr analyze --config examples/experiment.toml --module prediction_audit --module interpretability
 # uv run oneehr analyze --config examples/experiment.toml --compare-run logs/baseline_run
 
-# Optional LLM inference/evaluation workflow.
-# This uses grouped patient splits plus structured EHR prompts and
-# OpenAI-compatible chat completions.
-# If you create a dedicated LLM-only config for `preprocess`,
-# `llm-preprocess`, and `llm-predict`, you do not need `[model]` or `[[models]]`.
+# Optional durable case bundles for downstream analysis, notebooks, and agents.
 #
-# [llm]
+# [cases]
+# include_static = true
+# include_analysis_refs = true
+# history_window = "30d"  # optional
+# max_events = 200
+# time_order = "asc"      # asc | desc
+# case_limit = 100        # optional
+#
+# Cases command:
+# uv run oneehr cases build --config examples/experiment.toml
+
+# Optional agent prediction workflow.
+#
+# [agent.predict]
 # enabled = true
-# sample_unit = "patient" # patient | time; must match [task].prediction_mode
+# sample_unit = "patient"      # patient | time; must match [task].prediction_mode
 # prompt_template = "summary_v1"
 # json_schema_version = 1
+# max_samples = 500            # optional
 # save_prompts = true
 # save_responses = true
 # save_parsed = true
@@ -159,19 +168,19 @@ use_calibrated = true
 # temperature = 0.0
 # top_p = 1.0
 #
-# [llm.prompt]
+# [agent.predict.prompt]
 # include_static = true
-# include_labels_context = false # must remain false in v1 to avoid leakage
+# include_labels_context = false # keep false in v1 to avoid leakage
 # history_window = "30d"         # optional
 # max_events = 200
-# time_order = "asc"             # asc | desc
+# time_order = "asc"
 # sections = ["patient_profile", "event_timeline", "code_summary", "prediction_task", "output_schema"]
 #
-# [llm.output]
+# [agent.predict.output]
 # include_explanation = true
 # include_confidence = false
 #
-# [[llm_models]]
+# [[agent.predict.backends]]
 # name = "gpt4o-mini"
 # provider = "openai_compatible"
 # base_url = "https://api.openai.com/v1"
@@ -180,30 +189,21 @@ use_calibrated = true
 # supports_json_schema = true
 # headers = { }
 #
-# LLM commands:
-# uv run oneehr llm-preprocess --config examples/experiment.toml
-# uv run oneehr llm-predict --config examples/experiment.toml
+# Agent prediction commands:
+# uv run oneehr agent predict --config examples/experiment.toml
+# uv run oneehr query agent predict-summary --run-dir logs/example
 
-# Optional evidence-grounded case workspace for agent workflows.
+# Optional agent review workflow over case bundles.
+# Cases must exist first, and review targets are selected by prediction origin:
+# - "model" -> trained model outputs from preds/
+# - "agent" -> agent outputs from agent/predict/preds/
 #
-# [workspace]
-# include_static = true
-# include_analysis_refs = true
-# history_window = "30d"  # optional
-# max_events = 200
-# time_order = "asc"      # asc | desc
-# case_limit = 100        # optional
-#
-# Workspace command:
-# uv run oneehr workspace --config examples/experiment.toml
-
-# Optional LLM-as-judge / reviewer workflow over workspace cases.
-#
-# [review]
+# [agent.review]
 # enabled = true
 # prompt_template = "evidence_review_v1"
 # json_schema_version = 1
-# prediction_sources = ["train", "llm"] # any subset of train / llm
+# prediction_origins = ["model", "agent"] # any subset of model / agent
+# max_cases = 100                         # optional
 # save_prompts = true
 # save_responses = true
 # save_parsed = true
@@ -213,7 +213,7 @@ use_calibrated = true
 # temperature = 0.0
 # top_p = 1.0
 #
-# [review.prompt]
+# [agent.review.prompt]
 # include_static = true
 # include_ground_truth = true
 # include_analysis_context = true
@@ -229,7 +229,7 @@ use_calibrated = true
 #   "output_schema",
 # ]
 #
-# [[review_models]]
+# [[agent.review.backends]]
 # name = "gpt4o-mini-review"
 # provider = "openai_compatible"
 # base_url = "https://api.openai.com/v1"
@@ -238,8 +238,10 @@ use_calibrated = true
 # supports_json_schema = true
 # headers = { }
 #
-# Reviewer command:
-# uv run oneehr llm-review --config examples/experiment.toml
+# Agent review commands:
+# uv run oneehr cases build --config examples/experiment.toml
+# uv run oneehr agent review --config examples/experiment.toml
+# uv run oneehr query agent review-summary --run-dir logs/example
 
 [output]
 root = "logs"

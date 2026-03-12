@@ -1,603 +1,300 @@
 # OneEHR
 
-OneEHR is an end-to-end EHR predictive modeling + analysis toolkit in Python, designed around:
+OneEHR is a Python toolkit for longitudinal EHR predictive modeling, analysis, and agent-ready case workflows.
 
-- **Doctor-friendly input**: start from a single long-form event table (CSV/Excel).
-- **Leakage prevention by default**: all data splits are patient-level group splits.
-- **TOML-first experiments**: most behavior is configured via one `experiment.toml`.
-- **CLI-first workflow**: preprocess → train/test/analyze/inspect for ML/DL, plus LLM-specific prompt materialization and prediction commands.
+The project is organized around three layers:
 
-This README is the user-facing guide. For full documentation, see the [docs site](https://medx-pku.github.io/OneEHR/) or build locally with `uv run mkdocs serve` (MkDocs 2 pre-release + `mkdocs.toml`). If you are using agents to modify the repo, read `AGENTS.md` too.
+- `preprocess` / `train` / `test` / `analyze` for classical ML and DL modeling.
+- `cases build`, `agent predict`, and `agent review` for evidence-grounded case bundles and agent workflows.
+- `query ...` for stable JSON/JSONL-oriented access from notebooks, automation, and future web UIs.
 
-## Install (uv-only)
+## Why OneEHR
 
-Python is pinned in `.python-version` (Python 3.12). Use `uv`:
+- Event-table first: start from a long-form EHR table with `patient_id`, `event_time`, `code`, and `value`.
+- Leakage prevention by default: splits are always patient-level group splits.
+- TOML-first configuration: the config is the source of truth; CLI flags are only for paths and overrides.
+- Structured artifacts: outputs are written as JSON, CSV, parquet, and JSONL so they can be analyzed programmatically.
+
+## Installation
+
+OneEHR requires Python 3.12 and `uv`.
 
 ```bash
 uv venv .venv --python 3.12
 uv pip install -e .
 ```
 
-Verify:
+Optional docs dependencies:
+
+```bash
+uv pip install -e ".[docs]"
+```
+
+## Quickstart
+
+Use the bundled example dataset and config:
+
+```bash
+uv run oneehr preprocess --config examples/experiment.toml --overview
+uv run oneehr train --config examples/experiment.toml
+uv run oneehr analyze --config examples/experiment.toml
+uv run oneehr cases build --config examples/experiment.toml
+uv run oneehr query runs describe --config examples/experiment.toml
+```
+
+Optional agent workflows:
+
+```bash
+uv run oneehr agent predict --config examples/experiment.toml
+uv run oneehr agent review --config examples/experiment.toml
+```
+
+`agent predict` and `agent review` require configured OpenAI-compatible backends and the corresponding API key environment variables.
+
+## Command Surface
+
+Top-level commands:
+
+- `oneehr preprocess`
+- `oneehr train`
+- `oneehr test`
+- `oneehr analyze`
+- `oneehr cases build`
+- `oneehr agent predict`
+- `oneehr agent review`
+- `oneehr query ...`
+
+Explore the live CLI:
 
 ```bash
 uv run oneehr --help
+uv run oneehr query --help
+uv run oneehr query cases --help
 ```
 
-## Quickstart (5 minutes)
+## Data Model
 
-Run the example end-to-end:
+Primary dynamic table:
 
-```bash
-uv run oneehr preprocess --config examples/experiment.toml
-uv run oneehr train --config examples/experiment.toml
-uv run oneehr analyze --config examples/experiment.toml
-```
+| column | meaning |
+| --- | --- |
+| `patient_id` | patient identifier |
+| `event_time` | event timestamp |
+| `code` | event code |
+| `value` | numeric or categorical event value |
 
-Artifacts are written under `output.root/output.run_name` (defaults in config; the example uses `logs/example/`).
-The default analysis run writes a modular report bundle under `logs/example/analysis/`, including summaries, CSV tables, plot specs, and static Markdown/HTML reports.
+Optional static table:
 
-For the LLM workflow, run:
+| column | meaning |
+| --- | --- |
+| `patient_id` | patient identifier |
+| other columns | patient-level covariates |
 
-```bash
-uv run oneehr preprocess --config examples/experiment.toml
-uv run oneehr llm-preprocess --config examples/experiment.toml
-uv run oneehr llm-predict --config examples/experiment.toml
-```
+Labels can come from:
 
-## The Workflow (Conceptual)
+- a standard label table
+- a user label function via `[labels].fn`
 
-OneEHR is organized around an explicit pipeline:
+Prediction modes:
 
-1. **Preprocess**: validate and bin irregular events into fixed time bins; build features; materialize tabular “views”.
-2. **Train**: fit one or more models; optionally run config-driven grid search (HPO) per model.
-3. **Test**: evaluate a trained run on the held-out test split, or on external test data (if a different dataset config is provided).
-4. **Analyze**: modular audit/reporting over the run directory, including dataset profiling, cohort drift, prediction audit, temporal slices, interpretability, and LLM audit.
-5. **Inspect**: expose run, analysis, case, and cohort artifacts through a stable JSON contract for external agents and automation.
-6. **LLM Preprocess / Predict**: materialize patient-level or time-window prompt instances, render structured summaries, call OpenAI-compatible chat completions, and score parsed predictions.
+- `patient`: N-1 / patient-level prediction
+- `time`: N-N / time-window prediction
 
-## Data Model (What You Provide)
+## Configuration Overview
 
-OneEHR starts from a single, long-form event table and (optionally) a patient static table and/or label table.
-These are plain CSVs; there is no dataset registry step.
+Important sections:
 
-### `dynamic.csv` (required)
+- `[dataset]` or `[datasets]`: input tables
+- `[preprocess]`: binning and feature construction
+- `[task]`: `binary` or `regression`, `patient` or `time`
+- `[labels]`: label function configuration
+- `[split]`: patient-level split strategy
+- `[model]` or `[[models]]`: training models
+- `[trainer]`: optimization and training controls
+- `[analysis]`: default modules and analysis settings
+- `[cases]`: durable case bundle materialization
+- `[agent.predict]`: agent prediction workflow
+- `[agent.review]`: agent review workflow
+- `[output]`: run directory root and run name
 
-Unified longitudinal event table (long format). Required columns:
-
-- `patient_id` — patient identifier (stringable)
-- `event_time` — parseable by `pandas.to_datetime`
-- `code` — measurement / concept name
-- `value` — numeric or categorical
-
-Notes:
-
-- Timestamps are **irregular**; binning happens during preprocessing.
-- `value` typing/curation happens in preprocessing (numeric strategy + categorical strategy).
-
-### `static.csv` (optional)
-
-One row per patient. Minimum:
-
-- `patient_id`
-
-All other columns are treated as static covariates.
-
-### `label.csv` (optional)
-
-Long-form label events. Required columns:
-
-- `patient_id`
-- `label_time`
-- `label_code`
-- `label_value`
-
-If you do not have a label table, you can generate labels via a Python `label_fn` (recommended for rapid iteration).
-
-## Example Dataset (Simulated)
-
-The repo includes a tiny simulated dataset under `examples/`:
-
-- `examples/dynamic.csv` (required)
-- `examples/static.csv` (optional)
-- `examples/label.csv` (optional)
-
-The default `examples/experiment.toml` points to these files.
-
-## Tasks and Prediction Modes
-
-OneEHR is currently **single-task**.
-
-Supported task kinds:
-
-- `binary`
-- `regression`
-
-Supported prediction modes:
-
-- `patient` (N-1): one prediction per patient
-- `time` (N-N): one prediction per time bin
-
-## Config (TOML) Overview
-
-The primary entrypoint is a single experiment config, e.g. `examples/experiment.toml`.
-
-High-level sections:
-
-- `[dataset]`: file paths (dynamic/static/label or dynamic + `labels.fn`)
-- `[preprocess]`: binning + feature building strategies
-- `[task]`: `kind` and `prediction_mode`
-- `[labels]`: optional label generation function
-- `[split]`: patient-level group splitting strategy
-- `[[models]]`: one or more models to train
-- `[hpo]` and `[hpo_models.<name>]`: optional config-driven grid search
-- `[trainer]`: generic training and selection behavior
-- `[analysis]`: default analysis modules, report formats, and audit limits
-- `[workspace]`: evidence-grounded case workspace materialization policy
-- `[llm]`, `[llm.prompt]`, `[llm.output]`: LLM inference/evaluation behavior
-- `[[llm_models]]`: one or more OpenAI-compatible chat completion endpoints/models
-- `[review]`, `[review.prompt]`: LLM reviewer behavior over materialized case workspaces
-- `[[review_models]]`: one or more OpenAI-compatible reviewer backends
-- `[output]`: where run artifacts are written
-
-### LLM workflow
-
-OneEHR now includes an LLM-specific inference path for EHR prediction:
-
-- Input: raw EHR history rendered through the built-in prompt registry (`summary_v1`)
-- Backend: OpenAI-compatible `chat/completions`
-- Tasks: `binary` and `regression`
-- Units: `patient` and `time`
-- Output: strict JSON, parsed into prediction artifacts and evaluation summaries
-
-OneEHR also exposes agent-facing prompt discovery, case workspaces, tool-callable evidence primitives, and a reviewer loop through `evidence_review_v1`.
-
-Minimal config shape:
+Minimal training config:
 
 ```toml
-[llm]
-enabled = true
-sample_unit = "patient"      # patient | time
-prompt_template = "summary_v1"
-json_schema_version = 1
-save_prompts = true
-save_responses = true
-save_parsed = true
-concurrency = 1
-max_retries = 2
-timeout_seconds = 60.0
-temperature = 0.0
-top_p = 1.0
+[dataset]
+dynamic = "examples/dynamic.csv"
+static = "examples/static.csv"
 
-[llm.prompt]
-include_static = true
-include_labels_context = false
-max_events = 200
-time_order = "asc"
+[preprocess]
+bin_size = "1d"
+numeric_strategy = "mean"
+categorical_strategy = "onehot"
+code_selection = "frequency"
+top_k_codes = 100
 
-[llm.output]
-include_explanation = true
-include_confidence = false
+[task]
+kind = "binary"
+prediction_mode = "patient"
 
-[[llm_models]]
-name = "gpt4o-mini"
-provider = "openai_compatible"
-base_url = "https://api.openai.com/v1"
-model = "gpt-4o-mini"
-api_key_env = "OPENAI_API_KEY"
-supports_json_schema = true
-```
-
-Notes:
-
-- `llm.sample_unit` must match `task.prediction_mode`.
-- `labels` are optional for patient-level inference, but time-level LLM evaluation requires labels.
-- LLM-only configs are allowed. You do not need `[model]` or `[[models]]` when the run is only for `preprocess`, `llm-preprocess`, and `llm-predict`.
-
-### Agent workspace and reviewer workflow
-
-The agentic layer is built on four contracts:
-
-- Prompt/template registry: discoverable built-in templates such as `summary_v1` and `evidence_review_v1`
-- Evidence-grounded case workspace: stable `workspace/` bundles with events, static features, predictions, and analysis refs per case
-- Tool-callable task primitives: read-only JSON tools exposed through `oneehr inspect`
-- LLM reviewer loop: `oneehr llm-review` scores evidence-grounding, leakage suspicion, and escalation need over existing case predictions
-
-Minimal config shape:
-
-```toml
-[workspace]
-include_static = true
-include_analysis_refs = true
-max_events = 200
-time_order = "asc"
-
-[review]
-enabled = true
-prompt_template = "evidence_review_v1"
-prediction_sources = ["train", "llm"]
-json_schema_version = 1
-save_prompts = true
-save_responses = true
-save_parsed = true
-
-[review.prompt]
-include_static = true
-include_ground_truth = true
-include_analysis_context = true
-max_events = 100
-time_order = "asc"
-
-[[review_models]]
-name = "gpt4o-mini-review"
-provider = "openai_compatible"
-base_url = "https://api.openai.com/v1"
-model = "gpt-4o-mini"
-api_key_env = "OPENAI_API_KEY"
-supports_json_schema = true
-```
-
-### Analysis workflow
-
-`oneehr analyze` now writes a modular analysis bundle instead of a single feature-importance file. The default module set is:
-
-- `dataset_profile`
-- `cohort_analysis`
-- `prediction_audit`
-- `temporal_analysis`
-- `interpretability`
-- `llm_audit`
-
-Minimal config shape:
-
-```toml
-[analysis]
-default_modules = [
-  "dataset_profile",
-  "cohort_analysis",
-  "prediction_audit",
-  "temporal_analysis",
-  "interpretability",
-  "llm_audit",
-]
-formats = ["json", "csv", "md", "html"]
-top_k = 20
-stratify_by = []
-case_limit = 50
-save_plot_specs = true
-shap_max_samples = 500
-```
-
-Notes:
-
-- `summary.json` and `analysis/index.json` are always written.
-- `formats` controls which extra human-readable report outputs are emitted; the default writes CSV tables plus Markdown/HTML reports.
-- `--method` remains a compatibility shortcut for the `interpretability` module.
-
-## Splits (Leakage Prevention)
-
-All splits are **patient-level group splits** (patients never span train/val/test).
-
-Config patterns (see `examples/experiment.toml`):
-
-- K-fold CV: `[split] kind = "kfold"`
-- Prospective/time boundary split: `[split] kind = "time"` (still grouped by patient)
-
-## Preprocessing Design (Irregular → Fixed-Time)
-
-Deep-learning and many tabular baselines want regular sampling. OneEHR converts irregular EHR events into fixed bins:
-
-- `preprocess.bin_size`: e.g. `"1h"`, `"1d"`
-- Per bin and per code:
-  - numeric values: aggregated via `preprocess.numeric_strategy` (e.g. mean)
-  - categorical values: represented via `preprocess.categorical_strategy` (e.g. one-hot or counts)
-
-### Code selection (feature vocabulary)
-
-`preprocess.code_selection` controls which codes enter the feature space:
-
-- `frequency`: top-k by frequency (`top_k_codes`)
-- `all`: include all codes
-- `list`: explicit `code_list = ["A", "B"]`
-- `importance`: load top-k from an importance file (e.g., SHAP export)
-
-## Labels via `label_fn` (Recommended)
-
-You can generate labels from events via a Python function configured in TOML:
-
-```toml
 [labels]
 fn = "examples/label_fn.py:build_labels"
-bin_from_time_col = true
-```
 
-Guidance:
+[split]
+kind = "kfold"
+n_splits = 5
+seed = 42
 
-- For `task.prediction_mode = "time"`, return time-aligned labels; OneEHR will align to bin times using `preprocess.bin_size`.
-- Treat the label function as part of the experiment definition: version it and keep it next to your config.
-
-## Models
-
-OneEHR ships 18 models: 5 tabular and 13 deep learning.
-
-| Model | Config key | Type | Patient (N-1) | Time (N-N) | Static branch |
-|-------|-----------|------|:---:|:---:|:---:|
-| XGBoost | `xgboost` | Tabular | Yes | Yes | -- |
-| CatBoost | `catboost` | Tabular | Yes | Yes | -- |
-| Random Forest | `rf` | Tabular | Yes | Yes | -- |
-| Decision Tree | `dt` | Tabular | Yes | Yes | -- |
-| GBDT | `gbdt` | Tabular | Yes | Yes | -- |
-| GRU | `gru` | DL | Yes | Yes | No |
-| LSTM | `lstm` | DL | Yes | Yes | No |
-| RNN | `rnn` | DL | Yes | Yes | No |
-| Transformer | `transformer` | DL | Yes | Yes | No |
-| TCN | `tcn` | DL | Yes | Yes | No |
-| MLP | `mlp` | DL | Yes | Yes | No |
-| AdaCare | `adacare` | DL | Yes | Yes | No |
-| StageNet | `stagenet` | DL | Yes | Yes | No |
-| RETAIN | `retain` | DL | Yes | Yes | No |
-| ConCare | `concare` | DL | Yes | Yes | Yes |
-| GRASP | `grasp` | DL | Yes | Yes | Yes |
-| MCGRU | `mcgru` | DL | Yes | Yes | Yes |
-| DrAgent | `dragent` | DL | Yes | Yes | Yes |
-
-Configure one or more models:
-
-```toml
-[[models]]
-name = "gru"
-
-[[models]]
+[model]
 name = "xgboost"
-```
 
-One model can also be configured (legacy style), but `[[models]]` is recommended for consistency. See the [Models Reference](https://medx-pku.github.io/OneEHR/reference/models/) for all per-model parameters.
+[trainer]
+device = "cpu"
 
-## Hyperparameter Search (Config-Driven Grid Search)
-
-There is no separate `oneehr hpo` command. Hyperparameter search is part of `oneehr train` when enabled in config.
-
-Shared HPO config lives in `[hpo]`, per-model overrides live in `[hpo_models.<model_name>]`:
-
-```toml
-[hpo]
-enabled = true
-metric = "val_loss"
-mode = "min"
-scope = "single" # single | per_split | cv_mean
-grid = [
-  ["trainer.lr", [1e-3, 3e-4]],
-  ["trainer.batch_size", [16, 32]],
-]
-
-[hpo_models.xgboost]
-enabled = true
-metric = "val_auroc"
-mode = "max"
-grid = [
-  ["model.xgboost.max_depth", [4, 6, 8]],
-  ["model.xgboost.n_estimators", [200, 500]],
-]
-```
-
-Notes:
-
-- Grid keys are dotted paths into the config (e.g. `trainer.lr`, `model.xgboost.max_depth`).
-- Scope:
-  - `single`: tune on one split (default `splits[0]` or `hpo.tune_split`)
-  - `per_split`: tune separately per split
-  - `cv_mean`: select by averaging an aggregate metric across splits
-
-## CLI Reference
-
-Run `uv run oneehr --help` for authoritative flags. Current commands:
-
-- `oneehr preprocess --config <toml>`: preprocessing + artifact materialization
-- `oneehr train --config <toml> [--force]`: training + optional grid search + evaluation summaries
-- `oneehr test --config <toml> [--run-dir <run>] [--test-dataset <toml>]`: evaluate trained run on test data
-- `oneehr analyze --config <toml> [--run-dir <run>] [--module <name>] [--format <fmt>] [--compare-run <run>] [--case-limit <n>] [--method <xgboost|shap|attention>]`: modular run analysis and static report generation
-- `oneehr workspace --config <toml> [--run-dir <run>] [--force]`: materialize evidence-grounded case workspaces
-- `oneehr inspect --tool <name> [--config <toml> | --run-dir <run> | --root <dir>]`: read prompt registry, run, workspace, task, analysis, case, cohort, and review artifacts as JSON for agents
-- `oneehr llm-preprocess --config <toml> [--run-dir <run>] [--force]`: materialize LLM prompt instances from grouped patient splits
-- `oneehr llm-predict --config <toml> [--run-dir <run>] [--force]`: render prompts, call OpenAI-compatible chat completions, parse strict JSON, and write LLM evaluation artifacts
-- `oneehr llm-review --config <toml> [--run-dir <run>] [--force]`: review existing case predictions with an OpenAI-compatible judge model
-
-## Outputs (Run Directory Contract)
-
-By default, run artifacts are written under `[output]`:
-
-```toml
 [output]
 root = "logs"
 run_name = "example"
 ```
 
-Key artifacts you can rely on:
-
-- Preprocess outputs:
-  - `binned.parquet`: binned dynamic events (long format)
-  - `features/dynamic/feature_columns.json`: dynamic feature schema
-  - `features/static/static_all.parquet`: static matrix (if enabled)
-  - `views/patient_tabular.parquet` or `views/time_tabular.parquet`: modeling-ready tabular views
-  - `run_manifest.json`: single source of truth (artifact paths + schema)
-- Train outputs:
-  - `summary.json`: structured per-model, per-split metrics
-  - `hpo_best.csv`: best HPO config per model
-  - `preds/<model>/...`: predictions (if `output.save_preds = true`)
-  - `hpo/<model>/...`: grid search trials and selected configs (if enabled)
-- Analysis outputs:
-  - `analysis/index.json`: run-level analysis index
-  - `analysis/<module>/summary.json`: module summary
-  - `analysis/<module>/*.csv`: module tables (when `csv` format is enabled)
-  - `analysis/<module>/plots/*.json`: serialized plot specs
-  - `analysis/<module>/cases/*.parquet`: case-level audit exports
-  - `analysis/comparison/*`: optional compare-run outputs
-  - `analysis/feature_importance_{model}_{split}_{method}.json`: legacy compatibility exports from the interpretability module
-- LLM outputs:
-  - `llm/instances/*.parquet`: patient-level or time-level prompt instances
-  - `llm/prompts/<llm_model>/*.jsonl`: rendered prompts (default on)
-  - `llm/responses/<llm_model>/*.jsonl`: raw model responses (default on)
-  - `llm/preds/<llm_model>/*.parquet`: parsed prediction rows
-  - `llm/metrics/<llm_model>/*.json`: per-split metrics + parse coverage
-  - `llm/summary.json`: run-level LLM summary
-- Workspace outputs:
-  - `workspace/index.json`: run-level workspace index
-  - `workspace/cases/<case>/{workspace,events,static,predictions,analysis_refs}.*`: durable case bundles for agents and reviewers
-- Review outputs:
-  - `review/prompts/<review_model>/*.jsonl`: rendered reviewer prompts
-  - `review/responses/<review_model>/*.jsonl`: raw reviewer responses
-  - `review/parsed/<review_model>/*.parquet`: parsed structured review rows
-  - `review/metrics/<review_model>/*.json`: grouped reviewer metrics
-  - `review/summary.json`: run-level reviewer summary
-
-## Common Recipes
-
-### 1) Train a single model (no HPO)
-
-Set one model and disable HPO:
+Minimal agent prediction add-on:
 
 ```toml
-[[models]]
-name = "xgboost"
+[agent.predict]
+enabled = true
+sample_unit = "patient"
+prompt_template = "summary_v1"
 
-[hpo]
-enabled = false
+[agent.predict.prompt]
+include_static = true
+max_events = 50
+
+[agent.predict.output]
+include_explanation = true
+
+[[agent.predict.backends]]
+name = "gpt4o-mini"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
 ```
 
-### 2) Time-level (N-N) prediction
+Minimal agent review add-on:
 
 ```toml
-[task]
-prediction_mode = "time"
+[cases]
+include_static = true
+include_analysis_refs = true
+
+[agent.review]
+enabled = true
+prompt_template = "evidence_review_v1"
+prediction_origins = ["model", "agent"]
+
+[agent.review.prompt]
+include_static = true
+include_ground_truth = true
+include_analysis_context = true
+
+[[agent.review.backends]]
+name = "reviewer"
+provider = "openai_compatible"
+base_url = "https://api.openai.com/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
 ```
 
-Make sure `labels.fn` produces time-level labels (with `label_time`) that match your binning logic.
+## Artifact Layout
 
-### 3) Test Set Evaluation
+Each run lives under `[output].root / [output].run_name`.
 
-By default, `oneehr test` relies on the internal splits generated during training to evaluate the model on held-out test patients without data leakage:
+Key outputs:
+
+```text
+logs/<run_name>/
+├── run_manifest.json
+├── summary.json
+├── analysis/
+├── cases/
+├── agent/
+│   ├── predict/
+│   └── review/
+├── preds/
+├── models/
+└── splits/
+```
+
+Important structured artifacts:
+
+- `run_manifest.json`: run contract snapshot
+- `summary.json`: training summary
+- `analysis/<module>/summary.json`: analysis module summary
+- `analysis/<module>/*.csv`: analysis tables
+- `cases/index.json`: run-level case index
+- `cases/<case_slug>/case.json`: case metadata
+- `cases/<case_slug>/events.csv`: event evidence
+- `cases/<case_slug>/predictions.csv`: merged model and agent predictions
+- `agent/predict/summary.json`: agent prediction summary
+- `agent/review/summary.json`: agent review summary
+
+The `query` command reads these artifacts directly rather than rendering a terminal-specific view.
+
+## Query Workflows
+
+List runs:
 
 ```bash
-uv run oneehr test --config examples/experiment.toml
+uv run oneehr query runs list --root logs
 ```
 
-If you have a completely separate external dataset, provide its config:
+Describe a run:
 
 ```bash
-uv run oneehr test --config examples/experiment.toml --test-dataset path/to/external_test.toml
+uv run oneehr query runs describe --run-dir logs/example
 ```
 
-### 4) LLM EHR prediction
-
-Use the grouped split artifacts from preprocessing, render `summary_v1` prompts, and evaluate one or more OpenAI-compatible models:
+Read case bundles:
 
 ```bash
-uv run oneehr preprocess --config examples/experiment.toml
-uv run oneehr llm-preprocess --config examples/experiment.toml
-uv run oneehr llm-predict --config examples/experiment.toml
+uv run oneehr query cases list --run-dir logs/example
+uv run oneehr query cases read --run-dir logs/example --case-id fold0:p0001
+uv run oneehr query cases evidence --run-dir logs/example --case-id fold0:p0001
 ```
 
-This writes all LLM outputs under `logs/<run_name>/llm/`.
-
-### 5) Modular analysis and static reports
-
-Run the full default analysis suite:
+Read analysis artifacts:
 
 ```bash
-uv run oneehr analyze --config examples/experiment.toml
+uv run oneehr query analysis modules --run-dir logs/example
+uv run oneehr query analysis summary --run-dir logs/example --module prediction_audit
+uv run oneehr query analysis table --run-dir logs/example --module prediction_audit --table slices
 ```
 
-Run only selected modules and compare against another run:
+Read agent summaries:
 
 ```bash
-uv run oneehr analyze \
-  --config examples/experiment.toml \
-  --module prediction_audit \
-  --module interpretability \
-  --compare-run logs/baseline_run
+uv run oneehr query agent predict-summary --run-dir logs/example
+uv run oneehr query agent review-summary --run-dir logs/example
 ```
-
-The analysis command writes `analysis/index.json` plus per-module summaries, CSV tables, plot specs, and optional Markdown/HTML reports.
-
-### 6) Evidence-grounded case workspaces
-
-Materialize portable case bundles before handing the run to an external agent or reviewer:
-
-```bash
-uv run oneehr workspace --config examples/experiment.toml
-```
-
-This writes `workspace/index.json` plus case-level evidence bundles under `workspace/cases/`.
-
-### 7) Agent-facing JSON inspection
-
-Use `oneehr inspect` when an external agent or automation layer needs stable read-only access to OneEHR artifacts:
-
-```bash
-uv run oneehr inspect --tool prompts.list
-uv run oneehr inspect --tool runs.list --root logs
-uv run oneehr inspect --tool runs.describe --run-dir logs/example
-uv run oneehr inspect --tool workspace.list_cases --run-dir logs/example
-uv run oneehr inspect --tool tasks.collect_evidence --run-dir logs/example --case-id fold0:p0001
-uv run oneehr inspect --tool analysis.read_summary --run-dir logs/example --module prediction_audit
-uv run oneehr inspect --tool cases.describe_patient --run-dir logs/example --patient-id p0001
-uv run oneehr inspect --tool cohorts.compare --run-dir logs/example --split fold0 --left-role train --right-role test
-```
-
-The inspect contract currently exposes:
-
-- `prompts.list`
-- `prompts.describe`
-- `runs.list`
-- `runs.describe`
-- `reviews.read_summary`
-- `workspace.read_index`
-- `workspace.list_cases`
-- `workspace.read_case`
-- `analysis.list_modules`
-- `analysis.read_index`
-- `analysis.read_summary`
-- `analysis.read_table`
-- `analysis.read_plot_spec`
-- `cases.list_failures`
-- `cases.read_failures`
-- `cases.describe_patient`
-- `cohorts.compare`
-- `tasks.get_patient_timeline`
-- `tasks.get_patient_static`
-- `tasks.get_case_predictions`
-- `tasks.collect_evidence`
-- `tasks.render_prompt`
-
-### 8) Reviewer / judge loop
-
-Run an LLM reviewer over existing train and/or LLM predictions in the case workspace:
-
-```bash
-uv run oneehr workspace --config examples/experiment.toml
-uv run oneehr llm-review --config examples/experiment.toml
-```
-
-This writes reviewer prompts, raw responses, parsed judgments, grouped metrics, and `review/summary.json`.
 
 ## Documentation
 
-Full documentation is available at [medx-pku.github.io/OneEHR](https://medx-pku.github.io/OneEHR/) or can be built locally:
+Start the docs locally:
 
 ```bash
-uv pip install -e ".[docs]"
-uv run mkdocs serve          # http://127.0.0.1:5000
+uv run mkdocs serve
 ```
 
-Docs deployment is automated by `.github/workflows/docs-deploy.yml` on pushes to `main`.
+Build the docs:
 
-The docs cover:
+```bash
+uv run mkdocs build
+```
 
-- **Getting Started**: installation, quickstart, data model
-- **User Guide**: preprocessing, training, testing, analysis, splits, HPO, calibration, label functions, recipes
-- **Reference**: CLI flags, all TOML parameters, all 18 models, run directory artifacts
+## Validation
 
-## Development Notes
+Recommended checks:
 
-- The CLI entrypoint is `oneehr` (see `pyproject.toml`).
-- If you are contributing or using coding agents, read `AGENTS.md` for repository conventions and “do not break” design invariants.
+```bash
+uv run oneehr --help
+uv run pytest -q
+uv run oneehr preprocess --config examples/experiment.toml --overview
+uv run mkdocs build
+```

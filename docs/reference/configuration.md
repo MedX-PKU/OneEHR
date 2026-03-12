@@ -199,7 +199,7 @@ name = "xgboost"
 ```
 
 !!! note
-    The new LLM workflow uses `[llm]` and `[[llm_models]]` instead of the training model registry. LLM-only configs are allowed: for `preprocess`, `llm-preprocess`, and `llm-predict`, you do not need to define `[model]` or `[[models]]`.
+    Agent workflows use `[cases]`, `[agent.predict]`, and `[agent.review]` as their dedicated config surface. If you are running an agent-only workflow, `preprocess`, `cases build`, `agent predict`, and `agent review` do not require `[model]` or `[[models]]`.
 
 ---
 
@@ -320,7 +320,6 @@ Controls the default behavior of `oneehr analyze`.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `default_modules` | `list[str]` | see below | Modules to run when `--module` is not specified |
-| `formats` | `list[str]` | `["json", "csv", "md", "html"]` | Extra report formats to emit |
 | `top_k` | `int` | `20` | Top-k rows/features retained in profile/drift tables |
 | `stratify_by` | `list[str]` | `[]` | Static columns used for subgroup metrics in `prediction_audit` |
 | `case_limit` | `int` | `50` | Max rows saved per case-level audit slice |
@@ -334,13 +333,14 @@ Default modules:
 - `prediction_audit`
 - `temporal_analysis`
 - `interpretability`
-- `llm_audit`
+- `agent_audit`
 
 Notes:
 
 - `summary.json` and `analysis/index.json` are always written.
+- The analysis contract is structured-only: JSON, CSV, parquet, and plot specs. There is no markdown/html report layer in the current architecture.
 - `--method` is a compatibility shortcut for the `interpretability` module.
-- `llm_audit` is skipped when the run has no `llm/summary.json`.
+- `agent_audit` is skipped when the run has no `agent/predict/summary.json`.
 
 ```toml
 [analysis]
@@ -350,9 +350,8 @@ default_modules = [
   "prediction_audit",
   "temporal_analysis",
   "interpretability",
-  "llm_audit",
+  "agent_audit",
 ]
-formats = ["json", "csv", "md", "html"]
 top_k = 20
 stratify_by = []
 case_limit = 50
@@ -362,21 +361,51 @@ shap_max_samples = 500
 
 ---
 
-## `[llm]`
+## `[cases]`
 
-Top-level configuration for the LLM inference/evaluation workflow.
+Configuration for durable case bundles written under `cases/`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `enabled` | `bool` | `false` | Enable the LLM workflow |
-| `sample_unit` | `str` | `"patient"` | LLM evaluation unit: `patient` or `time` |
-| `prompt_template` | `str` | `"summary_v1"` | Prompt renderer template from the built-in prompt registry |
+| `include_static` | `bool` | `true` | Include static patient features in each case bundle |
+| `include_analysis_refs` | `bool` | `true` | Include analysis module references and patient-level audit matches |
+| `history_window` | `str` | `None` | Optional retrospective window applied when materializing case events |
+| `max_events` | `int` | `200` | Maximum number of events stored per case bundle |
+| `time_order` | `str` | `"asc"` | Event order in case timelines: `asc` or `desc` |
+| `case_limit` | `int` | `None` | Optional cap on the number of cases to materialize |
+
+Case bundles merge evidence with available predictions. `predictions.csv` can contain both trained model outputs and agent outputs, labeled by:
+
+- `origin`: `model` or `agent`
+- `predictor_name`: the concrete trained model name or agent backend name
+
+```toml
+[cases]
+include_static = true
+include_analysis_refs = true
+history_window = "30d"
+max_events = 200
+time_order = "asc"
+case_limit = 100
+```
+
+---
+
+## `[agent.predict]`
+
+Top-level configuration for agent prediction written under `agent/predict/`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | `bool` | `false` | Enable agent prediction |
+| `sample_unit` | `str` | `"patient"` | Agent evaluation unit: `patient` or `time` |
+| `prompt_template` | `str` | `"summary_v1"` | Prediction prompt template from the built-in registry |
 | `json_schema_version` | `int` | `1` | Output schema version supported by the selected template |
-| `max_samples` | `int` | `None` | Optional cap on the number of materialized LLM instances |
-| `save_prompts` | `bool` | `true` | Save rendered prompts to `llm/prompts/` |
-| `save_responses` | `bool` | `true` | Save raw responses to `llm/responses/` |
-| `save_parsed` | `bool` | `true` | Save parsed outputs to `llm/parsed/` |
-| `concurrency` | `int` | `1` | Number of concurrent LLM requests |
+| `max_samples` | `int` | `None` | Optional cap on the number of materialized prediction instances |
+| `save_prompts` | `bool` | `true` | Save rendered prompts to `agent/predict/prompts/` |
+| `save_responses` | `bool` | `true` | Save raw responses to `agent/predict/responses/` |
+| `save_parsed` | `bool` | `true` | Save parsed outputs to `agent/predict/parsed/` |
+| `concurrency` | `int` | `1` | Number of concurrent requests |
 | `max_retries` | `int` | `2` | Retry count for retryable HTTP/network failures |
 | `timeout_seconds` | `float` | `60.0` | Per-request timeout |
 | `temperature` | `float` | `0.0` | Chat completion temperature |
@@ -385,17 +414,19 @@ Top-level configuration for the LLM inference/evaluation workflow.
 
 Rules and constraints:
 
-- `llm.sample_unit` must match `task.prediction_mode`
+- `agent.predict.sample_unit` must match `task.prediction_mode`
 - Supported task kinds are `binary` and `regression`
 - Supported providers are OpenAI-compatible `chat/completions` only
-- `llm.prompt.include_labels_context` is intentionally disabled in v1 to prevent leakage
+- `agent.predict.enabled = true` requires at least one `[[agent.predict.backends]]` entry
+- Built-in prediction templates keep `agent.predict.prompt.include_labels_context = false` in v1 to avoid leakage
 
 ```toml
-[llm]
+[agent.predict]
 enabled = true
 sample_unit = "patient"
 prompt_template = "summary_v1"
 json_schema_version = 1
+max_samples = 500
 save_prompts = true
 save_responses = true
 save_parsed = true
@@ -408,15 +439,15 @@ top_p = 1.0
 
 ---
 
-## `[llm.prompt]`
+## `[agent.predict.prompt]`
 
 Prompt construction options for the selected prediction template. The built-in `summary_v1` template uses the section list below.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `include_static` | `bool` | `true` | Include static patient features when available |
-| `include_labels_context` | `bool` | `false` | Reserved; currently must remain `false` |
-| `history_window` | `str` | `None` | Optional retrospective window (e.g. `"7d"`, `"48h"`) |
+| `include_labels_context` | `bool` | `false` | Reserved for compatible templates; keep `false` to avoid leakage |
+| `history_window` | `str` | `None` | Optional retrospective window (for example `"7d"` or `"48h"`) |
 | `max_events` | `int` | `200` | Maximum number of raw events rendered into the prompt |
 | `time_order` | `str` | `"asc"` | Event order in the rendered timeline: `asc` or `desc` |
 | `sections` | `list[str]` | see below | Prompt sections to include |
@@ -430,8 +461,9 @@ Default sections:
 - `output_schema`
 
 ```toml
-[llm.prompt]
+[agent.predict.prompt]
 include_static = true
+include_labels_context = false
 history_window = "30d"
 max_events = 150
 time_order = "asc"
@@ -440,44 +472,44 @@ sections = ["patient_profile", "event_timeline", "prediction_task", "output_sche
 
 ---
 
-## `[llm.output]`
+## `[agent.predict.output]`
 
-Controls optional non-metric fields requested from the LLM.
+Controls optional non-metric fields requested from the agent backend.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `include_explanation` | `bool` | `true` | Ask the model for an explanation field |
-| `include_confidence` | `bool` | `false` | Ask the model for a confidence field in `[0, 1]` |
+| `include_explanation` | `bool` | `true` | Ask the backend for an explanation field |
+| `include_confidence` | `bool` | `false` | Ask the backend for a confidence field in `[0, 1]` |
 
-Binary tasks always expect JSON containing `label` and preferably `probability`. If `probability` is missing but `label` parses correctly, OneEHR falls back to `0.0` or `1.0`.
+Binary tasks expect JSON containing `label` and preferably `probability`. If `probability` is missing but `label` parses correctly, OneEHR falls back to `0.0` or `1.0`.
 
 Regression tasks expect JSON containing `value`.
 
 ```toml
-[llm.output]
+[agent.predict.output]
 include_explanation = true
 include_confidence = false
 ```
 
 ---
 
-## `[[llm_models]]`
+## `[[agent.predict.backends]]`
 
-One or more OpenAI-compatible chat completion backends to evaluate on the same instances.
+One or more OpenAI-compatible chat-completion backends to evaluate on the same instances.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `name` | `str` | *required* | Logical name used in `llm/` artifact paths |
-| `provider` | `str` | `"openai_compatible"` | Provider type (currently only `openai_compatible`) |
-| `base_url` | `str` | `"https://api.openai.com/v1"` | Base API URL; `llm-predict` appends `/chat/completions` |
+| `name` | `str` | *required* | Logical backend name used in `agent/predict/` artifact paths and summaries |
+| `provider` | `str` | `"openai_compatible"` | Provider type; currently only `openai_compatible` is supported |
+| `base_url` | `str` | `"https://api.openai.com/v1"` | Base API URL |
 | `model` | `str` | *required* | Provider model identifier |
 | `api_key_env` | `str` | `"OPENAI_API_KEY"` | Environment variable containing the API key |
 | `system_prompt` | `str` | `None` | Optional system prompt |
-| `supports_json_schema` | `bool` | `true` | Send OpenAI-style `response_format = {type = "json_schema"}` |
+| `supports_json_schema` | `bool` | `true` | Send OpenAI-style `response_format = {type = "json_schema"}` when supported |
 | `headers` | `table` | `{}` | Extra request headers for compatible vendors |
 
 ```toml
-[[llm_models]]
+[[agent.predict.backends]]
 name = "gpt4o-mini"
 provider = "openai_compatible"
 base_url = "https://api.openai.com/v1"
@@ -485,7 +517,7 @@ model = "gpt-4o-mini"
 api_key_env = "OPENAI_API_KEY"
 supports_json_schema = true
 
-[[llm_models]]
+[[agent.predict.backends]]
 name = "local-vllm"
 provider = "openai_compatible"
 base_url = "http://127.0.0.1:8000/v1"
@@ -496,44 +528,20 @@ supports_json_schema = false
 
 ---
 
-## `[workspace]`
+## `[agent.review]`
 
-Configuration for the durable, evidence-grounded case workspace written under `workspace/`.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `include_static` | `bool` | `true` | Include static patient features in each case bundle |
-| `include_analysis_refs` | `bool` | `true` | Include analysis module refs and patient-level audit matches |
-| `history_window` | `str` | `None` | Optional retrospective window applied when materializing case events |
-| `max_events` | `int` | `200` | Maximum number of events stored per case bundle |
-| `time_order` | `str` | `"asc"` | Event order in case timelines: `asc` or `desc` |
-| `case_limit` | `int` | `None` | Optional cap on the number of case bundles to materialize |
-
-```toml
-[workspace]
-include_static = true
-include_analysis_refs = true
-history_window = "30d"
-max_events = 200
-time_order = "asc"
-```
-
----
-
-## `[review]`
-
-Configuration for the LLM-as-judge / reviewer workflow written under `review/`.
+Configuration for the agent review workflow written under `agent/review/`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `enabled` | `bool` | `false` | Enable the reviewer workflow |
 | `prompt_template` | `str` | `"evidence_review_v1"` | Reviewer prompt template from the prompt registry |
 | `json_schema_version` | `int` | `1` | Reviewer output schema version |
-| `prediction_sources` | `list[str]` | `["train", "llm"]` | Prediction sources to review |
-| `max_cases` | `int` | `None` | Optional cap on reviewed workspace cases |
-| `save_prompts` | `bool` | `true` | Save rendered reviewer prompts to `review/prompts/` |
-| `save_responses` | `bool` | `true` | Save raw reviewer responses to `review/responses/` |
-| `save_parsed` | `bool` | `true` | Save parsed reviewer outputs to `review/parsed/` |
+| `prediction_origins` | `list[str]` | `["model", "agent"]` | Which prediction families to review |
+| `max_cases` | `int` | `None` | Optional cap on reviewed case bundles |
+| `save_prompts` | `bool` | `true` | Save rendered reviewer prompts to `agent/review/prompts/` |
+| `save_responses` | `bool` | `true` | Save raw reviewer responses to `agent/review/responses/` |
+| `save_parsed` | `bool` | `true` | Save parsed reviewer outputs to `agent/review/parsed/` |
 | `concurrency` | `int` | `1` | Number of concurrent reviewer requests |
 | `max_retries` | `int` | `2` | Retry count for retryable HTTP/network failures |
 | `timeout_seconds` | `float` | `60.0` | Per-request timeout |
@@ -543,16 +551,21 @@ Configuration for the LLM-as-judge / reviewer workflow written under `review/`.
 
 Rules and constraints:
 
-- `review.prediction_sources` may contain only `train` and/or `llm`
+- `agent.review.prediction_origins` may contain only `model` and/or `agent`
 - Supported reviewer providers are OpenAI-compatible `chat/completions` only
-- Reviewer prompts are rendered from workspace evidence and the target prediction, not from labels-only shortcuts
+- Reviewer prompts are rendered from case evidence and the selected target prediction, not from labels-only shortcuts
+- Review targets are identified by two fields together:
+  - `origin`: broad family, either `model` or `agent`
+  - `predictor_name`: concrete trained model name or agent backend name
+- `agent.review.enabled = true` requires at least one `[[agent.review.backends]]` entry
 
 ```toml
-[review]
+[agent.review]
 enabled = true
 prompt_template = "evidence_review_v1"
-prediction_sources = ["train", "llm"]
+prediction_origins = ["model", "agent"]
 json_schema_version = 1
+max_cases = 100
 save_prompts = true
 save_responses = true
 save_parsed = true
@@ -565,7 +578,7 @@ top_p = 1.0
 
 ---
 
-## `[review.prompt]`
+## `[agent.review.prompt]`
 
 Prompt construction options for the built-in `evidence_review_v1` template.
 
@@ -589,7 +602,7 @@ Default sections:
 - `output_schema`
 
 ```toml
-[review.prompt]
+[agent.review.prompt]
 include_static = true
 include_ground_truth = true
 include_analysis_context = true
@@ -608,14 +621,14 @@ sections = [
 
 ---
 
-## `[[review_models]]`
+## `[[agent.review.backends]]`
 
-One or more OpenAI-compatible reviewer backends to evaluate on the same case workspace.
+One or more OpenAI-compatible reviewer backends to evaluate on the same case set.
 
-`[[review_models]]` uses the same fields and semantics as `[[llm_models]]`, but writes outputs under `review/` instead of `llm/`.
+`[[agent.review.backends]]` uses the same fields and semantics as `[[agent.predict.backends]]`, but writes outputs under `agent/review/` and records `reviewer_name` in summary rows.
 
 ```toml
-[[review_models]]
+[[agent.review.backends]]
 name = "gpt4o-mini-review"
 provider = "openai_compatible"
 base_url = "https://api.openai.com/v1"

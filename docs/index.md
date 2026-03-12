@@ -1,55 +1,21 @@
 # OneEHR
 
-**An all-in-one EHR predictive modeling and analysis library in Python.**
+OneEHR is a toolkit for longitudinal EHR modeling, analysis, and agent-ready case workflows.
 
-OneEHR is designed for researchers and clinicians who need to build predictive models from electronic health record (EHR) data. It provides an end-to-end pipeline from raw event tables to trained models, audit artifacts, and static analysis reports.
+Core workflow:
 
----
+- `preprocess` builds binned and tabular views from event tables.
+- `train` fits ML or DL models.
+- `test` evaluates trained models on held-out or external data.
+- `analyze` writes structured analysis outputs under `analysis/`.
+- `cases build` materializes durable evidence bundles under `cases/`.
+- `agent predict` and `agent review` add OpenAI-compatible agent workflows.
+- `query ...` reads run artifacts as JSON for notebooks, automation, and future web UIs.
 
-## Key features
+Start here:
 
-- **Doctor-friendly input** -- start from a single long-form event table (CSV/Excel)
-- **Leakage prevention by default** -- all data splits are patient-level group splits
-- **TOML-first experiments** -- most behavior is configured via one `experiment.toml`
-- **CLI-first workflow** -- `preprocess` -> `train` -> `test` -> `analyze` -> `inspect`
-- **18 models** -- 5 tabular (XGBoost, CatBoost, RF, DT, GBDT) and 13 deep learning (GRU, LSTM, RNN, Transformer, TCN, MLP, AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent)
-- **Config-driven HPO** -- grid search built into the training pipeline
-- **Probability calibration** -- temperature and Platt scaling for binary tasks
-
-## The pipeline
-
-```
-               preprocess          train           test              analyze
-dynamic.csv ──────────────→ features ────→ models ────→ metrics ────→ analysis bundle
-static.csv  ──┘               │                │                    │
-label.csv   ──┘               ▼                ▼                    ▼
-                         run_manifest    summary.json         index + reports
-```
-
-1. **Preprocess**: bin irregular events into fixed time windows, build features, materialize tabular views
-2. **Train**: fit models with optional grid search, evaluate on patient-level splits
-3. **Test**: evaluate trained models on external datasets
-4. **Analyze**: write dataset/cohort/prediction/temporal/interpretability/LLM audit modules
-
-## Quick start
-
-```bash
-# Install
-uv venv .venv --python 3.12
-uv pip install -e .
-
-# Run the example experiment
-uv run oneehr preprocess --config examples/experiment.toml
-uv run oneehr train --config examples/experiment.toml
-uv run oneehr analyze --config examples/experiment.toml
-```
-
-See the [Quickstart guide](getting-started/quickstart.md) for a detailed walkthrough.
-
-## Documentation overview
-
-| Section | What you'll find |
-|---------|-----------------|
-| [Getting Started](getting-started/installation.md) | Installation, quickstart tutorial, data model |
-| [User Guide](guide/preprocessing.md) | In-depth guides for each pipeline stage |
-| [Reference](reference/cli.md) | CLI flags, TOML parameters, model specs, artifact layout |
+- [Installation](getting-started/installation.md)
+- [Quickstart](getting-started/quickstart.md)
+- [CLI Reference](reference/cli.md)
+- [Configuration Reference](reference/configuration.md)
+- [Artifacts Reference](reference/artifacts.md)

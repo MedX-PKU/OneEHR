@@ -63,7 +63,7 @@ uv run oneehr train --config examples/tjh_pipeline/experiment_external_fixed_spl
 uv run oneehr test --config examples/tjh_pipeline/experiment_external_fixed_split.toml --force
 ```
 
-Artifacts to inspect:
+Key artifacts:
 - Training run: `logs/tjh_external_test/`
 - Test run outputs: `logs/tjh_external_test/test_runs/<dataset_stem>/`
 ```
