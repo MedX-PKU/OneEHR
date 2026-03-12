@@ -11,6 +11,7 @@ nav = [
     { title = "Training", path = "guide/training.md" },
     { title = "Testing", path = "guide/testing.md" },
     { title = "Analysis", path = "guide/analysis.md" },
+    { title = "Web UI", path = "guide/webui.md" },
     { title = "Splits", path = "guide/splits.md" },
     { title = "HPO (Grid Search)", path = "guide/hpo.md" },
     { title = "Calibration", path = "guide/calibration.md" },

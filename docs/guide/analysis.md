@@ -68,3 +68,24 @@ uv run oneehr query analysis failures --run-dir logs/example
 uv run oneehr query analysis failure-cases --run-dir logs/example --module prediction_audit
 uv run oneehr query analysis patient-case --run-dir logs/example --patient-id p0001
 ```
+
+## View In The Web UI
+
+Once a run has analysis artifacts, the Web UI can render the same structured outputs as dashboards.
+
+Build the frontend once:
+
+```bash
+cd webui
+npm install
+npm run build
+```
+
+Serve the backend plus dashboard:
+
+```bash
+uv pip install -e ".[webui]"
+uv run oneehr webui serve --root logs
+```
+
+The dashboard reads the same `analysis/index.json`, module `summary.json`, CSV tables, plot specs, and case parquet artifacts described above. There is no separate HTML report layer.

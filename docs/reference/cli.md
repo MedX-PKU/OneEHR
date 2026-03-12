@@ -1,6 +1,6 @@
 # CLI Reference
 
-OneEHR exposes seven top-level commands:
+OneEHR exposes eight top-level commands:
 
 - `preprocess`
 - `train`
@@ -9,6 +9,7 @@ OneEHR exposes seven top-level commands:
 - `cases`
 - `agent`
 - `query`
+- `webui`
 
 View the live interface with:
 
@@ -138,4 +139,21 @@ oneehr query cohorts compare [--config <toml> | --run-dir DIR] [--split NAME] [-
 ```bash
 oneehr query agent predict-summary [--config <toml> | --run-dir DIR]
 oneehr query agent review-summary [--config <toml> | --run-dir DIR]
+```
+
+## `oneehr webui`
+
+```bash
+oneehr webui serve [--root DIR] [--host HOST] [--port PORT] [--frontend-dist DIR] [--reload]
+```
+
+Serves the FastAPI backend and, when `webui/dist` exists, the built React dashboard.
+
+Typical workflow:
+
+```bash
+uv pip install -e ".[webui]"
+cd webui && npm install && npm run build
+cd ..
+uv run oneehr webui serve --root logs
 ```

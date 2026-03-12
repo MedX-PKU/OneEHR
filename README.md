@@ -6,7 +6,7 @@ The project is organized around three layers:
 
 - `preprocess` / `train` / `test` / `analyze` for classical ML and DL modeling.
 - `cases build`, `agent predict`, and `agent review` for evidence-grounded case bundles and agent workflows.
-- `query ...` for stable JSON/JSONL-oriented access from notebooks, automation, and future web UIs.
+- `query ...` and `webui serve` for stable JSON/JSONL-oriented access and a first-party analysis dashboard.
 
 ## Why OneEHR
 
@@ -30,6 +30,12 @@ Optional docs dependencies:
 uv pip install -e ".[docs]"
 ```
 
+Optional Web UI backend dependencies:
+
+```bash
+uv pip install -e ".[webui]"
+```
+
 ## Quickstart
 
 Use the bundled example dataset and config:
@@ -51,6 +57,18 @@ uv run oneehr agent review --config examples/experiment.toml
 
 `agent predict` and `agent review` require configured OpenAI-compatible backends and the corresponding API key environment variables.
 
+Optional Web UI workflow:
+
+```bash
+cd webui
+npm install
+npm run build
+cd ..
+uv run oneehr webui serve --root logs
+```
+
+Then open `http://127.0.0.1:8000`.
+
 ## Command Surface
 
 Top-level commands:
@@ -63,6 +81,7 @@ Top-level commands:
 - `oneehr agent predict`
 - `oneehr agent review`
 - `oneehr query ...`
+- `oneehr webui serve`
 
 Explore the live CLI:
 
@@ -70,7 +89,36 @@ Explore the live CLI:
 uv run oneehr --help
 uv run oneehr query --help
 uv run oneehr query cases --help
+uv run oneehr webui serve --help
 ```
+
+## Web UI
+
+The Web UI is a `React + FastAPI` dashboard for analyzed runs. It reads only from the existing run artifact contract through `/api/v1`, so the browser never reads files directly from disk.
+
+Backend:
+
+```bash
+uv pip install -e ".[webui]"
+uv run oneehr webui serve --root logs
+```
+
+Frontend build:
+
+```bash
+cd webui
+npm install
+npm run build
+```
+
+Frontend dev server:
+
+```bash
+cd webui
+npm run dev
+```
+
+By default the Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
 
 ## Data Model
 
