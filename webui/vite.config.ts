@@ -3,6 +3,24 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/echarts/charts')) {
+            return 'echarts-charts'
+          }
+          if (id.includes('/node_modules/echarts/components')) {
+            return 'echarts-components'
+          }
+          if (id.includes('/node_modules/echarts/renderers')) {
+            return 'echarts-renderers'
+          }
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

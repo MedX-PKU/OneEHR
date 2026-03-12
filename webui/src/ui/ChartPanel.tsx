@@ -1,8 +1,27 @@
 import { useEffect, useRef } from 'react'
-import * as echarts from 'echarts'
+import { BarChart, HeatmapChart, LineChart } from 'echarts/charts'
+import {
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+  VisualMapComponent,
+} from 'echarts/components'
+import { init, use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
 import { buildChartOption } from '../lib/charts'
 import { formatNumber, stringifyValue } from '../lib/format'
 import type { DashboardChart } from '../lib/types'
+
+use([
+  BarChart,
+  HeatmapChart,
+  LineChart,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+  VisualMapComponent,
+  CanvasRenderer,
+])
 
 interface ChartPanelProps {
   chart: DashboardChart
@@ -56,7 +75,7 @@ function EChartsPanel({ chart }: ChartPanelProps) {
       return
     }
 
-    const instance = echarts.init(containerRef.current, undefined, {
+    const instance = init(containerRef.current, undefined, {
       renderer: 'canvas',
     })
     const option = buildChartOption(chart)

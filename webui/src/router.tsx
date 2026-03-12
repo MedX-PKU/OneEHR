@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
+import { Suspense, lazy } from 'react'
+import type { ComponentType } from 'react'
 import {
   Link,
   Outlet,
@@ -10,17 +12,56 @@ import {
 } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { fetchRunDetail } from './lib/api'
-import { AgentsPage } from './routes/AgentsPage'
-import { CaseDetailPage } from './routes/CaseDetailPage'
-import { CasesPage } from './routes/CasesPage'
-import { ComparisonPage } from './routes/ComparisonPage'
-import { ModuleDashboardPage } from './routes/ModuleDashboardPage'
-import { RunOverviewPage } from './routes/RunOverviewPage'
-import { RunsPage } from './routes/RunsPage'
 import { EmptyState } from './ui/EmptyState'
 import { LoadingPanel } from './ui/LoadingPanel'
 import { StatusBadge } from './ui/StatusBadge'
 import { titleCase } from './lib/format'
+
+function createLazyPage(load: () => Promise<{ default: ComponentType }>, label: string) {
+  const Page = lazy(load)
+  return function LazyPage() {
+    return (
+      <Suspense fallback={<LoadingPanel label={label} />}>
+        <Page />
+      </Suspense>
+    )
+  }
+}
+
+const RunsPage = createLazyPage(
+  () => import('./routes/RunsPage').then((module) => ({ default: module.RunsPage })),
+  'Loading experiment runs',
+)
+
+const RunOverviewPage = createLazyPage(
+  () => import('./routes/RunOverviewPage').then((module) => ({ default: module.RunOverviewPage })),
+  'Loading run overview',
+)
+
+const ModuleDashboardPage = createLazyPage(
+  () => import('./routes/ModuleDashboardPage').then((module) => ({ default: module.ModuleDashboardPage })),
+  'Loading analysis dashboard',
+)
+
+const CasesPage = createLazyPage(
+  () => import('./routes/CasesPage').then((module) => ({ default: module.CasesPage })),
+  'Loading case workspace',
+)
+
+const CaseDetailPage = createLazyPage(
+  () => import('./routes/CaseDetailPage').then((module) => ({ default: module.CaseDetailPage })),
+  'Loading case detail',
+)
+
+const AgentsPage = createLazyPage(
+  () => import('./routes/AgentsPage').then((module) => ({ default: module.AgentsPage })),
+  'Loading agent workspace',
+)
+
+const ComparisonPage = createLazyPage(
+  () => import('./routes/ComparisonPage').then((module) => ({ default: module.ComparisonPage })),
+  'Loading comparison workspace',
+)
 
 function RootLayout() {
   return (
