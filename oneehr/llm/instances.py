@@ -11,6 +11,7 @@ from oneehr.config.schema import ExperimentConfig
 from oneehr.data.io import load_dynamic_table_optional, load_static_table
 from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
 from oneehr.data.splits import Split, load_splits, make_splits, save_splits
+from oneehr.llm.templates import get_prompt_template
 from oneehr.utils.io import ensure_dir, write_json
 
 
@@ -29,12 +30,29 @@ def validate_llm_setup(cfg: ExperimentConfig) -> None:
         raise SystemExit(
             "llm.sample_unit must match task.prediction_mode to keep evaluation semantics consistent."
         )
-    if cfg.llm.prompt_template != "summary_v1":
-        raise SystemExit("Only llm.prompt_template = 'summary_v1' is currently supported.")
-    if cfg.llm.json_schema_version != 1:
-        raise SystemExit("Only llm.json_schema_version = 1 is currently supported.")
-    if cfg.llm.prompt.include_labels_context:
-        raise SystemExit("llm.prompt.include_labels_context is disabled in v1 to avoid leakage.")
+    try:
+        template = get_prompt_template(cfg.llm.prompt_template)
+    except KeyError as exc:
+        raise SystemExit(str(exc)) from exc
+    if template.family != "prediction":
+        raise SystemExit(f"llm.prompt_template must resolve to a prediction template, got {template.family!r}.")
+    if cfg.task.kind not in set(template.supported_task_kinds):
+        raise SystemExit(
+            f"llm.prompt_template={cfg.llm.prompt_template!r} does not support task.kind={cfg.task.kind!r}."
+        )
+    if cfg.llm.sample_unit not in set(template.supported_sample_units):
+        raise SystemExit(
+            f"llm.prompt_template={cfg.llm.prompt_template!r} does not support sample_unit={cfg.llm.sample_unit!r}."
+        )
+    if cfg.llm.json_schema_version not in set(template.supported_schema_versions):
+        raise SystemExit(
+            f"llm.prompt_template={cfg.llm.prompt_template!r} does not support "
+            f"json_schema_version={cfg.llm.json_schema_version!r}."
+        )
+    if cfg.llm.prompt.include_labels_context and not template.allow_labels_context:
+        raise SystemExit(
+            f"llm.prompt.include_labels_context is not allowed for prompt template {cfg.llm.prompt_template!r}."
+        )
     if not cfg.llm_models:
         raise SystemExit("At least one [[llm_models]] entry is required for the LLM workflow.")
 
@@ -212,4 +230,3 @@ def _build_time_instances(
                 }
             )
     return pd.DataFrame(rows)
-

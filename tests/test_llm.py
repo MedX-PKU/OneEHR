@@ -23,9 +23,11 @@ from oneehr.config.schema import (
     SplitConfig,
     TaskConfig,
 )
+from oneehr.llm.instances import validate_llm_setup
 from oneehr.llm.client import OpenAICompatibleChatClient
 from oneehr.llm.contracts import LLMRequestSpec
 from oneehr.llm.render import render_prompt
+from oneehr.llm.templates import describe_prompt_template, list_prompt_templates
 from oneehr.llm.schema import parse_prediction_response
 
 
@@ -77,6 +79,21 @@ def test_load_config_with_llm_sections(tmp_path: Path) -> None:
     assert len(cfg.llm_models) == 1
     assert cfg.model.name == "llm_placeholder"
     assert cfg.llm_models[0].base_url == "http://127.0.0.1:9999/v1"
+    validate_llm_setup(cfg)
+
+
+def test_prompt_template_registry() -> None:
+    templates = list_prompt_templates()
+    names = {item["name"] for item in templates}
+    assert {"summary_v1", "evidence_review_v1"} <= names
+
+    summary = describe_prompt_template("summary_v1")
+    assert summary["family"] == "prediction"
+    assert "prediction_task" in summary["default_sections"]
+
+    review = describe_prompt_template("evidence_review_v1")
+    assert review["family"] == "review"
+    assert review["allow_labels_context"] is True
 
 
 def test_parse_prediction_response_binary_and_regression() -> None:

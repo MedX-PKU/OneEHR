@@ -5,7 +5,7 @@ Usage:
     oneehr train --config <toml> [--force]
     oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
     oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--format FMT] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
-    oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID]
+    oneehr inspect --tool TOOL [--config <toml> | --run-dir DIR | --root DIR] [--module NAME] [--table NAME] [--plot NAME] [--patient-id ID] [--template NAME]
     oneehr llm-preprocess --config <toml> [--run-dir DIR] [--force]
     oneehr llm-predict --config <toml> [--run-dir DIR] [--force]
 """
@@ -77,6 +77,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ins.add_argument("--right-role", default="test", choices=["train", "val", "test"])
     ins.add_argument("--limit", type=int, default=None, help="Optional max rows to return for table/case queries")
     ins.add_argument("--top-k", type=int, default=10, help="Top-k feature drift rows for cohorts.compare")
+    ins.add_argument("--template", default=None, help="Prompt template name for prompts.describe and tasks.render_prompt")
+    ins.add_argument("--family", default=None, help="Optional prompt template family filter for prompts.list")
 
     # llm-preprocess
     lp = sub.add_parser("llm-preprocess", help="Materialize LLM prompt instances from EHR artifacts")
@@ -153,6 +155,8 @@ def main(argv: list[str] | None = None) -> None:
             right_role=args.right_role,
             limit=args.limit,
             top_k=args.top_k,
+            template=args.template,
+            family=args.family,
         )
 
     elif args.command == "llm-preprocess":

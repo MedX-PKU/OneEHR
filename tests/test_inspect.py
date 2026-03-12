@@ -39,6 +39,22 @@ def test_agent_query_list_runs_and_describe_run(tmp_path: Path) -> None:
     assert payload["run"]["run_name"] == "inspect_run"
 
 
+def test_inspect_cli_prompt_registry() -> None:
+    payload = _run_json(
+        ["oneehr", "inspect", "--tool", "prompts.list", "--family", "prediction"],
+        cwd=Path.cwd(),
+    )
+    names = {item["name"] for item in payload["templates"]}
+    assert "summary_v1" in names
+
+    desc = _run_json(
+        ["oneehr", "inspect", "--tool", "prompts.describe", "--template", "evidence_review_v1"],
+        cwd=Path.cwd(),
+    )
+    assert desc["template"]["family"] == "review"
+    assert "output_schema" in desc["template"]["default_sections"]
+
+
 def test_inspect_cli_analysis_cases_and_cohorts(tmp_path: Path) -> None:
     run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="inspect_contracts", seed=9)
 

@@ -17,6 +17,8 @@ from oneehr.analysis.read import (
     read_failure_cases as _read_failure_cases,
 )
 from oneehr.artifacts.read import read_run_manifest
+from oneehr.llm.templates import describe_prompt_template as _describe_prompt_template
+from oneehr.llm.templates import list_prompt_templates as _list_prompt_templates
 
 
 def list_runs(root: str | Path) -> list[dict[str, Any]]:
@@ -44,6 +46,14 @@ def list_runs(root: str | Path) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def list_prompt_templates(*, family: str | None = None) -> list[dict[str, Any]]:
+    return _list_prompt_templates(family=family)
+
+
+def describe_prompt_template(name: str) -> dict[str, Any]:
+    return _describe_prompt_template(name)
 
 
 def describe_run(run_root: str | Path) -> dict[str, Any]:

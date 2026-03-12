@@ -9,6 +9,8 @@ from oneehr.utils.io import as_jsonable
 
 
 SUPPORTED_TOOLS = (
+    "prompts.list",
+    "prompts.describe",
     "runs.list",
     "runs.describe",
     "analysis.list_modules",
@@ -39,13 +41,17 @@ def run_inspect(
     right_role: str,
     limit: int | None,
     top_k: int,
+    template: str | None,
+    family: str | None,
 ) -> None:
     from oneehr.agent import (
         compare_cohorts,
         describe_patient_case,
+        describe_prompt_template,
         describe_run,
         list_analysis_modules,
         list_failure_cases,
+        list_prompt_templates,
         list_runs,
         read_analysis_index,
         read_analysis_plot_spec,
@@ -60,7 +66,11 @@ def run_inspect(
     run_root = _resolve_run_root(config=config, run_dir=run_dir, tool=tool)
     payload: object
 
-    if tool == "runs.list":
+    if tool == "prompts.list":
+        payload = {"tool": tool, "family": family, "templates": list_prompt_templates(family=family)}
+    elif tool == "prompts.describe":
+        payload = {"tool": tool, "template": describe_prompt_template(_require_arg("template", template))}
+    elif tool == "runs.list":
         payload = {
             "tool": tool,
             "root": str(Path(root or "logs")),
@@ -128,7 +138,7 @@ def run_inspect(
 
 
 def _resolve_run_root(*, config: str | None, run_dir: str | None, tool: str) -> Path:
-    if tool == "runs.list":
+    if tool in {"prompts.list", "prompts.describe", "runs.list"}:
         return Path(run_dir or ".")
     if run_dir is not None:
         return Path(run_dir)

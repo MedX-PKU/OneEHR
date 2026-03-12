@@ -1,9 +1,11 @@
 from oneehr.agent.query import (
     compare_cohorts,
     describe_patient_case,
+    describe_prompt_template,
     describe_run,
     list_analysis_modules,
     list_failure_cases,
+    list_prompt_templates,
     list_runs,
     read_analysis_index,
     read_analysis_plot_spec,
@@ -15,9 +17,11 @@ from oneehr.agent.query import (
 __all__ = [
     "compare_cohorts",
     "describe_patient_case",
+    "describe_prompt_template",
     "describe_run",
     "list_analysis_modules",
     "list_failure_cases",
+    "list_prompt_templates",
     "list_runs",
     "read_analysis_index",
     "read_analysis_plot_spec",
