@@ -6,16 +6,16 @@ from typing import Any
 import pandas as pd
 
 from oneehr.config.schema import ExperimentConfig
-from oneehr.llm.render import render_prompt
-from oneehr.llm.schema import schema_prompt_text
-from oneehr.llm.templates import get_prompt_template
-from oneehr.review.schema import review_schema_prompt_text
+from oneehr.agent.render import render_prompt
+from oneehr.agent.predict_schema import schema_prompt_text
+from oneehr.agent.templates import get_prompt_template
+from oneehr.agent.review_schema import review_schema_prompt_text
 
-from oneehr.agent.workspace import read_workspace_case
+from oneehr.cases.bundle import read_case
 
 
-def get_patient_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    case = read_workspace_case(run_root, case_id, limit=limit)
+def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
+    case = read_case(run_root, case_id, limit=limit)
     events = list(case.get("events", []))
     return {
         "case_id": str(case_id),
@@ -25,8 +25,8 @@ def get_patient_timeline(run_root: str | Path, case_id: str, *, limit: int | Non
     }
 
 
-def get_patient_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
-    case = read_workspace_case(run_root, case_id)
+def get_case_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
+    case = read_case(run_root, case_id)
     static_payload = case.get("static", {})
     features = {}
     if isinstance(static_payload, dict):
@@ -45,16 +45,16 @@ def get_case_predictions(
     run_root: str | Path,
     case_id: str,
     *,
-    source: str | None = None,
-    model_name: str | None = None,
+    origin: str | None = None,
+    predictor_name: str | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    case = read_workspace_case(run_root, case_id, limit=limit)
+    case = read_case(run_root, case_id, limit=limit)
     rows = pd.DataFrame(case.get("predictions", []))
-    if not rows.empty and source is not None:
-        rows = rows[rows["source"].astype(str) == str(source)].copy()
-    if not rows.empty and model_name is not None:
-        rows = rows[rows["model_name"].astype(str) == str(model_name)].copy()
+    if not rows.empty and origin is not None:
+        rows = rows[rows["origin"].astype(str) == str(origin)].copy()
+    if not rows.empty and predictor_name is not None:
+        rows = rows[rows["predictor_name"].astype(str) == str(predictor_name)].copy()
     rows = rows.reset_index(drop=True)
     return {
         "case_id": str(case_id),
@@ -65,16 +65,16 @@ def get_case_predictions(
 
 
 def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    case = read_workspace_case(run_root, case_id, limit=limit)
+    case = read_case(run_root, case_id, limit=limit)
     return {
         "case_id": str(case_id),
-        "workspace": {
+        "case": {
             key: value
             for key, value in case.items()
             if key not in {"events", "predictions", "static", "analysis_refs"}
         },
-        "timeline": get_patient_timeline(run_root, case_id, limit=limit),
-        "static": get_patient_static(run_root, case_id),
+        "timeline": get_case_timeline(run_root, case_id, limit=limit),
+        "static": get_case_static(run_root, case_id),
         "predictions": get_case_predictions(run_root, case_id, limit=limit),
         "analysis_refs": case.get("analysis_refs", {}),
     }
@@ -86,11 +86,11 @@ def render_case_prompt(
     run_root: str | Path,
     case_id: str,
     template_name: str | None = None,
-    source: str | None = None,
-    model_name: str | None = None,
+    origin: str | None = None,
+    predictor_name: str | None = None,
 ) -> dict[str, Any]:
-    case = read_workspace_case(run_root, case_id)
-    template = get_prompt_template(template_name or cfg.llm.prompt_template)
+    case = read_case(run_root, case_id)
+    template = get_prompt_template(template_name or cfg.agent.predict.prompt_template)
 
     static_payload = case.get("static", {})
     static_features = {}
@@ -119,8 +119,8 @@ def render_case_prompt(
             static_row=static_row,
             schema_text=schema_prompt_text(
                 task_kind=cfg.task.kind,
-                include_explanation=cfg.llm.output.include_explanation,
-                include_confidence=cfg.llm.output.include_confidence,
+                include_explanation=cfg.agent.predict.output.include_explanation,
+                include_confidence=cfg.agent.predict.output.include_confidence,
             ),
             template_name=template.name,
         )
@@ -128,15 +128,15 @@ def render_case_prompt(
 
     if template.family == "review":
         preds = pd.DataFrame(case.get("predictions", []))
-        if not preds.empty and source is not None:
-            preds = preds[preds["source"].astype(str) == str(source)].copy()
-        if not preds.empty and model_name is not None:
-            preds = preds[preds["model_name"].astype(str) == str(model_name)].copy()
+        if not preds.empty and origin is not None:
+            preds = preds[preds["origin"].astype(str) == str(origin)].copy()
+        if not preds.empty and predictor_name is not None:
+            preds = preds[preds["predictor_name"].astype(str) == str(predictor_name)].copy()
         preds = preds.reset_index(drop=True)
         if preds.empty:
             raise ValueError("No matching case prediction found for review prompt rendering.")
         if len(preds) > 1:
-            raise ValueError("Multiple matching case predictions found. Use --source and/or --model-name.")
+            raise ValueError("Multiple matching case predictions found. Use --origin and/or --predictor-name.")
         prompt = render_prompt(
             cfg=cfg,
             instance=instance,
@@ -144,7 +144,7 @@ def render_case_prompt(
             static_row=static_row,
             schema_text=review_schema_prompt_text(),
             template_name=template.name,
-            prompt_cfg=cfg.review.prompt,
+            prompt_cfg=cfg.agent.review.prompt,
             target_prediction=preds.iloc[0].to_dict(),
             analysis_refs=case.get("analysis_refs"),
         )

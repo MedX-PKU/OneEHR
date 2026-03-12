@@ -3,70 +3,75 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
+from oneehr.agent.templates import get_prompt_template
 from oneehr.artifacts.run_io import RunIO
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.io import load_dynamic_table_optional, load_static_table
 from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
 from oneehr.data.splits import Split, load_splits, make_splits, save_splits
-from oneehr.llm.templates import get_prompt_template
 from oneehr.utils.io import ensure_dir, write_json
 
 
 @dataclass(frozen=True)
-class MaterializedLLMInstances:
+class MaterializedAgentInstances:
     path: Path
     frame: pd.DataFrame
 
 
-def validate_llm_setup(cfg: ExperimentConfig) -> None:
-    if not cfg.llm.enabled:
-        raise SystemExit("LLM workflow is disabled. Set llm.enabled = true in the config.")
+def validate_agent_predict_setup(cfg: ExperimentConfig) -> None:
+    predict_cfg = cfg.agent.predict
+    if not predict_cfg.enabled:
+        raise SystemExit("Agent prediction workflow is disabled. Set agent.predict.enabled = true in the config.")
     if cfg.task.kind not in {"binary", "regression"}:
-        raise SystemExit("LLM workflow currently supports task.kind = 'binary' or 'regression' only.")
-    if cfg.llm.sample_unit != cfg.task.prediction_mode:
+        raise SystemExit("Agent prediction currently supports task.kind = 'binary' or 'regression' only.")
+    if predict_cfg.sample_unit != cfg.task.prediction_mode:
         raise SystemExit(
-            "llm.sample_unit must match task.prediction_mode to keep evaluation semantics consistent."
+            "agent.predict.sample_unit must match task.prediction_mode to keep evaluation semantics consistent."
         )
     try:
-        template = get_prompt_template(cfg.llm.prompt_template)
+        template = get_prompt_template(predict_cfg.prompt_template)
     except KeyError as exc:
         raise SystemExit(str(exc)) from exc
     if template.family != "prediction":
-        raise SystemExit(f"llm.prompt_template must resolve to a prediction template, got {template.family!r}.")
+        raise SystemExit(
+            f"agent.predict.prompt_template must resolve to a prediction template, got {template.family!r}."
+        )
     if cfg.task.kind not in set(template.supported_task_kinds):
         raise SystemExit(
-            f"llm.prompt_template={cfg.llm.prompt_template!r} does not support task.kind={cfg.task.kind!r}."
+            f"agent.predict.prompt_template={predict_cfg.prompt_template!r} does not support "
+            f"task.kind={cfg.task.kind!r}."
         )
-    if cfg.llm.sample_unit not in set(template.supported_sample_units):
+    if predict_cfg.sample_unit not in set(template.supported_sample_units):
         raise SystemExit(
-            f"llm.prompt_template={cfg.llm.prompt_template!r} does not support sample_unit={cfg.llm.sample_unit!r}."
+            f"agent.predict.prompt_template={predict_cfg.prompt_template!r} does not support "
+            f"sample_unit={predict_cfg.sample_unit!r}."
         )
-    if cfg.llm.json_schema_version not in set(template.supported_schema_versions):
+    if predict_cfg.json_schema_version not in set(template.supported_schema_versions):
         raise SystemExit(
-            f"llm.prompt_template={cfg.llm.prompt_template!r} does not support "
-            f"json_schema_version={cfg.llm.json_schema_version!r}."
+            f"agent.predict.prompt_template={predict_cfg.prompt_template!r} does not support "
+            f"json_schema_version={predict_cfg.json_schema_version!r}."
         )
-    if cfg.llm.prompt.include_labels_context and not template.allow_labels_context:
+    if predict_cfg.prompt.include_labels_context and not template.allow_labels_context:
         raise SystemExit(
-            f"llm.prompt.include_labels_context is not allowed for prompt template {cfg.llm.prompt_template!r}."
+            "agent.predict.prompt.include_labels_context is not allowed for "
+            f"prompt template {predict_cfg.prompt_template!r}."
         )
-    if not cfg.llm_models:
-        raise SystemExit("At least one [[llm_models]] entry is required for the LLM workflow.")
+    if not predict_cfg.backends:
+        raise SystemExit("At least one [[agent.predict.backends]] entry is required for agent prediction.")
 
 
-def llm_instance_path(run_root: Path, sample_unit: str) -> Path:
-    base = ensure_dir(run_root / "llm" / "instances")
+def agent_instance_path(run_root: Path, sample_unit: str) -> Path:
+    base = ensure_dir(run_root / "agent" / "predict" / "instances")
     if sample_unit == "patient":
         return base / "patient_instances.parquet"
     if sample_unit == "time":
         return base / "time_instances.parquet"
-    raise ValueError(f"Unsupported llm sample_unit: {sample_unit!r}")
+    raise ValueError(f"Unsupported agent sample_unit: {sample_unit!r}")
 
 
-def ensure_llm_splits(cfg: ExperimentConfig, *, run_root: Path) -> list[Split]:
+def ensure_agent_predict_splits(cfg: ExperimentConfig, *, run_root: Path) -> list[Split]:
     split_dir = run_root / "splits"
     splits = load_splits(split_dir)
     if splits:
@@ -80,7 +85,7 @@ def ensure_llm_splits(cfg: ExperimentConfig, *, run_root: Path) -> list[Split]:
     elif static is not None:
         patient_index = make_patient_index_from_static(static, patient_id_col="patient_id")
     else:
-        raise SystemExit("dataset.dynamic or dataset.static is required to materialize LLM splits.")
+        raise SystemExit("dataset.dynamic or dataset.static is required to materialize agent prediction splits.")
 
     splits = make_splits(patient_index, cfg.split)
     if cfg.trainer.repeat > 1:
@@ -100,42 +105,53 @@ def ensure_llm_splits(cfg: ExperimentConfig, *, run_root: Path) -> list[Split]:
     return splits
 
 
-def materialize_llm_instances(cfg: ExperimentConfig, *, run_root: Path) -> MaterializedLLMInstances:
-    validate_llm_setup(cfg)
+def materialize_agent_instances(cfg: ExperimentConfig, *, run_root: Path) -> MaterializedAgentInstances:
+    validate_agent_predict_setup(cfg)
 
     run = RunIO(run_root=run_root)
     manifest = run.require_manifest()
     labels_df = run.load_labels(manifest)
-    splits = ensure_llm_splits(cfg, run_root=run_root)
+    splits = ensure_agent_predict_splits(cfg, run_root=run_root)
 
     train_dataset = cfg.datasets.train if cfg.datasets is not None else cfg.dataset
     dynamic = load_dynamic_table_optional(train_dataset.dynamic)
     static = load_static_table(train_dataset.static)
 
-    if cfg.llm.sample_unit == "patient":
-        frame = _build_patient_instances(splits=splits, labels_df=labels_df, dynamic=dynamic, static=static, task_kind=cfg.task.kind)
+    if cfg.agent.predict.sample_unit == "patient":
+        frame = _build_patient_instances(
+            splits=splits,
+            labels_df=labels_df,
+            dynamic=dynamic,
+            static=static,
+            task_kind=cfg.task.kind,
+        )
     else:
-        frame = _build_time_instances(splits=splits, labels_df=labels_df, dynamic=dynamic, task_kind=cfg.task.kind)
+        frame = _build_time_instances(
+            splits=splits,
+            labels_df=labels_df,
+            dynamic=dynamic,
+            task_kind=cfg.task.kind,
+        )
 
     sort_cols = ["split", "patient_id"]
     if "bin_time" in frame.columns:
         sort_cols.append("bin_time")
     frame = frame.sort_values(sort_cols, kind="stable").reset_index(drop=True)
-    if cfg.llm.max_samples is not None:
-        frame = frame.head(int(cfg.llm.max_samples)).reset_index(drop=True)
+    if cfg.agent.predict.max_samples is not None:
+        frame = frame.head(int(cfg.agent.predict.max_samples)).reset_index(drop=True)
 
-    path = llm_instance_path(run_root, cfg.llm.sample_unit)
+    path = agent_instance_path(run_root, cfg.agent.predict.sample_unit)
     ensure_dir(path.parent)
     frame.to_parquet(path, index=False)
     write_json(
         path.parent / "summary.json",
         {
-            "sample_unit": cfg.llm.sample_unit,
+            "sample_unit": cfg.agent.predict.sample_unit,
             "rows": int(len(frame)),
             "splits": sorted(frame["split"].astype(str).unique().tolist()) if not frame.empty else [],
         },
     )
-    return MaterializedLLMInstances(path=path, frame=frame)
+    return MaterializedAgentInstances(path=path, frame=frame)
 
 
 def _build_patient_instances(
@@ -153,18 +169,18 @@ def _build_patient_instances(
         labels = labels.drop_duplicates(subset=["patient_id"], keep="last")
         label_map = {str(pid): float(lbl) for pid, lbl in zip(labels["patient_id"], labels["label"])}
 
-    dyn_stats = {}
+    dyn_stats: dict[str, dict[str, object]] = {}
     if dynamic is not None and not dynamic.empty:
         tmp = dynamic.copy()
         tmp["patient_id"] = tmp["patient_id"].astype(str)
         grouped = tmp.groupby("patient_id", sort=False)
         dyn_stats = {
             str(pid): {
-                "event_count": int(len(g)),
-                "first_event_time": pd.to_datetime(g["event_time"]).min(),
-                "last_event_time": pd.to_datetime(g["event_time"]).max(),
+                "event_count": int(len(group)),
+                "first_event_time": pd.to_datetime(group["event_time"]).min(),
+                "last_event_time": pd.to_datetime(group["event_time"]).max(),
             }
-            for pid, g in grouped
+            for pid, group in grouped
         }
 
     static_ids = set()
@@ -200,9 +216,9 @@ def _build_time_instances(
     task_kind: str,
 ) -> pd.DataFrame:
     if dynamic is None or dynamic.empty:
-        raise SystemExit("LLM time-window prediction requires dataset.dynamic.")
+        raise SystemExit("Agent time-window prediction requires dataset.dynamic.")
     if labels_df is None or labels_df.empty:
-        raise SystemExit("LLM time-window prediction requires labels.fn / labels.parquet.")
+        raise SystemExit("Agent time-window prediction requires labels.fn / labels.parquet.")
 
     labels = labels_df.copy()
     labels["patient_id"] = labels["patient_id"].astype(str)

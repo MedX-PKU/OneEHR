@@ -75,14 +75,14 @@ def render_summary_v1(
     schema_text: str,
 ) -> str:
     sections = []
-    names = list(cfg.llm.prompt.sections)
+    names = list(cfg.agent.predict.prompt.sections)
     anchor_time = _anchor_time(instance)
     events = select_events(
         dynamic=dynamic,
         anchor_time=anchor_time,
-        history_window=cfg.llm.prompt.history_window,
-        max_events=cfg.llm.prompt.max_events,
-        time_order=cfg.llm.prompt.time_order,
+        history_window=cfg.agent.predict.prompt.history_window,
+        max_events=cfg.agent.predict.prompt.max_events,
+        time_order=cfg.agent.predict.prompt.time_order,
     )
 
     if "patient_profile" in names:
@@ -227,7 +227,7 @@ def _render_code_summary(*, events: pd.DataFrame) -> str:
 
 def _render_prediction_task(*, cfg: ExperimentConfig) -> str:
     lines = ["Prediction Task"]
-    if cfg.llm.sample_unit == "patient":
+    if cfg.agent.predict.sample_unit == "patient":
         lines.append("- sample_unit: patient-level")
         lines.append("- use the full observed history shown above only")
     else:
@@ -240,11 +240,11 @@ def _render_prediction_task(*, cfg: ExperimentConfig) -> str:
     elif cfg.task.kind == "regression":
         lines.append("- predict a numeric value")
     else:
-        raise ValueError(f"Unsupported llm task kind: {cfg.task.kind!r}")
+        raise ValueError(f"Unsupported agent task kind: {cfg.task.kind!r}")
 
-    if cfg.llm.output.include_explanation:
+    if cfg.agent.predict.output.include_explanation:
         lines.append("- explanation is optional but should be concise and clinically grounded")
-    if cfg.llm.output.include_confidence:
+    if cfg.agent.predict.output.include_confidence:
         lines.append("- confidence is optional and must be in [0, 1]")
     lines.append("- return JSON only")
     return "\n".join(lines)
@@ -292,8 +292,8 @@ def _render_observed_evidence(
 def _render_target_prediction(*, target_prediction: dict[str, object]) -> str:
     lines = [
         "Target Prediction",
-        f"- source: {target_prediction.get('source')}",
-        f"- model_name: {target_prediction.get('model_name')}",
+        f"- origin: {target_prediction.get('origin')}",
+        f"- predictor_name: {target_prediction.get('predictor_name')}",
         f"- split: {target_prediction.get('split')}",
     ]
     for key in ("prediction", "probability", "value", "confidence", "parsed_ok", "error_code"):

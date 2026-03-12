@@ -6,8 +6,16 @@ from typing import Any
 import tomllib
 
 from oneehr.config.schema import (
+    AgentBackendConfig,
+    AgentConfig,
+    AgentPredictConfig,
+    AgentPredictOutputConfig,
+    AgentPredictPromptConfig,
+    AgentReviewConfig,
+    AgentReviewPromptConfig,
     AnalysisConfig,
     CalibrationConfig,
+    CasesConfig,
     DynamicTableConfig,
     DatasetConfig,
     DatasetsConfig,
@@ -15,20 +23,13 @@ from oneehr.config.schema import (
     HPOConfig,
     LabelTableConfig,
     LabelsConfig,
-    LLMConfig,
-    LLMModelConfig,
-    LLMOutputConfig,
-    LLMPromptConfig,
     ModelConfig,
     OutputConfig,
     PreprocessConfig,
-    ReviewConfig,
-    ReviewPromptConfig,
     StaticTableConfig,
     SplitConfig,
     TaskConfig,
     TrainerConfig,
-    WorkspaceConfig,
     GRUConfig,
     LSTMConfig,
     RNNConfig,
@@ -71,26 +72,25 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     models_raw = raw.get("models", [])
     output_raw = raw.get("output", {})
     analysis_raw = raw.get("analysis", {})
-    workspace_raw = raw.get("workspace", {})
+    cases_raw = raw.get("cases", {})
+    agent_raw = raw.get("agent", {})
     labels_raw = raw.get("labels", {})
     trainer_raw = raw.get("trainer", {})
     hpo_raw = raw.get("hpo", {})
     hpo_models_raw = raw.get("hpo_models", {})
     calibration_raw = raw.get("calibration", {})
-    llm_raw = raw.get("llm", {})
-    llm_models_raw = raw.get("llm_models", [])
-    review_raw = raw.get("review", {})
-    review_models_raw = raw.get("review_models", [])
-    if not isinstance(llm_raw, dict):
-        raise ValueError("llm must be a table")
-    if not isinstance(llm_models_raw, list):
-        raise ValueError("llm_models must be an array of tables")
-    if not isinstance(review_raw, dict):
-        raise ValueError("review must be a table")
-    if not isinstance(review_models_raw, list):
-        raise ValueError("review_models must be an array of tables")
-    llm_enabled_raw = bool(llm_raw.get("enabled", False))
-    if model_raw is None and not models_raw and not llm_enabled_raw:
+    if not isinstance(cases_raw, dict):
+        raise ValueError("cases must be a table")
+    if not isinstance(agent_raw, dict):
+        raise ValueError("agent must be a table")
+    agent_predict_raw = agent_raw.get("predict", {}) or {}
+    agent_review_raw = agent_raw.get("review", {}) or {}
+    if not isinstance(agent_predict_raw, dict):
+        raise ValueError("agent.predict must be a table")
+    if not isinstance(agent_review_raw, dict):
+        raise ValueError("agent.review must be a table")
+    agent_predict_enabled_raw = bool(agent_predict_raw.get("enabled", False))
+    if model_raw is None and not models_raw and not agent_predict_enabled_raw:
         raise ValueError("Missing required key: model or models")
 
     dataset = None
@@ -264,10 +264,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         models.append(_load_model(mraw))
     if model is not None and not models:
         models = [model]
-    if model is None and not models and llm_enabled_raw:
-        # LLM-only workflows do not require a trainable ML/DL model, but the
-        # broader config object still carries ``model`` for legacy commands.
-        model = ModelConfig(name="llm_placeholder")
+    if model is None and not models and agent_predict_enabled_raw:
+        model = ModelConfig(name="_agent_placeholder")
     elif model is None and models:
         model = models[0]
 
@@ -281,29 +279,27 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError("analysis must be a table")
     analysis = AnalysisConfig(
         default_modules=[str(m) for m in analysis_raw.get("default_modules", [])] or AnalysisConfig().default_modules,
-        formats=[str(f) for f in analysis_raw.get("formats", [])] or AnalysisConfig().formats,
         top_k=int(analysis_raw.get("top_k", 20)),
         stratify_by=[str(c) for c in analysis_raw.get("stratify_by", [])],
         case_limit=int(analysis_raw.get("case_limit", 50)),
         save_plot_specs=bool(analysis_raw.get("save_plot_specs", True)),
         shap_max_samples=int(analysis_raw.get("shap_max_samples", 500)),
     )
-    if not isinstance(workspace_raw, dict):
-        raise ValueError("workspace must be a table")
-    workspace = WorkspaceConfig(
-        include_static=bool(workspace_raw.get("include_static", True)),
-        include_analysis_refs=bool(workspace_raw.get("include_analysis_refs", True)),
+
+    cases = CasesConfig(
+        include_static=bool(cases_raw.get("include_static", True)),
+        include_analysis_refs=bool(cases_raw.get("include_analysis_refs", True)),
         history_window=(
             None
-            if workspace_raw.get("history_window") in {None, "", "null"}
-            else str(workspace_raw.get("history_window"))
+            if cases_raw.get("history_window") in {None, "", "null"}
+            else str(cases_raw.get("history_window"))
         ),
-        max_events=int(workspace_raw.get("max_events", 200)),
-        time_order=str(workspace_raw.get("time_order", "asc")),
+        max_events=int(cases_raw.get("max_events", 200)),
+        time_order=str(cases_raw.get("time_order", "asc")),
         case_limit=(
             None
-            if workspace_raw.get("case_limit") in {None, "", "null"}
-            else int(workspace_raw.get("case_limit"))
+            if cases_raw.get("case_limit") in {None, "", "null"}
+            else int(cases_raw.get("case_limit"))
         ),
     )
 
@@ -360,174 +356,166 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         use_calibrated=bool(calibration_raw.get("use_calibrated", True)),
     )
 
-    llm_prompt_raw = llm_raw.get("prompt", {})
-    llm_output_raw = llm_raw.get("output", {})
-    if not isinstance(llm_prompt_raw, dict):
-        raise ValueError("llm.prompt must be a table")
-    if not isinstance(llm_output_raw, dict):
-        raise ValueError("llm.output must be a table")
-    llm_prompt = LLMPromptConfig(
-        include_static=bool(llm_prompt_raw.get("include_static", True)),
-        include_labels_context=bool(llm_prompt_raw.get("include_labels_context", False)),
+    def _load_agent_backends(raw_backends: list[dict[str, Any]], *, path_name: str) -> list[AgentBackendConfig]:
+        backends: list[AgentBackendConfig] = []
+        for braw in raw_backends or []:
+            if not isinstance(braw, dict):
+                raise ValueError(f"{path_name} entries must be tables")
+            headers = braw.get("headers", {}) or {}
+            if not isinstance(headers, dict):
+                raise ValueError(f"{path_name}.<entry>.headers must be a table")
+            backends.append(
+                AgentBackendConfig(
+                    name=_require(braw, "name"),
+                    provider=str(braw.get("provider", "openai_compatible")),
+                    base_url=str(braw.get("base_url", "https://api.openai.com/v1")),
+                    model=str(_require(braw, "model")),
+                    api_key_env=str(braw.get("api_key_env", "OPENAI_API_KEY")),
+                    system_prompt=(
+                        None
+                        if braw.get("system_prompt") in {None, "", "null"}
+                        else str(braw.get("system_prompt"))
+                    ),
+                    supports_json_schema=bool(braw.get("supports_json_schema", True)),
+                    headers={str(k): str(v) for k, v in headers.items()},
+                )
+            )
+        return backends
+
+    agent_predict_prompt_raw = agent_predict_raw.get("prompt", {}) or {}
+    agent_predict_output_raw = agent_predict_raw.get("output", {}) or {}
+    agent_predict_backends_raw = agent_predict_raw.get("backends", []) or []
+    if not isinstance(agent_predict_prompt_raw, dict):
+        raise ValueError("agent.predict.prompt must be a table")
+    if not isinstance(agent_predict_output_raw, dict):
+        raise ValueError("agent.predict.output must be a table")
+    if not isinstance(agent_predict_backends_raw, list):
+        raise ValueError("agent.predict.backends must be an array of tables")
+    agent_predict_prompt = AgentPredictPromptConfig(
+        include_static=bool(agent_predict_prompt_raw.get("include_static", True)),
+        include_labels_context=bool(agent_predict_prompt_raw.get("include_labels_context", False)),
         history_window=(
             None
-            if llm_prompt_raw.get("history_window") in {None, "", "null"}
-            else str(llm_prompt_raw.get("history_window"))
+            if agent_predict_prompt_raw.get("history_window") in {None, "", "null"}
+            else str(agent_predict_prompt_raw.get("history_window"))
         ),
-        max_events=int(llm_prompt_raw.get("max_events", 200)),
-        time_order=str(llm_prompt_raw.get("time_order", "asc")),
-        sections=[str(s) for s in llm_prompt_raw.get("sections", [])] or LLMPromptConfig().sections,
+        max_events=int(agent_predict_prompt_raw.get("max_events", 200)),
+        time_order=str(agent_predict_prompt_raw.get("time_order", "asc")),
+        sections=[str(s) for s in agent_predict_prompt_raw.get("sections", [])] or AgentPredictPromptConfig().sections,
     )
-    llm_output = LLMOutputConfig(
-        include_explanation=bool(llm_output_raw.get("include_explanation", True)),
-        include_confidence=bool(llm_output_raw.get("include_confidence", False)),
+    agent_predict_output = AgentPredictOutputConfig(
+        include_explanation=bool(agent_predict_output_raw.get("include_explanation", True)),
+        include_confidence=bool(agent_predict_output_raw.get("include_confidence", False)),
     )
-    llm = LLMConfig(
-        enabled=bool(llm_raw.get("enabled", False)),
-        sample_unit=str(llm_raw.get("sample_unit", "patient")),
-        prompt_template=str(llm_raw.get("prompt_template", "summary_v1")),
-        json_schema_version=int(llm_raw.get("json_schema_version", 1)),
+    agent_predict = AgentPredictConfig(
+        enabled=bool(agent_predict_raw.get("enabled", False)),
+        sample_unit=str(agent_predict_raw.get("sample_unit", "patient")),
+        prompt_template=str(agent_predict_raw.get("prompt_template", "summary_v1")),
+        json_schema_version=int(agent_predict_raw.get("json_schema_version", 1)),
         max_samples=(
             None
-            if llm_raw.get("max_samples") in {None, "", "null"}
-            else int(llm_raw.get("max_samples"))
+            if agent_predict_raw.get("max_samples") in {None, "", "null"}
+            else int(agent_predict_raw.get("max_samples"))
         ),
-        save_prompts=bool(llm_raw.get("save_prompts", True)),
-        save_responses=bool(llm_raw.get("save_responses", True)),
-        save_parsed=bool(llm_raw.get("save_parsed", True)),
-        concurrency=int(llm_raw.get("concurrency", 1)),
-        max_retries=int(llm_raw.get("max_retries", 2)),
-        timeout_seconds=float(llm_raw.get("timeout_seconds", 60.0)),
-        temperature=float(llm_raw.get("temperature", 0.0)),
-        top_p=float(llm_raw.get("top_p", 1.0)),
+        save_prompts=bool(agent_predict_raw.get("save_prompts", True)),
+        save_responses=bool(agent_predict_raw.get("save_responses", True)),
+        save_parsed=bool(agent_predict_raw.get("save_parsed", True)),
+        concurrency=int(agent_predict_raw.get("concurrency", 1)),
+        max_retries=int(agent_predict_raw.get("max_retries", 2)),
+        timeout_seconds=float(agent_predict_raw.get("timeout_seconds", 60.0)),
+        temperature=float(agent_predict_raw.get("temperature", 0.0)),
+        top_p=float(agent_predict_raw.get("top_p", 1.0)),
         seed=(
             None
-            if llm_raw.get("seed") in {None, "", "null"}
-            else int(llm_raw.get("seed"))
+            if agent_predict_raw.get("seed") in {None, "", "null"}
+            else int(agent_predict_raw.get("seed"))
         ),
-        prompt=llm_prompt,
-        output=llm_output,
+        prompt=agent_predict_prompt,
+        output=agent_predict_output,
+        backends=_load_agent_backends(agent_predict_backends_raw, path_name="agent.predict.backends"),
     )
-    llm_models: list[LLMModelConfig] = []
-    for mraw in llm_models_raw or []:
-        if not isinstance(mraw, dict):
-            raise ValueError("llm_models entries must be tables")
-        headers = mraw.get("headers", {}) or {}
-        if not isinstance(headers, dict):
-            raise ValueError("llm_models.<entry>.headers must be a table")
-        llm_models.append(
-            LLMModelConfig(
-                name=_require(mraw, "name"),
-                provider=str(mraw.get("provider", "openai_compatible")),
-                base_url=str(mraw.get("base_url", "https://api.openai.com/v1")),
-                model=str(_require(mraw, "model")),
-                api_key_env=str(mraw.get("api_key_env", "OPENAI_API_KEY")),
-                system_prompt=(
-                    None
-                    if mraw.get("system_prompt") in {None, "", "null"}
-                    else str(mraw.get("system_prompt"))
-                ),
-                supports_json_schema=bool(mraw.get("supports_json_schema", True)),
-                headers={str(k): str(v) for k, v in headers.items()},
-            )
-        )
-    review_prompt_raw = review_raw.get("prompt", {})
-    if not isinstance(review_prompt_raw, dict):
-        raise ValueError("review.prompt must be a table")
-    review_prompt = ReviewPromptConfig(
-        include_static=bool(review_prompt_raw.get("include_static", True)),
-        include_ground_truth=bool(review_prompt_raw.get("include_ground_truth", True)),
-        include_analysis_context=bool(review_prompt_raw.get("include_analysis_context", True)),
-        max_events=int(review_prompt_raw.get("max_events", 100)),
-        time_order=str(review_prompt_raw.get("time_order", "asc")),
-        sections=[str(s) for s in review_prompt_raw.get("sections", [])] or ReviewPromptConfig().sections,
+
+    agent_review_prompt_raw = agent_review_raw.get("prompt", {}) or {}
+    agent_review_backends_raw = agent_review_raw.get("backends", []) or []
+    if not isinstance(agent_review_prompt_raw, dict):
+        raise ValueError("agent.review.prompt must be a table")
+    if not isinstance(agent_review_backends_raw, list):
+        raise ValueError("agent.review.backends must be an array of tables")
+    agent_review_prompt = AgentReviewPromptConfig(
+        include_static=bool(agent_review_prompt_raw.get("include_static", True)),
+        include_ground_truth=bool(agent_review_prompt_raw.get("include_ground_truth", True)),
+        include_analysis_context=bool(agent_review_prompt_raw.get("include_analysis_context", True)),
+        max_events=int(agent_review_prompt_raw.get("max_events", 100)),
+        time_order=str(agent_review_prompt_raw.get("time_order", "asc")),
+        sections=[str(s) for s in agent_review_prompt_raw.get("sections", [])] or AgentReviewPromptConfig().sections,
     )
-    review = ReviewConfig(
-        enabled=bool(review_raw.get("enabled", False)),
-        prompt_template=str(review_raw.get("prompt_template", "evidence_review_v1")),
-        json_schema_version=int(review_raw.get("json_schema_version", 1)),
-        prediction_sources=[str(s) for s in review_raw.get("prediction_sources", [])] or ReviewConfig().prediction_sources,
+    agent_review = AgentReviewConfig(
+        enabled=bool(agent_review_raw.get("enabled", False)),
+        prompt_template=str(agent_review_raw.get("prompt_template", "evidence_review_v1")),
+        json_schema_version=int(agent_review_raw.get("json_schema_version", 1)),
+        prediction_origins=[
+            str(s) for s in agent_review_raw.get("prediction_origins", [])
+        ] or AgentReviewConfig().prediction_origins,
         max_cases=(
             None
-            if review_raw.get("max_cases") in {None, "", "null"}
-            else int(review_raw.get("max_cases"))
+            if agent_review_raw.get("max_cases") in {None, "", "null"}
+            else int(agent_review_raw.get("max_cases"))
         ),
-        save_prompts=bool(review_raw.get("save_prompts", True)),
-        save_responses=bool(review_raw.get("save_responses", True)),
-        save_parsed=bool(review_raw.get("save_parsed", True)),
-        concurrency=int(review_raw.get("concurrency", 1)),
-        max_retries=int(review_raw.get("max_retries", 2)),
-        timeout_seconds=float(review_raw.get("timeout_seconds", 60.0)),
-        temperature=float(review_raw.get("temperature", 0.0)),
-        top_p=float(review_raw.get("top_p", 1.0)),
+        save_prompts=bool(agent_review_raw.get("save_prompts", True)),
+        save_responses=bool(agent_review_raw.get("save_responses", True)),
+        save_parsed=bool(agent_review_raw.get("save_parsed", True)),
+        concurrency=int(agent_review_raw.get("concurrency", 1)),
+        max_retries=int(agent_review_raw.get("max_retries", 2)),
+        timeout_seconds=float(agent_review_raw.get("timeout_seconds", 60.0)),
+        temperature=float(agent_review_raw.get("temperature", 0.0)),
+        top_p=float(agent_review_raw.get("top_p", 1.0)),
         seed=(
             None
-            if review_raw.get("seed") in {None, "", "null"}
-            else int(review_raw.get("seed"))
+            if agent_review_raw.get("seed") in {None, "", "null"}
+            else int(agent_review_raw.get("seed"))
         ),
-        prompt=review_prompt,
+        prompt=agent_review_prompt,
+        backends=_load_agent_backends(agent_review_backends_raw, path_name="agent.review.backends"),
     )
-    review_models: list[LLMModelConfig] = []
-    for mraw in review_models_raw or []:
-        if not isinstance(mraw, dict):
-            raise ValueError("review_models entries must be tables")
-        headers = mraw.get("headers", {}) or {}
-        if not isinstance(headers, dict):
-            raise ValueError("review_models.<entry>.headers must be a table")
-        review_models.append(
-            LLMModelConfig(
-                name=_require(mraw, "name"),
-                provider=str(mraw.get("provider", "openai_compatible")),
-                base_url=str(mraw.get("base_url", "https://api.openai.com/v1")),
-                model=str(_require(mraw, "model")),
-                api_key_env=str(mraw.get("api_key_env", "OPENAI_API_KEY")),
-                system_prompt=(
-                    None
-                    if mraw.get("system_prompt") in {None, "", "null"}
-                    else str(mraw.get("system_prompt"))
-                ),
-                supports_json_schema=bool(mraw.get("supports_json_schema", True)),
-                headers={str(k): str(v) for k, v in headers.items()},
-            )
-        )
+    agent = AgentConfig(predict=agent_predict, review=agent_review)
 
-    if llm.enabled:
-        if llm.sample_unit not in {"patient", "time"}:
-            raise ValueError("llm.sample_unit must be 'patient' or 'time'")
-        if llm.prompt.time_order not in {"asc", "desc"}:
-            raise ValueError("llm.prompt.time_order must be 'asc' or 'desc'")
-        if not llm_models:
-            raise ValueError("llm.enabled=true requires at least one [[llm_models]] entry")
-    for model_cfg in llm_models:
-        if model_cfg.provider != "openai_compatible":
-            raise ValueError("llm_models.provider must be 'openai_compatible' in v1")
-    if review.enabled:
-        if review.prompt.time_order not in {"asc", "desc"}:
-            raise ValueError("review.prompt.time_order must be 'asc' or 'desc'")
-        if not review_models:
-            raise ValueError("review.enabled=true requires at least one [[review_models]] entry")
-        invalid_sources = [src for src in review.prediction_sources if src not in {"train", "llm"}]
-        if invalid_sources:
-            raise ValueError("review.prediction_sources must contain only 'train' and/or 'llm'")
-    for model_cfg in review_models:
-        if model_cfg.provider != "openai_compatible":
-            raise ValueError("review_models.provider must be 'openai_compatible' in v1")
+    if agent.predict.enabled:
+        if agent.predict.sample_unit not in {"patient", "time"}:
+            raise ValueError("agent.predict.sample_unit must be 'patient' or 'time'")
+        if agent.predict.prompt.time_order not in {"asc", "desc"}:
+            raise ValueError("agent.predict.prompt.time_order must be 'asc' or 'desc'")
+        if not agent.predict.backends:
+            raise ValueError("agent.predict.enabled=true requires at least one [[agent.predict.backends]] entry")
+    for backend_cfg in agent.predict.backends:
+        if backend_cfg.provider != "openai_compatible":
+            raise ValueError("agent.predict.backends.provider must be 'openai_compatible' in v1")
+    if agent.review.enabled:
+        if agent.review.prompt.time_order not in {"asc", "desc"}:
+            raise ValueError("agent.review.prompt.time_order must be 'asc' or 'desc'")
+        if not agent.review.backends:
+            raise ValueError("agent.review.enabled=true requires at least one [[agent.review.backends]] entry")
+        invalid_origins = [origin for origin in agent.review.prediction_origins if origin not in {"model", "agent"}]
+        if invalid_origins:
+            raise ValueError("agent.review.prediction_origins must contain only 'model' and/or 'agent'")
+    for backend_cfg in agent.review.backends:
+        if backend_cfg.provider != "openai_compatible":
+            raise ValueError("agent.review.backends.provider must be 'openai_compatible' in v1")
     if analysis.top_k <= 0:
         raise ValueError("analysis.top_k must be >= 1")
     if analysis.case_limit <= 0:
         raise ValueError("analysis.case_limit must be >= 1")
     if analysis.shap_max_samples <= 0:
         raise ValueError("analysis.shap_max_samples must be >= 1")
-    if workspace.max_events <= 0:
-        raise ValueError("workspace.max_events must be >= 1")
-    if workspace.time_order not in {"asc", "desc"}:
-        raise ValueError("workspace.time_order must be 'asc' or 'desc'")
-    if workspace.case_limit is not None and workspace.case_limit <= 0:
-        raise ValueError("workspace.case_limit must be >= 1 when provided")
-    if review.prompt.max_events <= 0:
-        raise ValueError("review.prompt.max_events must be >= 1")
-    if review.max_cases is not None and review.max_cases <= 0:
-        raise ValueError("review.max_cases must be >= 1 when provided")
+    if cases.max_events <= 0:
+        raise ValueError("cases.max_events must be >= 1")
+    if cases.time_order not in {"asc", "desc"}:
+        raise ValueError("cases.time_order must be 'asc' or 'desc'")
+    if cases.case_limit is not None and cases.case_limit <= 0:
+        raise ValueError("cases.case_limit must be >= 1 when provided")
+    if agent.review.prompt.max_events <= 0:
+        raise ValueError("agent.review.prompt.max_events must be >= 1")
+    if agent.review.max_cases is not None and agent.review.max_cases <= 0:
+        raise ValueError("agent.review.max_cases must be >= 1 when provided")
 
     return ExperimentConfig(
         dataset=dataset,
@@ -543,10 +531,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         hpo_by_model=hpo_by_model,
         calibration=calibration,
         analysis=analysis,
-        llm=llm,
-        llm_models=llm_models,
-        workspace=workspace,
-        review=review,
-        review_models=review_models,
+        cases=cases,
+        agent=agent,
         output=output,
     )

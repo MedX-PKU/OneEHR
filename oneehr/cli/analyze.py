@@ -5,7 +5,6 @@ import sys
 
 from oneehr.analysis.reporting import (
     load_analysis_context,
-    normalize_formats,
     normalize_modules,
     run_analysis_suite,
 )
@@ -17,7 +16,6 @@ def run_analyze(
     run_dir: str | None,
     method: str | None,
     modules: list[str] | None,
-    formats: list[str] | None,
     compare_run: str | None,
     case_limit: int | None,
 ) -> None:
@@ -31,12 +29,10 @@ def run_analyze(
 
     manifest = require_manifest(run_root)
     selected_modules = normalize_modules(cfg, modules, method=method)
-    selected_formats = normalize_formats(cfg, formats)
     ctx = load_analysis_context(cfg=cfg, run_root=run_root, manifest=manifest)
     index = run_analysis_suite(
         ctx=ctx,
         modules=selected_modules,
-        formats=selected_formats,
         method=method,
         case_limit=case_limit,
         compare_run=compare_run,

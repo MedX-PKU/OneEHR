@@ -4,7 +4,6 @@ import contextlib
 import io
 import json
 from dataclasses import dataclass
-from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -31,9 +30,8 @@ SUPPORTED_MODULES = (
     "prediction_audit",
     "temporal_analysis",
     "interpretability",
-    "llm_audit",
+    "agent_audit",
 )
-SUPPORTED_FORMATS = frozenset({"json", "csv", "md", "html"})
 
 
 @dataclass(frozen=True)
@@ -44,7 +42,6 @@ class AnalysisModuleResult:
     table_paths: list[str]
     plot_paths: list[str]
     case_paths: list[str]
-    report_paths: list[str]
     legacy_paths: list[str]
     details: dict[str, Any]
 
@@ -65,7 +62,7 @@ class AnalysisContext:
     key: pd.DataFrame | None
     splits: list[Any]
     train_summary_records: list[dict[str, Any]]
-    llm_summary_records: list[dict[str, Any]]
+    agent_predict_summary_records: list[dict[str, Any]]
 
 
 def available_modules() -> tuple[str, ...]:
@@ -91,24 +88,6 @@ def normalize_modules(cfg, modules: list[str] | None, *, method: str | None) -> 
         if name not in seen:
             out.append(name)
             seen.add(name)
-    return out
-
-
-def normalize_formats(cfg, formats: list[str] | None) -> list[str]:
-    selected = [str(f) for f in formats] if formats else list(cfg.analysis.formats)
-    out: list[str] = []
-    seen: set[str] = set()
-    for fmt in selected:
-        if fmt not in SUPPORTED_FORMATS:
-            raise SystemExit(
-                f"Unsupported analysis format {fmt!r}. "
-                f"Expected one of: {', '.join(sorted(SUPPORTED_FORMATS))}"
-            )
-        if fmt not in seen:
-            out.append(fmt)
-            seen.add(fmt)
-    if "json" not in seen:
-        out.insert(0, "json")
     return out
 
 
@@ -147,7 +126,9 @@ def load_analysis_context(*, cfg, run_root: Path, manifest) -> AnalysisContext:
         key=key,
         splits=load_splits(run_root / "splits"),
         train_summary_records=_read_summary_records(run_root / "summary.json"),
-        llm_summary_records=_read_summary_records(run_root / "llm" / "summary.json"),
+        agent_predict_summary_records=_read_summary_records(
+            run_root / "agent" / "predict" / "summary.json"
+        ),
     )
 
 
@@ -155,7 +136,6 @@ def run_analysis_suite(
     *,
     ctx: AnalysisContext,
     modules: list[str],
-    formats: list[str],
     method: str | None,
     case_limit: int | None,
     compare_run: str | None,
@@ -172,13 +152,12 @@ def run_analysis_suite(
         "prediction_audit": _module_prediction_audit,
         "temporal_analysis": _module_temporal_analysis,
         "interpretability": _module_interpretability,
-        "llm_audit": _module_llm_audit,
+        "agent_audit": _module_agent_audit,
     }
     for name in modules:
         result = module_map[name](
             ctx=ctx,
             analysis_root=analysis_root,
-            formats=formats,
             case_limit=case_limit_eff,
             method=method,
             save_plot_specs=bool(ctx.cfg.analysis.save_plot_specs),
@@ -191,7 +170,6 @@ def run_analysis_suite(
             current_run_root=ctx.run_root,
             compare_run_root=Path(compare_run),
             analysis_root=analysis_root,
-            formats=formats,
         )
 
     index = {
@@ -210,7 +188,6 @@ def run_analysis_suite(
                 "table_paths": item.table_paths,
                 "plot_paths": item.plot_paths,
                 "case_paths": item.case_paths,
-                "report_paths": item.report_paths,
                 "legacy_paths": item.legacy_paths,
                 "details": item.details,
             }
@@ -219,10 +196,6 @@ def run_analysis_suite(
         "comparison": comparison_payload,
     }
     write_json(analysis_root / "index.json", index)
-    if "md" in formats:
-        _write_text(analysis_root / "index.md", _render_index_markdown(index))
-    if "html" in formats:
-        _write_text(analysis_root / "index.html", _render_html_page("OneEHR Analysis Index", _render_index_html_body(index)))
     return index
 
 
@@ -230,7 +203,6 @@ def _module_dataset_profile(
     *,
     ctx: AnalysisContext,
     analysis_root: Path,
-    formats: list[str],
     case_limit: int,
     method: str | None,
     save_plot_specs: bool,
@@ -295,7 +267,6 @@ def _module_dataset_profile(
         tables=tables,
         plot_specs=plot_specs,
         case_tables={},
-        formats=formats,
         save_plot_specs=save_plot_specs,
         legacy_paths=[],
     )
@@ -305,7 +276,6 @@ def _module_cohort_analysis(
     *,
     ctx: AnalysisContext,
     analysis_root: Path,
-    formats: list[str],
     case_limit: int,
     method: str | None,
     save_plot_specs: bool,
@@ -351,7 +321,6 @@ def _module_cohort_analysis(
         tables=tables,
         plot_specs=plots,
         case_tables={},
-        formats=formats,
         save_plot_specs=save_plot_specs,
         legacy_paths=[],
     )
@@ -361,7 +330,6 @@ def _module_prediction_audit(
     *,
     ctx: AnalysisContext,
     analysis_root: Path,
-    formats: list[str],
     case_limit: int,
     method: str | None,
     save_plot_specs: bool,
@@ -447,7 +415,6 @@ def _module_prediction_audit(
         tables=tables,
         plot_specs=plots,
         case_tables=case_tables,
-        formats=formats,
         save_plot_specs=save_plot_specs,
         legacy_paths=[],
     )
@@ -457,7 +424,6 @@ def _module_temporal_analysis(
     *,
     ctx: AnalysisContext,
     analysis_root: Path,
-    formats: list[str],
     case_limit: int,
     method: str | None,
     save_plot_specs: bool,
@@ -508,7 +474,6 @@ def _module_temporal_analysis(
         tables=tables,
         plot_specs=plots,
         case_tables={},
-        formats=formats,
         save_plot_specs=save_plot_specs,
         legacy_paths=[],
     )
@@ -518,7 +483,6 @@ def _module_interpretability(
     *,
     ctx: AnalysisContext,
     analysis_root: Path,
-    formats: list[str],
     case_limit: int,
     method: str | None,
     save_plot_specs: bool,
@@ -550,7 +514,6 @@ def _module_interpretability(
             tables={},
             plot_specs={},
             case_tables={},
-            formats=formats,
             save_plot_specs=save_plot_specs,
             legacy_paths=[],
         )
@@ -663,40 +626,37 @@ def _module_interpretability(
         tables=tables,
         plot_specs={},
         case_tables={},
-        formats=formats,
         save_plot_specs=save_plot_specs,
         legacy_paths=legacy_paths,
     )
 
 
-def _module_llm_audit(
+def _module_agent_audit(
     *,
     ctx: AnalysisContext,
     analysis_root: Path,
-    formats: list[str],
     case_limit: int,
     method: str | None,
     save_plot_specs: bool,
 ) -> AnalysisModuleResult:
     del method
-    module_dir = ensure_dir(analysis_root / "llm_audit")
-    llm_root = ctx.run_root / "llm"
-    if not llm_root.exists() or not ctx.llm_summary_records:
+    module_dir = ensure_dir(analysis_root / "agent_audit")
+    agent_predict_root = ctx.run_root / "agent" / "predict"
+    if not agent_predict_root.exists() or not ctx.agent_predict_summary_records:
         summary = {
             "schema_version": ANALYSIS_SCHEMA_VERSION,
-            "module": "llm_audit",
+            "module": "agent_audit",
             "status": "skipped",
-            "reason": "no_llm_artifacts",
+            "reason": "no_agent_predict_artifacts",
         }
         return _write_module_artifacts(
             run_root=ctx.run_root,
             module_dir=module_dir,
-            module_name="llm_audit",
+            module_name="agent_audit",
             summary=summary,
             tables={},
             plot_specs={},
             case_tables={},
-            formats=formats,
             save_plot_specs=save_plot_specs,
             legacy_paths=[],
         )
@@ -704,8 +664,8 @@ def _module_llm_audit(
     summary_rows: list[dict[str, Any]] = []
     failure_rows: list[dict[str, Any]] = []
     case_tables: dict[str, pd.DataFrame] = {}
-    for rec in ctx.llm_summary_records:
-        llm_model = str(rec.get("llm_model"))
+    for rec in ctx.agent_predict_summary_records:
+        predictor_name = str(rec.get("predictor_name"))
         split_name = str(rec.get("split"))
         pred_rel = (((rec.get("artifacts") or {}).get("preds_parquet")) or None)
         if not isinstance(pred_rel, str):
@@ -720,7 +680,7 @@ def _module_llm_audit(
         coverage = float(rec.get("coverage", 0.0) or 0.0)
         summary_rows.append(
             {
-                "llm_model": llm_model,
+                "predictor_name": predictor_name,
                 "split": split_name,
                 "parse_success_rate": parsed_rate,
                 "coverage": coverage,
@@ -734,13 +694,20 @@ def _module_llm_audit(
         fail_df = preds[preds["parsed_ok"] == False].copy()  # noqa: E712
         if not fail_df.empty:
             counts = fail_df["error_code"].fillna("unknown").value_counts()
-            case_tables[f"{llm_model}_{split_name}"] = (
+            case_tables[f"{predictor_name}_{split_name}"] = (
                 fail_df.sort_values("latency_ms", ascending=False, kind="stable")
                 .head(case_limit)
                 .reset_index(drop=True)
             )
             for code, count in counts.items():
-                failure_rows.append({"llm_model": llm_model, "split": split_name, "error_code": code, "count": int(count)})
+                failure_rows.append(
+                    {
+                        "predictor_name": predictor_name,
+                        "split": split_name,
+                        "error_code": code,
+                        "count": int(count),
+                    }
+                )
 
     summary_df = pd.DataFrame(summary_rows)
     failure_df = pd.DataFrame(failure_rows)
@@ -751,22 +718,22 @@ def _module_llm_audit(
     plots: dict[str, dict[str, Any]] = {}
     if not summary_df.empty:
         plots["parse_success_rate"] = _grouped_bar_plot_spec(
-            title="LLM Parse Success Rate",
+            title="Agent Parse Success Rate",
             rows=summary_df.to_dict(orient="records"),
             x_key="split",
             y_key="parse_success_rate",
-            group_key="llm_model",
+            group_key="predictor_name",
         )
         plots["token_usage"] = _grouped_bar_plot_spec(
-            title="LLM Token Usage",
+            title="Agent Token Usage",
             rows=summary_df.to_dict(orient="records"),
             x_key="split",
             y_key="total_tokens",
-            group_key="llm_model",
+            group_key="predictor_name",
         )
     summary = {
         "schema_version": ANALYSIS_SCHEMA_VERSION,
-        "module": "llm_audit",
+        "module": "agent_audit",
         "status": "ok",
         "n_slices": int(len(summary_df)),
         "n_failure_buckets": int(len(failure_df)),
@@ -774,12 +741,11 @@ def _module_llm_audit(
     return _write_module_artifacts(
         run_root=ctx.run_root,
         module_dir=module_dir,
-        module_name="llm_audit",
+        module_name="agent_audit",
         summary=summary,
         tables=tables,
         plot_specs=plots,
         case_tables=case_tables,
-        formats=formats,
         save_plot_specs=save_plot_specs,
         legacy_paths=[],
     )
@@ -794,7 +760,6 @@ def _write_module_artifacts(
     tables: dict[str, pd.DataFrame],
     plot_specs: dict[str, dict[str, Any]],
     case_tables: dict[str, pd.DataFrame],
-    formats: list[str],
     save_plot_specs: bool,
     legacy_paths: list[str],
 ) -> AnalysisModuleResult:
@@ -802,11 +767,10 @@ def _write_module_artifacts(
     write_json(summary_path, summary)
 
     table_paths: list[str] = []
-    if "csv" in formats:
-        for name, df in tables.items():
-            path = module_dir / f"{name}.csv"
-            df.to_csv(path, index=False)
-            table_paths.append(str(path.relative_to(run_root)))
+    for name, df in tables.items():
+        path = module_dir / f"{name}.csv"
+        df.to_csv(path, index=False)
+        table_paths.append(str(path.relative_to(run_root)))
 
     plot_paths: list[str] = []
     if save_plot_specs and summary.get("status") != "skipped":
@@ -824,16 +788,6 @@ def _write_module_artifacts(
             df.to_parquet(path, index=False)
             case_paths.append(str(path.relative_to(run_root)))
 
-    report_paths: list[str] = []
-    if "md" in formats:
-        md_path = module_dir / "summary.md"
-        _write_text(md_path, _render_module_markdown(module_name, summary, tables))
-        report_paths.append(str(md_path.relative_to(run_root)))
-    if "html" in formats:
-        html_path = module_dir / "summary.html"
-        _write_text(html_path, _render_html_page(f"OneEHR {module_name}", _render_module_html_body(module_name, summary, tables)))
-        report_paths.append(str(html_path.relative_to(run_root)))
-
     return AnalysisModuleResult(
         name=module_name,
         status=str(summary.get("status", "ok")),
@@ -841,7 +795,6 @@ def _write_module_artifacts(
         table_paths=table_paths,
         plot_paths=plot_paths,
         case_paths=case_paths,
-        report_paths=report_paths,
         legacy_paths=legacy_paths,
         details={"table_count": len(table_paths), "plot_count": len(plot_paths), "case_count": len(case_paths)},
     )
@@ -852,7 +805,6 @@ def _write_run_comparison(
     current_run_root: Path,
     compare_run_root: Path,
     analysis_root: Path,
-    formats: list[str],
 ) -> dict[str, Any]:
     current = _read_top_summary(current_run_root / "summary.json")
     other = _read_top_summary(compare_run_root / "summary.json")
@@ -869,15 +821,15 @@ def _write_run_comparison(
         other_records=_read_summary_records(compare_run_root / "summary.json"),
         model_key="model",
     )
-    if "csv" in formats:
+    if not train_delta.empty:
         train_delta.to_csv(comparison_dir / "train_metrics.csv", index=False)
-    llm_delta = _compare_summary_records(
-        current_records=_read_summary_records(current_run_root / "llm" / "summary.json"),
-        other_records=_read_summary_records(compare_run_root / "llm" / "summary.json"),
-        model_key="llm_model",
+    agent_predict_delta = _compare_summary_records(
+        current_records=_read_summary_records(current_run_root / "agent" / "predict" / "summary.json"),
+        other_records=_read_summary_records(compare_run_root / "agent" / "predict" / "summary.json"),
+        model_key="predictor_name",
     )
-    if "csv" in formats and not llm_delta.empty:
-        llm_delta.to_csv(comparison_dir / "llm_metrics.csv", index=False)
+    if not agent_predict_delta.empty:
+        agent_predict_delta.to_csv(comparison_dir / "agent_predict_metrics.csv", index=False)
 
     summary = {
         "schema_version": ANALYSIS_SCHEMA_VERSION,
@@ -885,30 +837,20 @@ def _write_run_comparison(
         "compare_run_root": str(compare_run_root),
         "task": current_task,
         "train_delta_rows": int(len(train_delta)),
-        "llm_delta_rows": int(len(llm_delta)),
+        "agent_predict_delta_rows": int(len(agent_predict_delta)),
     }
     write_json(comparison_dir / "summary.json", summary)
-    if "md" in formats:
-        _write_text(
-            comparison_dir / "summary.md",
-            _render_module_markdown("comparison", summary, {"train_metrics": train_delta, "llm_metrics": llm_delta}),
-        )
-    if "html" in formats:
-        _write_text(
-            comparison_dir / "summary.html",
-            _render_html_page("OneEHR comparison", _render_module_html_body("comparison", summary, {"train_metrics": train_delta, "llm_metrics": llm_delta})),
-        )
     return {
         "summary_path": str((comparison_dir / "summary.json").relative_to(current_run_root)),
         "train_metrics_path": (
             None
-            if train_delta.empty or "csv" not in formats
+            if train_delta.empty
             else str((comparison_dir / "train_metrics.csv").relative_to(current_run_root))
         ),
-        "llm_metrics_path": (
+        "agent_predict_metrics_path": (
             None
-            if llm_delta.empty or "csv" not in formats
-            else str((comparison_dir / "llm_metrics.csv").relative_to(current_run_root))
+            if agent_predict_delta.empty
+            else str((comparison_dir / "agent_predict_metrics.csv").relative_to(current_run_root))
         ),
     }
 
@@ -1319,132 +1261,3 @@ def _grouped_bar_plot_spec(
         "group": group_key,
         "data": rows,
     }
-
-
-def _render_module_markdown(module_name: str, summary: dict[str, Any], tables: dict[str, pd.DataFrame]) -> str:
-    lines = [f"# {module_name}", "", "## Summary", ""]
-    for key, value in summary.items():
-        if isinstance(value, (dict, list)):
-            lines.append(f"- **{key}**: `{json.dumps(value, sort_keys=True)}`")
-        else:
-            lines.append(f"- **{key}**: `{value}`")
-    for name, df in tables.items():
-        lines.extend(["", f"## {name}", ""])
-        if df.empty:
-            lines.append("_empty_")
-        else:
-            lines.append(_dataframe_markdown(df.head(20)))
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _render_module_html_body(module_name: str, summary: dict[str, Any], tables: dict[str, pd.DataFrame]) -> str:
-    parts = [f"<h1>{escape(module_name)}</h1>", "<h2>Summary</h2>", "<ul>"]
-    for key, value in summary.items():
-        if isinstance(value, (dict, list)):
-            rendered = escape(json.dumps(value, sort_keys=True))
-        else:
-            rendered = escape(str(value))
-        parts.append(f"<li><strong>{escape(str(key))}</strong>: <code>{rendered}</code></li>")
-    parts.append("</ul>")
-    for name, df in tables.items():
-        parts.append(f"<h2>{escape(name)}</h2>")
-        if df.empty:
-            parts.append("<p><em>empty</em></p>")
-        else:
-            parts.append(df.head(20).to_html(index=False, border=0))
-    return "\n".join(parts)
-
-
-def _render_index_markdown(index: dict[str, Any]) -> str:
-    rows = []
-    for item in index.get("modules", []):
-        rows.append(
-            {
-                "module": item.get("name"),
-                "status": item.get("status"),
-                "summary_path": item.get("summary_path"),
-                "table_count": len(item.get("table_paths") or []),
-                "plot_count": len(item.get("plot_paths") or []),
-                "case_count": len(item.get("case_paths") or []),
-            }
-        )
-    lines = ["# OneEHR Analysis Index", "", f"- **run_name**: `{index.get('run_name')}`", ""]
-    if rows:
-        lines.append(_dataframe_markdown(pd.DataFrame(rows)))
-    else:
-        lines.append("_no modules_")
-    if index.get("comparison") is not None:
-        lines.extend(["", "## Comparison", "", f"`{json.dumps(index['comparison'], sort_keys=True)}`"])
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _render_index_html_body(index: dict[str, Any]) -> str:
-    rows = []
-    for item in index.get("modules", []):
-        rows.append(
-            {
-                "module": item.get("name"),
-                "status": item.get("status"),
-                "summary_path": item.get("summary_path"),
-                "table_count": len(item.get("table_paths") or []),
-                "plot_count": len(item.get("plot_paths") or []),
-                "case_count": len(item.get("case_paths") or []),
-            }
-        )
-    parts = [f"<h1>OneEHR Analysis Index</h1>", f"<p><strong>run_name</strong>: <code>{escape(str(index.get('run_name')))}</code></p>"]
-    if rows:
-        parts.append(pd.DataFrame(rows).to_html(index=False, border=0))
-    else:
-        parts.append("<p><em>no modules</em></p>")
-    if index.get("comparison") is not None:
-        parts.append("<h2>Comparison</h2>")
-        parts.append(f"<pre>{escape(json.dumps(index['comparison'], indent=2, sort_keys=True))}</pre>")
-    return "\n".join(parts)
-
-
-def _render_html_page(title: str, body: str) -> str:
-    return "\n".join(
-        [
-            "<!DOCTYPE html>",
-            "<html lang=\"en\">",
-            "<head>",
-            "  <meta charset=\"utf-8\">",
-            f"  <title>{escape(title)}</title>",
-            "  <style>",
-            "    body { font-family: Georgia, serif; margin: 2rem auto; max-width: 1100px; color: #1f2937; }",
-            "    h1, h2 { color: #111827; }",
-            "    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }",
-            "    th, td { border: 1px solid #d1d5db; padding: 0.4rem 0.6rem; text-align: left; }",
-            "    code, pre { background: #f3f4f6; padding: 0.1rem 0.3rem; }",
-            "  </style>",
-            "</head>",
-            "<body>",
-            body,
-            "</body>",
-            "</html>",
-        ]
-    )
-
-
-def _dataframe_markdown(df: pd.DataFrame) -> str:
-    cols = list(df.columns)
-    header = "| " + " | ".join(str(c) for c in cols) + " |"
-    sep = "| " + " | ".join(["---"] * len(cols)) + " |"
-    rows = []
-    for _, row in df.iterrows():
-        rows.append("| " + " | ".join(_markdown_cell(row[c]) for c in cols) + " |")
-    return "\n".join([header, sep, *rows])
-
-
-def _markdown_cell(value: Any) -> str:
-    if pd.isna(value):
-        return ""
-    if isinstance(value, float):
-        return f"{value:.6g}"
-    return str(value).replace("\n", " ")
-
-
-def _write_text(path: Path, text: str) -> None:
-    path.write_text(text.rstrip() + "\n", encoding="utf-8")

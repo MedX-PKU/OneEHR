@@ -7,11 +7,11 @@ from dataclasses import dataclass
 from typing import Any
 from urllib import error, request
 
-from oneehr.llm.contracts import LLMRequestSpec, LLMResponse
+from oneehr.agent.contracts import AgentRequestSpec, AgentResponse
 
 
 @dataclass(frozen=True)
-class LLMClientError(RuntimeError):
+class AgentClientError(RuntimeError):
     code: str
     message: str
     status_code: int | None = None
@@ -23,11 +23,11 @@ class LLMClientError(RuntimeError):
         return f"{self.code}{suffix}: {self.message}"
 
 
-class OpenAICompatibleChatClient:
-    def complete(self, spec: LLMRequestSpec) -> LLMResponse:
+class OpenAICompatibleAgentClient:
+    def complete(self, spec: AgentRequestSpec) -> AgentResponse:
         api_key = os.environ.get(spec.api_key_env)
         if not api_key:
-            raise LLMClientError(
+            raise AgentClientError(
                 code="missing_api_key",
                 message=f"Environment variable {spec.api_key_env!r} is not set",
                 retryable=False,
@@ -52,7 +52,7 @@ class OpenAICompatibleChatClient:
         }
         headers.update(spec.extra_headers)
 
-        last_error: LLMClientError | None = None
+        last_error: AgentClientError | None = None
         for attempt in range(spec.max_retries + 1):
             started = time.monotonic()
             req = request.Request(url, data=body, headers=headers, method="POST")
@@ -61,7 +61,7 @@ class OpenAICompatibleChatClient:
                     raw = resp.read().decode("utf-8")
                     payload = json.loads(raw)
                     if not isinstance(payload, dict):
-                        raise LLMClientError(
+                        raise AgentClientError(
                             code="invalid_response",
                             message="provider response must be a JSON object",
                             response_text=raw,
@@ -70,7 +70,7 @@ class OpenAICompatibleChatClient:
                     text = _extract_message_content(payload)
                     latency_ms = int(round((time.monotonic() - started) * 1000.0))
                     usage = payload.get("usage") or {}
-                    return LLMResponse(
+                    return AgentResponse(
                         raw_text=text,
                         response_json=payload,
                         latency_ms=latency_ms,
@@ -81,7 +81,7 @@ class OpenAICompatibleChatClient:
             except error.HTTPError as exc:
                 resp_text = exc.read().decode("utf-8", errors="replace")
                 retryable = exc.code == 429 or 500 <= exc.code < 600
-                last_error = LLMClientError(
+                last_error = AgentClientError(
                     code="http_error",
                     message=f"provider returned HTTP {exc.code}",
                     status_code=exc.code,
@@ -89,13 +89,13 @@ class OpenAICompatibleChatClient:
                     retryable=retryable,
                 )
             except error.URLError as exc:
-                last_error = LLMClientError(
+                last_error = AgentClientError(
                     code="network_error",
                     message=str(exc.reason),
                     retryable=True,
                 )
             except TimeoutError as exc:
-                last_error = LLMClientError(
+                last_error = AgentClientError(
                     code="timeout",
                     message=str(exc),
                     retryable=True,
@@ -111,7 +111,7 @@ class OpenAICompatibleChatClient:
         raise last_error
 
     @staticmethod
-    def _build_messages(spec: LLMRequestSpec) -> list[dict[str, str]]:
+    def _build_messages(spec: AgentRequestSpec) -> list[dict[str, str]]:
         messages: list[dict[str, str]] = []
         if spec.system_prompt:
             messages.append({"role": "system", "content": spec.system_prompt})
@@ -122,7 +122,7 @@ class OpenAICompatibleChatClient:
 def _extract_message_content(payload: dict[str, Any]) -> str:
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
-        raise LLMClientError(
+        raise AgentClientError(
             code="invalid_response",
             message="provider response missing choices[0]",
             response_text=json.dumps(payload, sort_keys=True),
@@ -141,7 +141,7 @@ def _extract_message_content(payload: dict[str, Any]) -> str:
                     parts.append(txt)
         if parts:
             return "\n".join(parts)
-    raise LLMClientError(
+    raise AgentClientError(
         code="invalid_response",
         message="provider response missing message.content text",
         response_text=json.dumps(payload, sort_keys=True),
@@ -156,4 +156,3 @@ def _optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
-

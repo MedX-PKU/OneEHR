@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from oneehr.llm.contracts import ParsedPrediction
+from oneehr.agent.contracts import ParsedPrediction
 
 
 def build_prediction_json_schema(
@@ -22,7 +22,7 @@ def build_prediction_json_schema(
         props = {"value": {"type": "number"}}
         required = ["value"]
     else:
-        raise ValueError(f"Unsupported llm task kind: {task_kind!r}")
+        raise ValueError(f"Unsupported agent task kind: {task_kind!r}")
 
     if include_explanation:
         props["explanation"] = {"type": "string"}
@@ -170,7 +170,7 @@ def parse_prediction_response(
             raw_json=payload,
         )
 
-    raise ValueError(f"Unsupported llm task kind: {task_kind!r}")
+    raise ValueError(f"Unsupported agent task kind: {task_kind!r}")
 
 
 def _extract_json_candidate(text: str) -> str | None:
@@ -239,4 +239,3 @@ def _coerce_binary_label(value: Any) -> int | None:
     if txt in {"1", "true", "positive", "yes"}:
         return 1
     return None
-

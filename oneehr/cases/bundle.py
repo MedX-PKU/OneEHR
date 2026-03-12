@@ -8,64 +8,64 @@ from typing import Any
 
 import pandas as pd
 
+from oneehr.agent.templates import safe_case_slug, select_events
 from oneehr.analysis.read import describe_patient_case, read_analysis_index
 from oneehr.artifacts.run_io import RunIO
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.io import load_dynamic_table_optional, load_static_table
 from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
 from oneehr.data.splits import Split, load_splits, make_splits, save_splits
-from oneehr.llm.templates import safe_case_slug, select_events
 from oneehr.utils.io import as_jsonable, ensure_dir, write_json
 
 
 @dataclass(frozen=True)
-class MaterializedWorkspace:
+class MaterializedCases:
     index_path: Path
     case_count: int
 
 
-def materialize_case_workspaces(cfg: ExperimentConfig, *, run_root: Path, force: bool = False) -> MaterializedWorkspace:
-    workspace_root = run_root / "workspace"
-    index_path = workspace_root / "index.json"
-    if force and workspace_root.exists():
-        for path in sorted(workspace_root.rglob("*"), reverse=True):
+def materialize_cases(cfg: ExperimentConfig, *, run_root: Path, force: bool = False) -> MaterializedCases:
+    cases_root = run_root / "cases"
+    index_path = cases_root / "index.json"
+    if force and cases_root.exists():
+        for path in sorted(cases_root.rglob("*"), reverse=True):
             if path.is_file():
                 path.unlink()
             elif path.is_dir():
                 path.rmdir()
-    ensure_dir(workspace_root)
+    ensure_dir(cases_root)
 
-    cases = _build_cases(cfg, run_root=run_root)
+    rows = _build_cases(cfg, run_root=run_root)
     dynamic_by_patient = _load_dynamic_by_patient(cfg)
-    static_by_patient = _load_static_by_patient(cfg) if cfg.workspace.include_static else {}
-    case_records: list[dict[str, Any]] = []
+    static_by_patient = _load_static_by_patient(cfg) if cfg.cases.include_static else {}
+    index_rows: list[dict[str, Any]] = []
 
-    for case in cases:
-        case_id = str(case["case_id"])
-        case_dir = ensure_dir(workspace_root / "cases" / _case_dir_name(case_id))
-        case_payload = dict(case)
-        patient_id = str(case["patient_id"])
-        anchor_time = _optional_timestamp(case.get("bin_time"))
+    for row in rows:
+        case_id = str(row["case_id"])
+        case_dir = ensure_dir(cases_root / _case_dir_name(case_id))
+        case_payload = dict(row)
+        patient_id = str(row["patient_id"])
+        anchor_time = _optional_timestamp(row.get("bin_time"))
         events = select_events(
             dynamic=dynamic_by_patient.get(patient_id),
             anchor_time=anchor_time,
-            history_window=cfg.workspace.history_window,
-            max_events=cfg.workspace.max_events,
-            time_order=cfg.workspace.time_order,
+            history_window=cfg.cases.history_window,
+            max_events=cfg.cases.max_events,
+            time_order=cfg.cases.time_order,
         )
         static_row = static_by_patient.get(patient_id)
-        predictions = _collect_case_predictions(run_root=run_root, case=case)
+        predictions = _collect_case_predictions(run_root=run_root, case=row)
         analysis_refs = (
             _collect_analysis_refs(run_root=run_root, patient_id=patient_id)
-            if cfg.workspace.include_analysis_refs
+            if cfg.cases.include_analysis_refs
             else {"modules": [], "patient_case_matches": []}
         )
 
+        case_path = case_dir / "case.json"
         events_path = case_dir / "events.csv"
         static_path = case_dir / "static.json"
-        preds_path = case_dir / "predictions.csv"
+        predictions_path = case_dir / "predictions.csv"
         refs_path = case_dir / "analysis_refs.json"
-        workspace_path = case_dir / "workspace.json"
 
         if events.empty:
             pd.DataFrame(columns=["patient_id", "event_time", "code", "value"]).to_csv(events_path, index=False)
@@ -77,8 +77,8 @@ def materialize_case_workspaces(cfg: ExperimentConfig, *, run_root: Path, force:
         if predictions.empty:
             pd.DataFrame(
                 columns=[
-                    "source",
-                    "model_name",
+                    "origin",
+                    "predictor_name",
                     "split",
                     "patient_id",
                     "prediction",
@@ -90,16 +90,16 @@ def materialize_case_workspaces(cfg: ExperimentConfig, *, run_root: Path, force:
                     "error_code",
                     "ground_truth",
                 ]
-            ).to_csv(preds_path, index=False)
+            ).to_csv(predictions_path, index=False)
         else:
-            predictions.to_csv(preds_path, index=False)
+            predictions.to_csv(predictions_path, index=False)
         write_json(refs_path, analysis_refs)
 
         case_payload["artifacts"] = {
-            "workspace_json": str(workspace_path.relative_to(run_root)),
+            "case_json": str(case_path.relative_to(run_root)),
             "events_csv": str(events_path.relative_to(run_root)),
             "static_json": str(static_path.relative_to(run_root)),
-            "predictions_csv": str(preds_path.relative_to(run_root)),
+            "predictions_csv": str(predictions_path.relative_to(run_root)),
             "analysis_refs_json": str(refs_path.relative_to(run_root)),
         }
         case_payload["evidence"] = {
@@ -110,17 +110,17 @@ def materialize_case_workspaces(cfg: ExperimentConfig, *, run_root: Path, force:
             "analysis_module_count": int(len(analysis_refs.get("modules", []))),
             "patient_case_match_count": int(len(analysis_refs.get("patient_case_matches", []))),
         }
-        write_json(workspace_path, as_jsonable(case_payload))
+        write_json(case_path, as_jsonable(case_payload))
 
-        case_records.append(
+        index_rows.append(
             {
                 "case_id": case_id,
                 "patient_id": patient_id,
-                "split": str(case["split"]),
-                "prediction_mode": str(case["prediction_mode"]),
+                "split": str(row["split"]),
+                "prediction_mode": str(row["prediction_mode"]),
                 "bin_time": None if anchor_time is None else anchor_time.isoformat(),
-                "ground_truth": case.get("ground_truth"),
-                "workspace_path": str(workspace_path.relative_to(run_root)),
+                "ground_truth": row.get("ground_truth"),
+                "case_path": str(case_path.relative_to(run_root)),
                 "event_count": int(len(events)),
                 "prediction_count": int(len(predictions)),
             }
@@ -131,22 +131,22 @@ def materialize_case_workspaces(cfg: ExperimentConfig, *, run_root: Path, force:
         {
             "schema_version": 1,
             "run_dir": str(run_root),
-            "case_count": int(len(case_records)),
-            "records": case_records,
+            "case_count": int(len(index_rows)),
+            "records": index_rows,
         },
     )
-    return MaterializedWorkspace(index_path=index_path, case_count=len(case_records))
+    return MaterializedCases(index_path=index_path, case_count=len(index_rows))
 
 
-def read_workspace_index(run_root: str | Path) -> dict[str, Any]:
-    path = Path(run_root) / "workspace" / "index.json"
+def read_cases_index(run_root: str | Path) -> dict[str, Any]:
+    path = Path(run_root) / "cases" / "index.json"
     if not path.exists():
-        raise FileNotFoundError(f"Missing workspace index: {path}. Run `oneehr workspace` first.")
+        raise FileNotFoundError(f"Missing cases index: {path}. Run `oneehr cases build` first.")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def list_workspace_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
-    records = read_workspace_index(run_root).get("records", [])
+def list_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
+    records = read_cases_index(run_root).get("records", [])
     if not isinstance(records, list):
         return []
     rows = [row for row in records if isinstance(row, dict)]
@@ -155,15 +155,15 @@ def list_workspace_cases(run_root: str | Path, *, limit: int | None = None) -> l
     return rows
 
 
-def read_workspace_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
+def read_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
     run_root = Path(run_root)
-    records = list_workspace_cases(run_root)
+    records = list_cases(run_root)
     match = next((row for row in records if str(row.get("case_id")) == str(case_id)), None)
     if match is None:
-        raise FileNotFoundError(f"Unknown workspace case_id {case_id!r} under {run_root}")
+        raise FileNotFoundError(f"Unknown case_id {case_id!r} under {run_root}")
 
-    workspace_path = run_root / str(match["workspace_path"])
-    payload = json.loads(workspace_path.read_text(encoding="utf-8"))
+    case_path = run_root / str(match["case_path"])
+    payload = json.loads(case_path.read_text(encoding="utf-8"))
     artifacts = payload.get("artifacts", {})
     events = pd.read_csv(run_root / str(artifacts["events_csv"])) if artifacts.get("events_csv") else pd.DataFrame()
     predictions = (
@@ -202,13 +202,25 @@ def _build_cases(cfg: ExperimentConfig, *, run_root: Path) -> list[dict[str, Any
     static = load_static_table(train_dataset.static)
 
     if cfg.task.prediction_mode == "patient":
-        cases = _build_patient_cases(splits=splits, labels_df=labels_df, dynamic=dynamic, static=static, task_kind=cfg.task.kind)
+        rows = _build_patient_cases(
+            splits=splits,
+            labels_df=labels_df,
+            dynamic=dynamic,
+            static=static,
+            task_kind=cfg.task.kind,
+        )
     else:
-        cases = _build_time_cases(splits=splits, labels_df=labels_df, dynamic=dynamic, static=static, task_kind=cfg.task.kind)
+        rows = _build_time_cases(
+            splits=splits,
+            labels_df=labels_df,
+            dynamic=dynamic,
+            static=static,
+            task_kind=cfg.task.kind,
+        )
 
-    if cfg.workspace.case_limit is not None:
-        cases = cases[: int(cfg.workspace.case_limit)]
-    return cases
+    if cfg.cases.case_limit is not None:
+        rows = rows[: int(cfg.cases.case_limit)]
+    return rows
 
 
 def _ensure_case_splits(cfg: ExperimentConfig, *, run_root: Path) -> list[Split]:
@@ -225,7 +237,7 @@ def _ensure_case_splits(cfg: ExperimentConfig, *, run_root: Path) -> list[Split]
     elif static is not None:
         patient_index = make_patient_index_from_static(static, patient_id_col="patient_id")
     else:
-        raise SystemExit("dataset.dynamic or dataset.static is required to materialize workspace splits.")
+        raise SystemExit("dataset.dynamic or dataset.static is required to materialize case splits.")
 
     splits = make_splits(patient_index, cfg.split)
     if cfg.trainer.repeat > 1:
@@ -267,10 +279,10 @@ def _build_patient_cases(
         grouped = tmp.groupby("patient_id", sort=False)
         dyn_stats = {
             str(pid): {
-                "first_event_time": pd.to_datetime(grp["event_time"]).min(),
-                "last_event_time": pd.to_datetime(grp["event_time"]).max(),
+                "first_event_time": pd.to_datetime(group["event_time"]).min(),
+                "last_event_time": pd.to_datetime(group["event_time"]).max(),
             }
-            for pid, grp in grouped
+            for pid, group in grouped
         }
 
     static_ids = set()
@@ -295,8 +307,7 @@ def _build_patient_cases(
                     "has_static": patient_id in static_ids,
                 }
             )
-    rows = sorted(rows, key=lambda row: (str(row["split"]), str(row["patient_id"])))
-    return rows
+    return sorted(rows, key=lambda row: (str(row["split"]), str(row["patient_id"])))
 
 
 def _build_time_cases(
@@ -308,9 +319,9 @@ def _build_time_cases(
     task_kind: str,
 ) -> list[dict[str, Any]]:
     if dynamic is None or dynamic.empty:
-        raise SystemExit("Workspace time-window cases require dataset.dynamic.")
+        raise SystemExit("Time-window cases require dataset.dynamic.")
     if labels_df is None or labels_df.empty:
-        raise SystemExit("Workspace time-window cases require labels.parquet.")
+        raise SystemExit("Time-window cases require labels.parquet.")
 
     static_ids = set()
     if static is not None and not static.empty:
@@ -355,8 +366,8 @@ def _load_dynamic_by_patient(cfg: ExperimentConfig) -> dict[str, pd.DataFrame]:
     tmp["patient_id"] = tmp["patient_id"].astype(str)
     tmp["event_time"] = pd.to_datetime(tmp["event_time"], errors="raise")
     return {
-        str(pid): grp.sort_values("event_time", kind="stable").reset_index(drop=True)
-        for pid, grp in tmp.groupby("patient_id", sort=False)
+        str(pid): group.sort_values("event_time", kind="stable").reset_index(drop=True)
+        for pid, group in tmp.groupby("patient_id", sort=False)
     }
 
 
@@ -379,9 +390,9 @@ def _collect_case_predictions(*, run_root: Path, case: dict[str, Any]) -> pd.Dat
     bin_time = _optional_timestamp(case.get("bin_time"))
     frames: list[pd.DataFrame] = []
 
-    train_preds_root = run_root / "preds"
-    if train_preds_root.exists():
-        for model_dir in sorted(train_preds_root.iterdir(), key=lambda p: p.name):
+    model_preds_root = run_root / "preds"
+    if model_preds_root.exists():
+        for model_dir in sorted(model_preds_root.iterdir(), key=lambda p: p.name):
             if not model_dir.is_dir():
                 continue
             path = model_dir / f"{split}.parquet"
@@ -401,8 +412,8 @@ def _collect_case_predictions(*, run_root: Path, case: dict[str, Any]) -> pd.Dat
                 continue
             if block.empty:
                 continue
-            block["source"] = "train"
-            block["model_name"] = model_dir.name
+            block["origin"] = "model"
+            block["predictor_name"] = model_dir.name
             block["split"] = split
             block["prediction"] = block.get("y_pred")
             block["probability"] = block.get("y_pred")
@@ -413,8 +424,8 @@ def _collect_case_predictions(*, run_root: Path, case: dict[str, Any]) -> pd.Dat
             block["error_code"] = None
             block["ground_truth"] = block.get("y_true")
             keep = [
-                "source",
-                "model_name",
+                "origin",
+                "predictor_name",
                 "split",
                 "patient_id",
                 "prediction",
@@ -430,9 +441,9 @@ def _collect_case_predictions(*, run_root: Path, case: dict[str, Any]) -> pd.Dat
                 keep.insert(4, "bin_time")
             frames.append(block[keep])
 
-    llm_preds_root = run_root / "llm" / "preds"
-    if llm_preds_root.exists():
-        for model_dir in sorted(llm_preds_root.iterdir(), key=lambda p: p.name):
+    agent_preds_root = run_root / "agent" / "predict" / "preds"
+    if agent_preds_root.exists():
+        for model_dir in sorted(agent_preds_root.iterdir(), key=lambda p: p.name):
             if not model_dir.is_dir():
                 continue
             path = model_dir / f"{split}.parquet"
@@ -452,11 +463,11 @@ def _collect_case_predictions(*, run_root: Path, case: dict[str, Any]) -> pd.Dat
                 continue
             if block.empty:
                 continue
-            block["source"] = "llm"
-            block["model_name"] = model_dir.name
+            block["origin"] = "agent"
+            block["predictor_name"] = model_dir.name
             keep = [
-                "source",
-                "model_name",
+                "origin",
+                "predictor_name",
                 "split",
                 "patient_id",
                 "prediction",
@@ -477,18 +488,20 @@ def _collect_case_predictions(*, run_root: Path, case: dict[str, Any]) -> pd.Dat
     out = pd.concat(frames, ignore_index=True)
     if "bin_time" in out.columns:
         out["bin_time"] = pd.to_datetime(out["bin_time"], errors="coerce")
-    return out.sort_values([col for col in ("source", "model_name", "patient_id", "bin_time") if col in out.columns], kind="stable").reset_index(drop=True)
+    return out.sort_values(
+        [col for col in ("origin", "predictor_name", "patient_id", "bin_time") if col in out.columns],
+        kind="stable",
+    ).reset_index(drop=True)
 
 
 def _collect_analysis_refs(*, run_root: Path, patient_id: str) -> dict[str, Any]:
-    index: dict[str, Any] | None = None
     try:
         index = read_analysis_index(run_root)
     except FileNotFoundError:
         index = {"modules": []}
 
     matches: list[dict[str, Any]] = []
-    for module_name in ("prediction_audit", "llm_audit"):
+    for module_name in ("prediction_audit", "agent_audit"):
         try:
             desc = describe_patient_case(run_root, patient_id, module_name=module_name)
         except FileNotFoundError:
@@ -503,6 +516,7 @@ def _collect_analysis_refs(*, run_root: Path, patient_id: str) -> dict[str, Any]
                         "record": item,
                     }
                 )
+
     return {
         "modules": list(index.get("modules", [])) if isinstance(index, dict) else [],
         "patient_case_matches": matches,

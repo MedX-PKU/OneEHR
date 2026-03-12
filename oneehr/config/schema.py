@@ -147,7 +147,7 @@ class HPOConfig:
 
 
 @dataclass(frozen=True)
-class LLMPromptConfig:
+class AgentPredictPromptConfig:
     include_static: bool = True
     include_labels_context: bool = False
     history_window: str | None = None
@@ -165,13 +165,25 @@ class LLMPromptConfig:
 
 
 @dataclass(frozen=True)
-class LLMOutputConfig:
+class AgentPredictOutputConfig:
     include_explanation: bool = True
     include_confidence: bool = False
 
 
 @dataclass(frozen=True)
-class LLMConfig:
+class AgentBackendConfig:
+    name: str
+    provider: str = "openai_compatible"
+    base_url: str = "https://api.openai.com/v1"
+    model: str = ""
+    api_key_env: str = "OPENAI_API_KEY"
+    system_prompt: str | None = None
+    supports_json_schema: bool = True
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AgentPredictConfig:
     enabled: bool = False
     sample_unit: str = "patient"  # patient | time
     prompt_template: str = "summary_v1"
@@ -186,12 +198,13 @@ class LLMConfig:
     temperature: float = 0.0
     top_p: float = 1.0
     seed: int | None = None
-    prompt: LLMPromptConfig = field(default_factory=LLMPromptConfig)
-    output: LLMOutputConfig = field(default_factory=LLMOutputConfig)
+    prompt: AgentPredictPromptConfig = field(default_factory=AgentPredictPromptConfig)
+    output: AgentPredictOutputConfig = field(default_factory=AgentPredictOutputConfig)
+    backends: list[AgentBackendConfig] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
-class WorkspaceConfig:
+class CasesConfig:
     include_static: bool = True
     include_analysis_refs: bool = True
     history_window: str | None = None
@@ -201,7 +214,7 @@ class WorkspaceConfig:
 
 
 @dataclass(frozen=True)
-class ReviewPromptConfig:
+class AgentReviewPromptConfig:
     include_static: bool = True
     include_ground_truth: bool = True
     include_analysis_context: bool = True
@@ -221,11 +234,11 @@ class ReviewPromptConfig:
 
 
 @dataclass(frozen=True)
-class ReviewConfig:
+class AgentReviewConfig:
     enabled: bool = False
     prompt_template: str = "evidence_review_v1"
     json_schema_version: int = 1
-    prediction_sources: list[str] = field(default_factory=lambda: ["train", "llm"])
+    prediction_origins: list[str] = field(default_factory=lambda: ["model", "agent"])
     max_cases: int | None = None
     save_prompts: bool = True
     save_responses: bool = True
@@ -236,7 +249,14 @@ class ReviewConfig:
     temperature: float = 0.0
     top_p: float = 1.0
     seed: int | None = None
-    prompt: ReviewPromptConfig = field(default_factory=ReviewPromptConfig)
+    prompt: AgentReviewPromptConfig = field(default_factory=AgentReviewPromptConfig)
+    backends: list[AgentBackendConfig] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AgentConfig:
+    predict: AgentPredictConfig = field(default_factory=AgentPredictConfig)
+    review: AgentReviewConfig = field(default_factory=AgentReviewConfig)
 
 
 @dataclass(frozen=True)
@@ -248,27 +268,14 @@ class AnalysisConfig:
             "prediction_audit",
             "temporal_analysis",
             "interpretability",
-            "llm_audit",
+            "agent_audit",
         ]
     )
-    formats: list[str] = field(default_factory=lambda: ["json", "csv", "md", "html"])
     top_k: int = 20
     stratify_by: list[str] = field(default_factory=list)
     case_limit: int = 50
     save_plot_specs: bool = True
     shap_max_samples: int = 500
-
-
-@dataclass(frozen=True)
-class LLMModelConfig:
-    name: str
-    provider: str = "openai_compatible"
-    base_url: str = "https://api.openai.com/v1"
-    model: str = ""
-    api_key_env: str = "OPENAI_API_KEY"
-    system_prompt: str | None = None
-    supports_json_schema: bool = True
-    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -453,11 +460,8 @@ class ExperimentConfig:
     hpo_by_model: dict[str, HPOConfig] = field(default_factory=dict)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
-    llm: LLMConfig = field(default_factory=LLMConfig)
-    llm_models: list[LLMModelConfig] = field(default_factory=list)
-    workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
-    review: ReviewConfig = field(default_factory=ReviewConfig)
-    review_models: list[LLMModelConfig] = field(default_factory=list)
+    cases: CasesConfig = field(default_factory=CasesConfig)
+    agent: AgentConfig = field(default_factory=AgentConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     # Internal: runtime-derived static feature dimension for models that support
     # a dedicated static branch (e.g., MCGRU, DrAgent). This is populated by the

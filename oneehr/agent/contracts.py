@@ -5,8 +5,8 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class LLMRequestSpec:
-    model_name: str
+class AgentRequestSpec:
+    backend_name: str
     provider_model: str
     base_url: str
     api_key_env: str
@@ -22,7 +22,7 @@ class LLMRequestSpec:
 
 
 @dataclass(frozen=True)
-class LLMResponse:
+class AgentResponse:
     raw_text: str
     response_json: dict[str, Any]
     latency_ms: int
@@ -42,4 +42,3 @@ class ParsedPrediction:
     error_code: str | None = None
     error_message: str | None = None
     raw_json: dict[str, Any] | None = None
-

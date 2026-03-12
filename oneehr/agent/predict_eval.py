@@ -26,7 +26,7 @@ def summarize_prediction_rows(df: pd.DataFrame, *, task_kind: str) -> dict[str, 
             y_pred = scored["prediction"].to_numpy(dtype=float)
             metrics = dict(regression_metrics(y_true, y_pred).metrics)
         else:
-            raise ValueError(f"Unsupported llm task kind: {task_kind!r}")
+            raise ValueError(f"Unsupported agent task kind: {task_kind!r}")
 
     token_cols = [
         "token_usage_prompt",
@@ -49,4 +49,3 @@ def summarize_prediction_rows(df: pd.DataFrame, *, task_kind: str) -> dict[str, 
         "metrics": metrics,
         **perf,
     }
-

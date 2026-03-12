@@ -17,20 +17,20 @@ from oneehr.analysis.read import (
     read_failure_cases as _read_failure_cases,
 )
 from oneehr.artifacts.read import read_run_manifest
-from oneehr.agent.primitives import (
+from oneehr.cases.bundle import (
+    list_cases as _list_cases,
+    read_case as _read_case,
+    read_cases_index as _read_cases_index,
+)
+from oneehr.query.primitives import (
     collect_case_evidence as _collect_case_evidence,
     get_case_predictions as _get_case_predictions,
-    get_patient_static as _get_patient_static,
-    get_patient_timeline as _get_patient_timeline,
+    get_case_static as _get_case_static,
+    get_case_timeline as _get_case_timeline,
     render_case_prompt as _render_case_prompt,
 )
-from oneehr.agent.workspace import (
-    list_workspace_cases as _list_workspace_cases,
-    read_workspace_case as _read_workspace_case,
-    read_workspace_index as _read_workspace_index,
-)
-from oneehr.llm.templates import describe_prompt_template as _describe_prompt_template
-from oneehr.llm.templates import list_prompt_templates as _list_prompt_templates
+from oneehr.agent.templates import describe_prompt_template as _describe_prompt_template
+from oneehr.agent.templates import list_prompt_templates as _list_prompt_templates
 
 
 def list_runs(root: str | Path) -> list[dict[str, Any]]:
@@ -53,9 +53,9 @@ def list_runs(root: str | Path) -> list[dict[str, Any]]:
                 "split": dict((manifest.data.get("split") or {})),
                 "has_train_summary": bool((path / "summary.json").exists()),
                 "has_analysis_index": bool((path / "analysis" / "index.json").exists()),
-                "has_llm_summary": bool((path / "llm" / "summary.json").exists()),
-                "has_workspace_index": bool((path / "workspace" / "index.json").exists()),
-                "has_review_summary": bool((path / "review" / "summary.json").exists()),
+                "has_cases_index": bool((path / "cases" / "index.json").exists()),
+                "has_agent_predict_summary": bool((path / "agent" / "predict" / "summary.json").exists()),
+                "has_agent_review_summary": bool((path / "agent" / "review" / "summary.json").exists()),
                 "mtime_unix": float(path.stat().st_mtime),
             }
         )
@@ -70,39 +70,49 @@ def describe_prompt_template(name: str) -> dict[str, Any]:
     return _describe_prompt_template(name)
 
 
-def read_review_summary(run_root: str | Path) -> dict[str, Any]:
-    return _read_json(Path(run_root) / "review" / "summary.json")
+def read_agent_predict_summary(run_root: str | Path) -> dict[str, Any]:
+    return _read_json(Path(run_root) / "agent" / "predict" / "summary.json")
 
 
-def read_workspace_index(run_root: str | Path) -> dict[str, Any]:
-    return _read_workspace_index(run_root)
+def read_agent_review_summary(run_root: str | Path) -> dict[str, Any]:
+    return _read_json(Path(run_root) / "agent" / "review" / "summary.json")
 
 
-def list_workspace_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
-    return _list_workspace_cases(run_root, limit=limit)
+def read_cases_index(run_root: str | Path) -> dict[str, Any]:
+    return _read_cases_index(run_root)
 
 
-def read_workspace_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    return _read_workspace_case(run_root, case_id, limit=limit)
+def list_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
+    return _list_cases(run_root, limit=limit)
 
 
-def get_patient_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    return _get_patient_timeline(run_root, case_id, limit=limit)
+def read_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
+    return _read_case(run_root, case_id, limit=limit)
 
 
-def get_patient_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
-    return _get_patient_static(run_root, case_id)
+def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
+    return _get_case_timeline(run_root, case_id, limit=limit)
+
+
+def get_case_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
+    return _get_case_static(run_root, case_id)
 
 
 def get_case_predictions(
     run_root: str | Path,
     case_id: str,
     *,
-    source: str | None = None,
-    model_name: str | None = None,
+    origin: str | None = None,
+    predictor_name: str | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    return _get_case_predictions(run_root, case_id, source=source, model_name=model_name, limit=limit)
+    return _get_case_predictions(
+        run_root,
+        case_id,
+        origin=origin,
+        predictor_name=predictor_name,
+        limit=limit,
+    )
 
 
 def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
@@ -115,16 +125,16 @@ def render_case_prompt(
     run_root: str | Path,
     case_id: str,
     template_name: str | None = None,
-    source: str | None = None,
-    model_name: str | None = None,
+    origin: str | None = None,
+    predictor_name: str | None = None,
 ) -> dict[str, Any]:
     return _render_case_prompt(
         cfg=cfg,
         run_root=run_root,
         case_id=case_id,
         template_name=template_name,
-        source=source,
-        model_name=model_name,
+        origin=origin,
+        predictor_name=predictor_name,
     )
 
 
@@ -135,13 +145,13 @@ def describe_run(run_root: str | Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Missing run_manifest.json under {run_root}")
 
     train_summary = _read_json(run_root / "summary.json")
-    llm_summary = _read_json(run_root / "llm" / "summary.json")
-    review_summary = _read_json(run_root / "review" / "summary.json")
+    agent_predict_summary = _read_json(run_root / "agent" / "predict" / "summary.json")
+    agent_review_summary = _read_json(run_root / "agent" / "review" / "summary.json")
     analysis_index = _read_json(run_root / "analysis" / "index.json")
 
     train_records = _ensure_records(train_summary)
-    llm_records = _ensure_records(llm_summary)
-    review_records = _ensure_records(review_summary)
+    agent_predict_records = _ensure_records(agent_predict_summary)
+    agent_review_records = _ensure_records(agent_review_summary)
     modules = []
     if isinstance(analysis_index.get("modules"), list):
         modules = [
@@ -161,8 +171,8 @@ def describe_run(run_root: str | Path) -> dict[str, Any]:
             "schema_version": int(manifest.schema_version),
             "task": dict((manifest.data.get("task") or {})),
             "split": dict((manifest.data.get("split") or {})),
-            "llm": dict((manifest.data.get("llm") or {})),
-            "workspace": dict((manifest.data.get("workspace") or {})),
+            "cases": dict((manifest.data.get("cases") or {})),
+            "agent": dict((manifest.data.get("agent") or {})),
         },
         "training": {
             "record_count": int(len(train_records)),
@@ -175,22 +185,40 @@ def describe_run(run_root: str | Path) -> dict[str, Any]:
             "modules": modules,
             "index_path": None if not analysis_index else str((run_root / "analysis" / "index.json").relative_to(run_root)),
         },
-        "llm": {
-            "record_count": int(len(llm_records)),
-            "models": sorted({str(rec.get("llm_model")) for rec in llm_records if rec.get("llm_model") is not None}),
-            "summary_path": None if not llm_summary else str((run_root / "llm" / "summary.json").relative_to(run_root)),
+        "cases": {
+            "case_count": int((read_cases_index(run_root).get("case_count", 0)) if (run_root / "cases" / "index.json").exists() else 0),
+            "index_path": None
+            if not (run_root / "cases" / "index.json").exists()
+            else str((run_root / "cases" / "index.json").relative_to(run_root)),
         },
-        "review": {
-            "record_count": int(len(review_records)),
-            "models": sorted({str(rec.get("review_model")) for rec in review_records if rec.get("review_model") is not None}),
-            "summary_path": None if not review_summary else str((run_root / "review" / "summary.json").relative_to(run_root)),
+        "agent_predict": {
+            "record_count": int(len(agent_predict_records)),
+            "predictors": sorted(
+                {
+                    str(rec.get("predictor_name"))
+                    for rec in agent_predict_records
+                    if rec.get("predictor_name") is not None
+                }
+            ),
+            "summary_path": None
+            if not agent_predict_summary
+            else str((run_root / "agent" / "predict" / "summary.json").relative_to(run_root)),
+        },
+        "agent_review": {
+            "record_count": int(len(agent_review_records)),
+            "reviewers": sorted(
+                {str(rec.get("reviewer_name")) for rec in agent_review_records if rec.get("reviewer_name") is not None}
+            ),
+            "summary_path": None
+            if not agent_review_summary
+            else str((run_root / "agent" / "review" / "summary.json").relative_to(run_root)),
         },
         "artifacts": {
             "has_models_dir": bool((run_root / "models").exists()),
             "has_preds_dir": bool((run_root / "preds").exists()),
             "has_splits_dir": bool((run_root / "splits").exists()),
-            "has_workspace_dir": bool((run_root / "workspace").exists()),
-            "has_review_dir": bool((run_root / "review").exists()),
+            "has_cases_dir": bool((run_root / "cases").exists()),
+            "has_agent_dir": bool((run_root / "agent").exists()),
         },
     }
 

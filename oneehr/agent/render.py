@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from oneehr.config.schema import ExperimentConfig
-from oneehr.llm.templates import get_prompt_template
+from oneehr.agent.templates import get_prompt_template
 
 
 def render_prompt(
@@ -18,7 +18,7 @@ def render_prompt(
     target_prediction: dict[str, object] | None = None,
     analysis_refs: dict[str, object] | None = None,
 ) -> str:
-    name = str(template_name or cfg.llm.prompt_template)
+    name = str(template_name or cfg.agent.predict.prompt_template)
     spec = get_prompt_template(name)
     renderer = spec.renderer
     if renderer is None:  # pragma: no cover
