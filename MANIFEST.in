@@ -1,1 +1,4 @@
 prune logs
+graft webui
+prune webui/node_modules
+prune webui/dist
