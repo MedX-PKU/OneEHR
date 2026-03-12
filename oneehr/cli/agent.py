@@ -1,27 +1,23 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import shutil
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from oneehr.agent import (
-    AgentClientError,
     AgentRequestSpec,
     OpenAICompatibleAgentClient,
     render_prompt,
     safe_case_slug,
-    validate_agent_review_setup,
 )
+from oneehr.agent.cases import build_case_context, select_case_predictions
 from oneehr.agent.instances import (
     agent_instance_path,
     materialize_agent_instances,
-    validate_agent_predict_setup,
 )
 from oneehr.agent.predict_eval import summarize_prediction_rows
 from oneehr.agent.predict_schema import (
@@ -29,12 +25,14 @@ from oneehr.agent.predict_schema import (
     parse_prediction_response,
     schema_prompt_text,
 )
+from oneehr.agent.runtime import execute_agent_request, run_jobs
 from oneehr.agent.review_eval import summarize_review_rows
 from oneehr.agent.review_schema import (
     build_review_response_format,
     parse_review_response,
     review_schema_prompt_text,
 )
+from oneehr.agent.validation import validate_agent_predict_setup, validate_agent_review_setup
 from oneehr.cases import list_cases, materialize_cases, read_case
 from oneehr.cli._common import resolve_run_root
 from oneehr.utils.io import ensure_dir, write_json, write_jsonl
@@ -472,47 +470,25 @@ def _run_predict_backend(
     )
 
     jobs = instances.to_dict(orient="records")
-    if cfg.agent.predict.concurrency <= 1:
-        rows = [
-            _predict_one(
-                cfg=cfg,
-                instance=job,
-                predictor_name=predictor_name,
-                provider_model=provider_model,
-                client=client,
-                dynamic_by_patient=dynamic_by_patient,
-                static_by_patient=static_by_patient,
-                schema_text=schema_text,
-                response_format=response_format,
-                base_url=base_url,
-                api_key_env=api_key_env,
-                system_prompt=system_prompt,
-                headers=headers,
-            )
-            for job in jobs
-        ]
-    else:
-        with ThreadPoolExecutor(max_workers=int(cfg.agent.predict.concurrency)) as ex:
-            rows = list(
-                ex.map(
-                    lambda job: _predict_one(
-                        cfg=cfg,
-                        instance=job,
-                        predictor_name=predictor_name,
-                        provider_model=provider_model,
-                        client=client,
-                        dynamic_by_patient=dynamic_by_patient,
-                        static_by_patient=static_by_patient,
-                        schema_text=schema_text,
-                        response_format=response_format,
-                        base_url=base_url,
-                        api_key_env=api_key_env,
-                        system_prompt=system_prompt,
-                        headers=headers,
-                    ),
-                    jobs,
-                )
-            )
+    rows = run_jobs(
+        jobs,
+        worker=lambda job: _predict_one(
+            cfg=cfg,
+            instance=job,
+            predictor_name=predictor_name,
+            provider_model=provider_model,
+            client=client,
+            dynamic_by_patient=dynamic_by_patient,
+            static_by_patient=static_by_patient,
+            schema_text=schema_text,
+            response_format=response_format,
+            base_url=base_url,
+            api_key_env=api_key_env,
+            system_prompt=system_prompt,
+            headers=headers,
+        ),
+        concurrency=int(cfg.agent.predict.concurrency),
+    )
     return pd.DataFrame(rows)
 
 
@@ -542,7 +518,6 @@ def _predict_one(
         static_row=static_row,
         schema_text=schema_text,
     )
-    prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
     request = AgentRequestSpec(
         backend_name=predictor_name,
@@ -559,41 +534,17 @@ def _predict_one(
         seed=cfg.agent.predict.seed,
         extra_headers=dict(headers),
     )
-
-    raw_text = ""
-    latency_ms = None
-    usage_prompt = None
-    usage_completion = None
-    usage_total = None
-    error_code = None
-    error_message = None
-    try:
-        response = client.complete(request)
-        raw_text = response.raw_text
-        latency_ms = response.latency_ms
-        usage_prompt = response.usage_prompt_tokens
-        usage_completion = response.usage_completion_tokens
-        usage_total = response.usage_total_tokens
-        parsed = parse_prediction_response(
+    execution = execute_agent_request(
+        client=client,
+        request=request,
+        parse_response=lambda raw_text: parse_prediction_response(
             raw_text,
             task_kind=cfg.task.kind,
             include_explanation=cfg.agent.predict.output.include_explanation,
             include_confidence=cfg.agent.predict.output.include_confidence,
-        )
-    except AgentClientError as exc:
-        error_code = exc.code
-        error_message = exc.message
-        raw_text = exc.response_text or ""
-        parsed = (
-            parse_prediction_response(
-                raw_text,
-                task_kind=cfg.task.kind,
-                include_explanation=cfg.agent.predict.output.include_explanation,
-                include_confidence=cfg.agent.predict.output.include_confidence,
-            )
-            if raw_text
-            else None
-        )
+        ),
+    )
+    parsed = execution.parsed
 
     if parsed is None:
         parsed_ok = False
@@ -602,9 +553,6 @@ def _predict_one(
         value = None
         explanation = None
         confidence = None
-        if error_code is None:
-            error_code = "request_failed"
-            error_message = "request failed before a response was returned"
     else:
         parsed_ok = parsed.parsed_ok
         prediction = parsed.prediction
@@ -612,11 +560,7 @@ def _predict_one(
         value = parsed.value
         explanation = parsed.explanation
         confidence = parsed.confidence
-        if not parsed.parsed_ok and error_code is None:
-            error_code = parsed.error_code
-            error_message = parsed.error_message
 
-    response_sha256 = hashlib.sha256(raw_text.encode("utf-8")).hexdigest() if raw_text else None
     row = {
         "instance_id": instance["instance_id"],
         "patient_id": patient_id,
@@ -629,22 +573,24 @@ def _predict_one(
         "value": value,
         "explanation": explanation,
         "confidence": confidence,
-        "prompt": prompt,
-        "prompt_sha256": prompt_sha256,
-        "raw_response": raw_text,
-        "response_sha256": response_sha256,
-        "token_usage_prompt": usage_prompt,
-        "token_usage_completion": usage_completion,
-        "token_usage_total": usage_total,
-        "latency_ms": latency_ms,
-        "error_code": error_code,
-        "error_message": error_message,
+        "prompt": request.prompt,
+        "prompt_sha256": execution.prompt_sha256,
+        "raw_response": execution.raw_response,
+        "response_sha256": execution.response_sha256,
+        "token_usage_prompt": execution.token_usage_prompt,
+        "token_usage_completion": execution.token_usage_completion,
+        "token_usage_total": execution.token_usage_total,
+        "latency_ms": execution.latency_ms,
+        "error_code": execution.error_code,
+        "error_message": execution.error_message,
         "predictor_name": predictor_name,
         "provider_model": provider_model,
     }
     if "bin_time" in instance:
         row["bin_time"] = pd.to_datetime(instance["bin_time"], errors="raise")
     return row
+
+
 def _run_review_backend(
     *,
     cfg,
@@ -663,33 +609,18 @@ def _run_review_backend(
     if not jobs:
         return pd.DataFrame()
 
-    if cfg.agent.review.concurrency <= 1:
-        rows = [
-            _review_one(
-                cfg=cfg,
-                job=job,
-                reviewer=reviewer,
-                client=client,
-                schema_text=schema_text,
-                response_format=response_format,
-            )
-            for job in jobs
-        ]
-    else:
-        with ThreadPoolExecutor(max_workers=int(cfg.agent.review.concurrency)) as ex:
-            rows = list(
-                ex.map(
-                    lambda job: _review_one(
-                        cfg=cfg,
-                        job=job,
-                        reviewer=reviewer,
-                        client=client,
-                        schema_text=schema_text,
-                        response_format=response_format,
-                    ),
-                    jobs,
-                )
-            )
+    rows = run_jobs(
+        jobs,
+        worker=lambda job: _review_one(
+            cfg=cfg,
+            job=job,
+            reviewer=reviewer,
+            client=client,
+            schema_text=schema_text,
+            response_format=response_format,
+        ),
+        concurrency=int(cfg.agent.review.concurrency),
+    )
     return pd.DataFrame(rows)
 
 
@@ -703,10 +634,7 @@ def _build_review_jobs(
     for summary in case_summaries:
         case_id = str(summary["case_id"])
         case = read_case(run_root, case_id)
-        preds = pd.DataFrame(case.get("predictions", []))
-        if preds.empty:
-            continue
-        preds = preds[preds["origin"].astype(str).isin(sorted(allowed_origins))].copy()
+        preds = select_case_predictions(case, allowed_origins=allowed_origins)
         if preds.empty:
             continue
         for _, pred in preds.iterrows():
@@ -725,41 +653,25 @@ def _review_one(
 ) -> dict[str, Any]:
     case = dict(job["case"])
     target_prediction = dict(job["target_prediction"])
-    case_id = str(case["case_id"])
-    patient_id = str(case["patient_id"])
-
-    dynamic = pd.DataFrame(case.get("events", []))
-    static_payload = case.get("static", {})
-    static_features = {}
-    if isinstance(static_payload, dict):
-        maybe = static_payload.get("features", {})
-        if isinstance(maybe, dict):
-            static_features = maybe
-    static_row = pd.Series({"patient_id": patient_id, **static_features}) if static_features else None
-    instance = {
-        "case_id": case_id,
-        "patient_id": patient_id,
-        "split": case["split"],
-        "split_role": case.get("split_role", "test"),
-        "bin_time": case.get("bin_time"),
-        "ground_truth": case.get("ground_truth") if cfg.agent.review.prompt.include_ground_truth else None,
-        "prediction_mode": case.get("prediction_mode", cfg.task.prediction_mode),
-    }
+    context = build_case_context(
+        case,
+        default_prediction_mode=str(cfg.task.prediction_mode),
+        include_ground_truth=cfg.agent.review.prompt.include_ground_truth,
+    )
 
     prompt = render_prompt(
         cfg=cfg,
-        instance=instance,
-        dynamic=dynamic,
-        static_row=static_row,
+        instance=context.instance,
+        dynamic=context.dynamic,
+        static_row=context.static_row,
         schema_text=schema_text,
         template_name=cfg.agent.review.prompt_template,
         prompt_cfg=cfg.agent.review.prompt,
         target_prediction=target_prediction,
         analysis_refs=(case.get("analysis_refs") if cfg.agent.review.prompt.include_analysis_context else None),
     )
-    prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
     review_id = (
-        f"{case_id}|{target_prediction.get('origin')}|{target_prediction.get('predictor_name')}"
+        f"{context.case_id}|{target_prediction.get('origin')}|{target_prediction.get('predictor_name')}"
     )
     request = AgentRequestSpec(
         backend_name=reviewer.name,
@@ -776,27 +688,12 @@ def _review_one(
         seed=cfg.agent.review.seed,
         extra_headers=dict(reviewer.headers),
     )
-
-    raw_text = ""
-    latency_ms = None
-    usage_prompt = None
-    usage_completion = None
-    usage_total = None
-    error_code = None
-    error_message = None
-    try:
-        response = client.complete(request)
-        raw_text = response.raw_text
-        latency_ms = response.latency_ms
-        usage_prompt = response.usage_prompt_tokens
-        usage_completion = response.usage_completion_tokens
-        usage_total = response.usage_total_tokens
-        parsed = parse_review_response(raw_text)
-    except AgentClientError as exc:
-        error_code = exc.code
-        error_message = exc.message
-        raw_text = exc.response_text or ""
-        parsed = parse_review_response(raw_text) if raw_text else None
+    execution = execute_agent_request(
+        client=client,
+        request=request,
+        parse_response=parse_review_response,
+    )
+    parsed = execution.parsed
 
     if parsed is None:
         parsed_ok = False
@@ -808,9 +705,6 @@ def _review_one(
         review_summary = None
         key_evidence_json = "[]"
         missing_evidence_json = "[]"
-        if error_code is None:
-            error_code = "request_failed"
-            error_message = "request failed before a response was returned"
     else:
         parsed_ok = parsed.parsed_ok
         supported = parsed.supported
@@ -821,15 +715,11 @@ def _review_one(
         review_summary = parsed.review_summary
         key_evidence_json = json.dumps(parsed.key_evidence, ensure_ascii=False)
         missing_evidence_json = json.dumps(parsed.missing_evidence, ensure_ascii=False)
-        if not parsed.parsed_ok and error_code is None:
-            error_code = parsed.error_code
-            error_message = parsed.error_message
 
-    response_sha256 = hashlib.sha256(raw_text.encode("utf-8")).hexdigest() if raw_text else None
     row = {
         "review_id": review_id,
-        "case_id": case_id,
-        "patient_id": patient_id,
+        "case_id": context.case_id,
+        "patient_id": context.patient_id,
         "split": case["split"],
         "target_origin": target_prediction.get("origin"),
         "target_predictor_name": target_prediction.get("predictor_name"),
@@ -843,16 +733,16 @@ def _review_one(
         "review_summary": review_summary,
         "key_evidence_json": key_evidence_json,
         "missing_evidence_json": missing_evidence_json,
-        "prompt": prompt,
-        "prompt_sha256": prompt_sha256,
-        "raw_response": raw_text,
-        "response_sha256": response_sha256,
-        "token_usage_prompt": usage_prompt,
-        "token_usage_completion": usage_completion,
-        "token_usage_total": usage_total,
-        "latency_ms": latency_ms,
-        "error_code": error_code,
-        "error_message": error_message,
+        "prompt": request.prompt,
+        "prompt_sha256": execution.prompt_sha256,
+        "raw_response": execution.raw_response,
+        "response_sha256": execution.response_sha256,
+        "token_usage_prompt": execution.token_usage_prompt,
+        "token_usage_completion": execution.token_usage_completion,
+        "token_usage_total": execution.token_usage_total,
+        "latency_ms": execution.latency_ms,
+        "error_code": execution.error_code,
+        "error_message": execution.error_message,
         "reviewer_name": reviewer.name,
     }
     if case.get("bin_time") not in {None, "", "NaT"}:

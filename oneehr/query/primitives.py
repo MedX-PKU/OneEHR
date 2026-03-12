@@ -3,8 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
+from oneehr.agent.cases import build_case_context, case_static_features, select_case_predictions
 from oneehr.config.schema import ExperimentConfig
 from oneehr.agent.render import render_prompt
 from oneehr.agent.predict_schema import schema_prompt_text
@@ -26,12 +25,7 @@ def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None =
 
 def get_case_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
     case = open_run_workspace(run_root).read_case(case_id)
-    static_payload = case.get("static", {})
-    features = {}
-    if isinstance(static_payload, dict):
-        maybe = static_payload.get("features", {})
-        if isinstance(maybe, dict):
-            features = maybe
+    features = case_static_features(case)
     return {
         "case_id": str(case_id),
         "patient_id": str(case.get("patient_id")),
@@ -49,12 +43,7 @@ def get_case_predictions(
     limit: int | None = None,
 ) -> dict[str, Any]:
     case = open_run_workspace(run_root).read_case(case_id, limit=limit)
-    rows = pd.DataFrame(case.get("predictions", []))
-    if not rows.empty and origin is not None:
-        rows = rows[rows["origin"].astype(str) == str(origin)].copy()
-    if not rows.empty and predictor_name is not None:
-        rows = rows[rows["predictor_name"].astype(str) == str(predictor_name)].copy()
-    rows = rows.reset_index(drop=True)
+    rows = select_case_predictions(case, origin=origin, predictor_name=predictor_name)
     return {
         "case_id": str(case_id),
         "patient_id": str(case.get("patient_id")),
@@ -91,31 +80,17 @@ def render_case_prompt(
     case = open_run_workspace(run_root).read_case(case_id)
     template = get_prompt_template(template_name or cfg.agent.predict.prompt_template)
 
-    static_payload = case.get("static", {})
-    static_features = {}
-    if isinstance(static_payload, dict):
-        maybe = static_payload.get("features", {})
-        if isinstance(maybe, dict):
-            static_features = maybe
-    static_row = pd.Series({"patient_id": case.get("patient_id"), **static_features}) if static_features else None
-    dynamic = pd.DataFrame(case.get("events", []))
-    instance = {
-        "case_id": case.get("case_id"),
-        "instance_id": case.get("case_id"),
-        "patient_id": case.get("patient_id"),
-        "split": case.get("split"),
-        "split_role": case.get("split_role", "test"),
-        "bin_time": case.get("bin_time"),
-        "ground_truth": case.get("ground_truth"),
-        "prediction_mode": case.get("prediction_mode", cfg.task.prediction_mode),
-    }
-
     if template.family == "prediction":
+        context = build_case_context(
+            case,
+            default_prediction_mode=str(cfg.task.prediction_mode),
+            include_ground_truth=cfg.agent.predict.prompt.include_labels_context,
+        )
         prompt = render_prompt(
             cfg=cfg,
-            instance=instance,
-            dynamic=dynamic,
-            static_row=static_row,
+            instance=context.instance,
+            dynamic=context.dynamic,
+            static_row=context.static_row,
             schema_text=schema_prompt_text(
                 task_kind=cfg.task.kind,
                 include_explanation=cfg.agent.predict.output.include_explanation,
@@ -126,21 +101,21 @@ def render_case_prompt(
         return {"template": template.name, "family": template.family, "prompt": prompt}
 
     if template.family == "review":
-        preds = pd.DataFrame(case.get("predictions", []))
-        if not preds.empty and origin is not None:
-            preds = preds[preds["origin"].astype(str) == str(origin)].copy()
-        if not preds.empty and predictor_name is not None:
-            preds = preds[preds["predictor_name"].astype(str) == str(predictor_name)].copy()
-        preds = preds.reset_index(drop=True)
+        context = build_case_context(
+            case,
+            default_prediction_mode=str(cfg.task.prediction_mode),
+            include_ground_truth=cfg.agent.review.prompt.include_ground_truth,
+        )
+        preds = select_case_predictions(case, origin=origin, predictor_name=predictor_name)
         if preds.empty:
             raise ValueError("No matching case prediction found for review prompt rendering.")
         if len(preds) > 1:
             raise ValueError("Multiple matching case predictions found. Use --origin and/or --predictor-name.")
         prompt = render_prompt(
             cfg=cfg,
-            instance=instance,
-            dynamic=dynamic,
-            static_row=static_row,
+            instance=context.instance,
+            dynamic=context.dynamic,
+            static_row=context.static_row,
             schema_text=review_schema_prompt_text(),
             template_name=template.name,
             prompt_cfg=cfg.agent.review.prompt,
