@@ -155,7 +155,7 @@ def test_workspace_domain_reads_agent_detail_artifacts(tmp_path: Path) -> None:
 
     workspace = open_run_workspace(run_root)
     assert workspace.agent_task_actors("review") == ["mock-review"]
-    assert workspace.agent_task_splits("review") == ["split0"]
+    assert workspace.agent_task_splits("review") == ["fold0", "fold1"]
     assert workspace.agent_task_detail_artifacts("review")
 
     detail_rows = workspace.agent_task_detail_rows("review", actor="mock-review", parsed_ok=True)
