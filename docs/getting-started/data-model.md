@@ -110,7 +110,7 @@ P002,2023-01-03,los,2.0
 - Use `label.csv` when labels are pre-computed and stored alongside your dataset
 - Use `labels.fn` when labels should be derived dynamically from events or need to stay versioned with the experiment config
 
-See the workflow guides for the label function contract and common patterns.
+See [Core Workflows](../guide/core-workflows.md#label-functions) for the label function contract and common patterns.
 
 ---
 

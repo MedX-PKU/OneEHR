@@ -122,6 +122,8 @@ fn = "examples/label_fn.py:build_labels"
 bin_from_time_col = true
 ```
 
+See [Core Workflows](../guide/core-workflows.md#label-functions) for the callable contract and return-shape requirements.
+
 ---
 
 ## `[split]`
@@ -177,6 +179,8 @@ Patient-level group split configuration. All strategies guarantee no patient app
     inner_kind = "kfold"
     inner_n_splits = 5
     ```
+
+See [Core Workflows](../guide/core-workflows.md#split-strategies) for the operational tradeoffs between `kfold`, `random`, and `time`.
 
 ---
 
@@ -257,7 +261,7 @@ Config-driven grid search. HPO runs inside `oneehr train` when enabled.
 | `tune_split` | `str` | `None` | Split name to tune on (e.g. `"fold0"`) |
 | `aggregate_metric` | `str` | `None` | Metric key for `cv_mean` (e.g. `"auroc"`, `"rmse"`) |
 
-See [HPO Guide](../guide/hpo.md) for usage patterns.
+See [Core Workflows](../guide/core-workflows.md#hpo-and-repeated-training) for the common HPO and repeated-training patterns.
 
 ```toml
 [hpo]
@@ -302,7 +306,7 @@ Post-hoc probability calibration for binary classification tasks.
 | `threshold_strategy` | `str` | `"f1"` | Threshold selection strategy |
 | `use_calibrated` | `bool` | `true` | Use calibrated probabilities for threshold selection |
 
-See [Calibration Guide](../guide/calibration.md) for details.
+See [Core Workflows](../guide/core-workflows.md#calibration) for when to use calibration and the supported methods.
 
 ```toml
 [calibration]

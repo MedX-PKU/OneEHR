@@ -26,6 +26,9 @@ Optional agent workflows build on the same run directory:
 ## Choose A Workflow
 
 - Use [Quickstart](getting-started/quickstart.md) if you want one end-to-end runnable path with the bundled example config.
+- Use [Core Workflows](guide/core-workflows.md) if you want the standard preprocess/train/test/analyze/cases/query operating model.
+- Use [Agent Workflows](guide/agent-workflows.md) if you are configuring OpenAI-compatible prediction or review backends.
+- Use [Web UI](guide/webui.md) if you want a browser interface over analyzed runs and case artifacts.
 - Use [CLI Reference](reference/cli.md) if you need the command tree and flag surface.
 - Use [Configuration Reference](reference/configuration.md) if you are authoring or reviewing TOML configs.
 - Use [Artifacts Reference](reference/artifacts.md) if you need the on-disk contract for notebooks, automation, or UI work.

@@ -6,17 +6,10 @@ nav = [
     { title = "Quickstart", path = "getting-started/quickstart.md" },
     { title = "Data Model", path = "getting-started/data-model.md" },
   ] },
-  { title = "User Guide", children = [
-    { title = "Preprocessing", path = "guide/preprocessing.md" },
-    { title = "Training", path = "guide/training.md" },
-    { title = "Testing", path = "guide/testing.md" },
-    { title = "Analysis", path = "guide/analysis.md" },
+  { title = "Workflows", children = [
+    { title = "Core Workflows", path = "guide/core-workflows.md" },
+    { title = "Agent Workflows", path = "guide/agent-workflows.md" },
     { title = "Web UI", path = "guide/webui.md" },
-    { title = "Splits", path = "guide/splits.md" },
-    { title = "HPO (Grid Search)", path = "guide/hpo.md" },
-    { title = "Calibration", path = "guide/calibration.md" },
-    { title = "Label Functions", path = "guide/label-functions.md" },
-    { title = "Recipes", path = "guide/recipes.md" },
   ] },
   { title = "Reference", children = [
     { title = "CLI", path = "reference/cli.md" },
@@ -33,7 +26,7 @@ docs = "dir://docs"
 [context]
 title = "OneEHR"
 favicon = "🩺"
-tagline = "EHR predictive modeling toolkit"
+tagline = "Task-first EHR predictive modeling and analysis toolkit"
 repository_url = "https://github.com/MedX-PKU/OneEHR"
 
 [markdown]

@@ -1,44 +1,50 @@
 # Web UI
 
-OneEHR ships a first-party Web UI for run discovery, run overviews, analysis dashboards, case bundles, agent outputs, and comparison views.
+OneEHR ships a first-party Web UI for browsing runs, structured analysis outputs, durable case bundles, and agent artifacts. The UI is intentionally artifact-first: it reads only from the existing run contract through `/api/v1`, and the browser never touches run files directly.
 
-The architecture is intentionally artifact-first:
+## What It Serves
 
-- the browser reads only `/api/v1`
-- the FastAPI backend reads the existing run artifact contract under `logs/<run_name>/`
-- no database or alternate report format is introduced in v1
+The current UI covers:
 
-## Install
+- run discovery and run overview pages
+- module dashboards for `dataset_profile`, `cohort_analysis`, `prediction_audit`, `temporal_analysis`, `interpretability`, and `agent_audit`
+- case inventory filters and case detail pages
+- agent prediction and review summaries plus detailed record and failure browsing
+- compare-run views backed by saved comparison artifacts
 
-Python backend dependencies:
+The Web UI is read-only. It does not introduce a database or a parallel report format.
+
+## Install And Build
+
+Install backend dependencies:
 
 ```bash
 uv pip install -e ".[webui]"
 ```
 
-Frontend dependencies:
+Install frontend dependencies:
 
 ```bash
 cd webui
 npm install
 ```
 
-## Build And Serve
-
-Build the frontend once:
+Build the frontend bundle once:
 
 ```bash
-cd webui
 npm run build
 ```
 
-Serve the API plus built dashboard:
+## Serve The Dashboard
+
+Serve the API plus built frontend:
 
 ```bash
+cd ..
 uv run oneehr webui serve --root logs
 ```
 
-Optional flags:
+Common flags:
 
 ```bash
 uv run oneehr webui serve --root logs --host 0.0.0.0 --port 8000
@@ -46,9 +52,9 @@ uv run oneehr webui serve --root logs --frontend-dist /path/to/webui/dist
 uv run oneehr webui serve --root logs --reload
 ```
 
-If the frontend has not been built yet, the root page shows a small HTML instruction page while `/api/v1/*` remains available.
+If `webui/dist` is missing, the API still serves and the root page shows a small build-instructions page.
 
-## Frontend Dev
+## Frontend Development Loop
 
 Run the FastAPI backend:
 
@@ -56,34 +62,18 @@ Run the FastAPI backend:
 uv run oneehr webui serve --root logs
 ```
 
-In another shell, start Vite:
+In another shell, run the Vite dev server:
 
 ```bash
 cd webui
 npm run dev
 ```
 
-By default the Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
-
-## What The UI Covers
-
-Current pages:
-
-- run explorer
-- run overview
-- case inventory filters plus case detail pages
-- agent summaries for prediction/review outputs plus detailed row and failure browsing with server-side filters and pagination
-- module dashboards for `dataset_profile`, `cohort_analysis`, `prediction_audit`, `temporal_analysis`, `interpretability`, and `agent_audit`, including server-backed table browsing
-- comparison views for compare-run artifacts with server-backed table browsing plus cohort role comparisons from `cohort_analysis`
-
-Current drill-downs:
-
-- failure-case artifact browsing for `prediction_audit` and `agent_audit`, including server-side filters and pagination
-- patient-level match lookup within saved case slices
+By default, the Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
 
 ## API Surface
 
-The Web UI uses these endpoints:
+The Web UI is backed by these read-only endpoints:
 
 ```text
 GET /api/v1/health
@@ -104,4 +94,4 @@ GET /api/v1/runs/{run_name}/comparison
 GET /api/v1/runs/{run_name}/comparison/tables/{table}
 ```
 
-These routes are read-only. They normalize existing JSON, CSV, and parquet artifacts into frontend-friendly run console view models without changing the on-disk contract.
+These routes normalize existing JSON, CSV, and parquet artifacts into frontend-friendly view models without changing the on-disk contract.
