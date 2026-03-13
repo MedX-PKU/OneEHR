@@ -25,4 +25,4 @@ npm run build
 
 ## Expected API
 
-The app expects a FastAPI backend serving JSON under `/api/v1` with run discovery, run detail, case workspace/detail, agent workspace, analysis dashboard, case drill-down, and comparison endpoints.
+The app expects a FastAPI backend serving JSON under `/api/v1` with run discovery, run detail, case inventory/detail, agent summaries, analysis dashboards, case drill-down, and comparison endpoints.

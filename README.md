@@ -94,7 +94,7 @@ uv run oneehr webui serve --help
 
 ## Web UI
 
-The Web UI is a `React + FastAPI` workspace console for analyzed runs. It reads only from the existing run artifact contract through `/api/v1`, so the browser never reads files directly from disk.
+The Web UI is a `React + FastAPI` run operations console for analyzed runs. It reads only from the existing run artifact contract through `/api/v1`, so the browser never reads files directly from disk.
 
 Backend:
 
@@ -120,7 +120,7 @@ npm run dev
 
 By default the Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
 
-Current workspace surfaces:
+Current console surfaces:
 
 - run overview and analysis module dashboards
 - durable case bundle browsing and case detail views

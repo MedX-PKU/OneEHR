@@ -130,7 +130,7 @@ class WebUIService:
             "run": run,
             "hero": hero,
             "analysis": analysis,
-            "workspace": {
+            "navigation": {
                 "overview_route": f"/runs/{run_name}",
                 "cases_route": f"/runs/{run_name}/cases",
                 "agents_route": f"/runs/{run_name}/agents",

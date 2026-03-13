@@ -14,7 +14,7 @@ export function CasesPage() {
   })
 
   if (casesQuery.isLoading) {
-    return <LoadingPanel label="Loading case workspace" />
+    return <LoadingPanel label="Loading cases" />
   }
 
   if (casesQuery.isError || !casesQuery.data) {
@@ -30,7 +30,7 @@ export function CasesPage() {
   const table = {
     key: 'cases',
     title: 'Case Inventory',
-    description: `${payload.total_rows} cases in this workspace`,
+    description: `${payload.total_rows} cases in this run`,
     row_count: payload.total_rows,
     columns: payload.columns,
     records: payload.records,
@@ -57,7 +57,7 @@ export function CasesPage() {
         <KpiCard key="cases" title="Cases" value={payload.case_count} subtitle="Indexed bundles" />
         <KpiCard key="visible-rows" title="Visible rows" value={payload.row_count} subtitle={`of ${payload.total_rows}`} />
         <KpiCard key="splits" title="Splits" value={payload.splits.length} subtitle={payload.splits.join(', ') || '—'} />
-        <KpiCard key="status" title="Status" value={payload.status} subtitle="Workspace coverage" />
+        <KpiCard key="status" title="Status" value={payload.status} subtitle="Run coverage" />
       </section>
 
       {payload.status !== 'ok' ? (
@@ -102,7 +102,7 @@ export function CasesPage() {
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">Coverage</p>
-                  <h2>Case workspace signals</h2>
+                  <h2>Case coverage</h2>
                 </div>
               </div>
               <div className="detail-grid">

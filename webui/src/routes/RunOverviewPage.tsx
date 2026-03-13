@@ -1,6 +1,6 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { fetchModuleDashboard, fetchRunWorkspace } from '../lib/api'
+import { fetchModuleDashboard, fetchRunConsole } from '../lib/api'
 import { titleCase } from '../lib/format'
 import { ChartPanel } from '../ui/ChartPanel'
 import { DataTable } from '../ui/DataTable'
@@ -11,12 +11,12 @@ import { ModuleCard } from '../ui/ModuleCard'
 
 export function RunOverviewPage() {
   const { runName } = useParams({ from: '/runs/$runName/' })
-  const workspaceQuery = useQuery({
-    queryKey: ['run-workspace', runName],
-    queryFn: () => fetchRunWorkspace(runName),
+  const runConsoleQuery = useQuery({
+    queryKey: ['run-console', runName],
+    queryFn: () => fetchRunConsole(runName),
   })
-  const readyModules = (workspaceQuery.data?.analysis.modules ?? []).filter((module) => module.status === 'ok').slice(0, 3)
-  const skippedModules = (workspaceQuery.data?.analysis.modules ?? []).filter((module) => module.status === 'skipped')
+  const readyModules = (runConsoleQuery.data?.analysis.modules ?? []).filter((module) => module.status === 'ok').slice(0, 3)
+  const skippedModules = (runConsoleQuery.data?.analysis.modules ?? []).filter((module) => module.status === 'skipped')
   const moduleDashboardQueries = useQueries({
     queries: readyModules.map((module) => ({
       queryKey: ['module-dashboard-overview', runName, module.name],
@@ -37,21 +37,21 @@ export function RunOverviewPage() {
   const previewIsLoading = moduleDashboardQueries.some((query) => query.isLoading)
   const previewError = moduleDashboardQueries.find((query) => query.isError)?.error
 
-  if (workspaceQuery.isLoading) {
+  if (runConsoleQuery.isLoading) {
     return <LoadingPanel label="Loading run overview" />
   }
 
-  if (workspaceQuery.isError || !workspaceQuery.data) {
+  if (runConsoleQuery.isError || !runConsoleQuery.data) {
     return (
       <EmptyState
         title="Run overview unavailable"
-        description={workspaceQuery.error instanceof Error ? workspaceQuery.error.message : 'Unable to load the run.'}
+        description={runConsoleQuery.error instanceof Error ? runConsoleQuery.error.message : 'Unable to load the run.'}
       />
     )
   }
 
-  const workspace = workspaceQuery.data
-  const run = workspace.run
+  const runConsole = runConsoleQuery.data
+  const run = runConsole.run
 
   return (
     <div className="page-stack">
@@ -232,7 +232,7 @@ export function RunOverviewPage() {
           />
         ) : (
           <div className="card-grid modules-grid">
-            {workspace.analysis.modules.map((module) => (
+            {runConsole.analysis.modules.map((module) => (
               <ModuleCard key={module.name} runName={runName} module={module} />
             ))}
           </div>

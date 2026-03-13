@@ -11,7 +11,7 @@ import {
   useParams,
 } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { fetchRunDetail } from './lib/api'
+import { fetchRunConsole } from './lib/api'
 import { EmptyState } from './ui/EmptyState'
 import { LoadingPanel } from './ui/LoadingPanel'
 import { StatusBadge } from './ui/StatusBadge'
@@ -45,7 +45,7 @@ const ModuleDashboardPage = createLazyPage(
 
 const CasesPage = createLazyPage(
   () => import('./routes/CasesPage').then((module) => ({ default: module.CasesPage })),
-  'Loading case workspace',
+  'Loading cases',
 )
 
 const CaseDetailPage = createLazyPage(
@@ -55,12 +55,12 @@ const CaseDetailPage = createLazyPage(
 
 const AgentsPage = createLazyPage(
   () => import('./routes/AgentsPage').then((module) => ({ default: module.AgentsPage })),
-  'Loading agent workspace',
+  'Loading agents',
 )
 
 const ComparisonPage = createLazyPage(
   () => import('./routes/ComparisonPage').then((module) => ({ default: module.ComparisonPage })),
-  'Loading comparison workspace',
+  'Loading comparison',
 )
 
 function RootLayout() {
@@ -92,31 +92,31 @@ function RootLayout() {
 
 function RunLayout() {
   const { runName } = useParams({ from: '/runs/$runName' })
-  const runQuery = useQuery({
-    queryKey: ['run', runName],
-    queryFn: () => fetchRunDetail(runName),
+  const runConsoleQuery = useQuery({
+    queryKey: ['run-console', runName],
+    queryFn: () => fetchRunConsole(runName),
   })
 
-  if (runQuery.isLoading) {
-    return <LoadingPanel label="Loading run workspace" />
+  if (runConsoleQuery.isLoading) {
+    return <LoadingPanel label="Loading run console" />
   }
 
-  if (runQuery.isError || !runQuery.data) {
+  if (runConsoleQuery.isError || !runConsoleQuery.data) {
     return (
       <EmptyState
-        title="Run workspace unavailable"
-        description={runQuery.error instanceof Error ? runQuery.error.message : 'Unable to load run details.'}
+        title="Run console unavailable"
+        description={runConsoleQuery.error instanceof Error ? runConsoleQuery.error.message : 'Unable to load run details.'}
       />
     )
   }
 
-  const run = runQuery.data
+  const run = runConsoleQuery.data.run
 
   return (
-    <div className="workspace-shell">
-      <aside className="workspace-rail">
-        <div className="workspace-card">
-          <p className="eyebrow">Workspace</p>
+    <div className="run-shell">
+      <aside className="run-rail">
+        <div className="rail-card">
+          <p className="eyebrow">Navigation</p>
           <div className="stack-list">
             <Link
               to="/runs/$runName"
@@ -155,7 +155,7 @@ function RunLayout() {
           </div>
         </div>
 
-        <div className="workspace-card">
+        <div className="rail-card">
           <p className="eyebrow">Run</p>
           <h1>{run.run_name}</h1>
           <div className="detail-grid compact">
@@ -178,7 +178,7 @@ function RunLayout() {
           </div>
         </div>
 
-        <div className="workspace-card">
+        <div className="rail-card">
           <p className="eyebrow">Modules</p>
           <div className="stack-list">
             {run.analysis.modules.map((module) => (
@@ -197,7 +197,7 @@ function RunLayout() {
         </div>
       </aside>
 
-      <section className="workspace-content">
+      <section className="run-content">
         <Outlet />
       </section>
     </div>

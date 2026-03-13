@@ -157,21 +157,21 @@ button {
   padding: 1.75rem 2rem 2.25rem;
 }
 
-.workspace-shell {
+.run-shell {
   display: grid;
   grid-template-columns: minmax(17rem, 19rem) minmax(0, 1fr);
   gap: 1.25rem;
 }
 
-.workspace-rail,
-.workspace-content,
+.run-rail,
+.run-content,
 .page-stack {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
-.workspace-card,
+.rail-card,
 .panel,
 .run-card,
 .hero-panel,
@@ -188,7 +188,7 @@ button {
   box-shadow: var(--shadow);
 }
 
-.workspace-card,
+.rail-card,
 .panel,
 .empty-state,
 .loading-panel,
@@ -555,7 +555,7 @@ td {
 }
 
 @media (max-width: 1100px) {
-  .workspace-shell,
+  .run-shell,
   .hero-panel,
   .two-column-grid,
   .filter-grid {

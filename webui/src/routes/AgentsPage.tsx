@@ -91,7 +91,7 @@ function AgentSection({ runName, taskName, title, description, task }: AgentSect
       <article className="panel">
         <div className="panel-header">
           <div>
-            <p className="eyebrow">Agent Workspace</p>
+            <p className="eyebrow">Agent Console</p>
             <h2>{title}</h2>
             <p className="panel-copy">{description}</p>
           </div>
@@ -218,7 +218,7 @@ export function AgentsPage() {
   })
 
   if (agentsQuery.isLoading) {
-    return <LoadingPanel label="Loading agent workspace" />
+    return <LoadingPanel label="Loading agents" />
   }
 
   if (agentsQuery.isError || !agentsQuery.data) {
@@ -236,9 +236,9 @@ export function AgentsPage() {
       <section className="page-header">
         <div>
           <p className="eyebrow">Agents</p>
-          <h1>Agent operations workspace</h1>
+          <h1>Agent operations console</h1>
           <p className="hero-copy">
-            Inspect agent prediction and review outputs using the same artifact-backed workspace as the analysis UI.
+            Inspect saved agent prediction and review outputs alongside analysis artifacts and case bundles.
           </p>
         </div>
       </section>

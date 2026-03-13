@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { fetchModuleDashboard, fetchRuns, fetchRunWorkspace } from '../lib/api'
+import { fetchModuleDashboard, fetchRunConsole, fetchRuns } from '../lib/api'
 import { formatDate, titleCase } from '../lib/format'
 import { ChartPanel } from '../ui/ChartPanel'
 import { DataTable } from '../ui/DataTable'
@@ -15,12 +15,12 @@ export function RunsPage() {
   })
   const runs = runsQuery.data ?? []
   const spotlightRun = runs.find((run) => run.has_analysis_index)
-  const spotlightWorkspaceQuery = useQuery({
-    queryKey: ['run-workspace', spotlightRun?.run_name],
-    queryFn: () => fetchRunWorkspace(String(spotlightRun?.run_name)),
+  const runConsoleQuery = useQuery({
+    queryKey: ['run-console', spotlightRun?.run_name],
+    queryFn: () => fetchRunConsole(String(spotlightRun?.run_name)),
     enabled: spotlightRun != null,
   })
-  const spotlightModule = spotlightWorkspaceQuery.data?.analysis.modules.find((module) => module.status === 'ok') ?? null
+  const spotlightModule = runConsoleQuery.data?.analysis.modules.find((module) => module.status === 'ok') ?? null
   const spotlightDashboardQuery = useQuery({
     queryKey: ['module-dashboard-spotlight', spotlightRun?.run_name, spotlightModule?.name],
     queryFn: () => fetchModuleDashboard(String(spotlightRun?.run_name), String(spotlightModule?.name)),
@@ -49,7 +49,7 @@ export function RunsPage() {
           <p className="eyebrow">Operations Console</p>
           <h1>Longitudinal EHR run explorer</h1>
           <p className="hero-copy">
-            Review modeling outputs, structured analysis, and agent-era audit signals from one workspace.
+            Review modeling outputs, structured analysis, and agent-era audit signals from one console.
           </p>
         </div>
         <div className="hero-stats">
@@ -89,7 +89,7 @@ export function RunsPage() {
             title="No analysis-ready runs yet"
             description="Run `oneehr analyze` after training to populate dashboard charts on the landing page."
           />
-        ) : spotlightWorkspaceQuery.isLoading || spotlightDashboardQuery.isLoading ? (
+        ) : runConsoleQuery.isLoading || spotlightDashboardQuery.isLoading ? (
           <LoadingPanel label="Loading visual spotlight" />
         ) : spotlightDashboardQuery.isError ? (
           <EmptyState

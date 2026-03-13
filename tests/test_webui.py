@@ -25,6 +25,8 @@ def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
     desc = service.describe_run_payload(run_name="webui_run")
     assert desc["hero"]["analysis_module_count"] >= 3
     assert desc["run"]["training"]["models"] == ["xgboost"]
+    assert "navigation" in desc
+    assert "workspace" not in desc
 
     dashboard = service.analysis_dashboard_payload(run_name="webui_run", module_name="prediction_audit")
     assert dashboard["module"]["name"] == "prediction_audit"
@@ -173,11 +175,11 @@ def test_webui_fastapi_routes(tmp_path: Path) -> None:
     assert cases.status_code == 200
     assert len(cases.json()["case_artifacts"]) > 0
 
-    workspace_cases = client.get(f"/api/v1/runs/{run_root.name}/cases")
-    assert workspace_cases.status_code == 200
-    assert workspace_cases.json()["case_count"] >= 1
+    cases_response = client.get(f"/api/v1/runs/{run_root.name}/cases")
+    assert cases_response.status_code == 200
+    assert cases_response.json()["case_count"] >= 1
 
-    case_id = workspace_cases.json()["records"][0]["case_id"]
+    case_id = cases_response.json()["records"][0]["case_id"]
     case_detail = client.get(f"/api/v1/runs/{run_root.name}/cases/{case_id}")
     assert case_detail.status_code == 200
     assert case_detail.json()["case"]["case_id"] == case_id
