@@ -1,44 +1,70 @@
 # Installation
 
-OneEHR requires **Python 3.12** and uses **uv** as its dependency manager.
-
----
+OneEHR requires **Python 3.12** and uses **uv** for environment and package management.
 
 ## Prerequisites
 
-- Python 3.12 (pinned in `.python-version`)
-- [uv](https://docs.astral.sh/uv/) package manager
+- Python 3.12, pinned in `.python-version`
+- [uv](https://docs.astral.sh/uv/)
 
-## Install
+## Install OneEHR
 
 ```bash
-# Create a virtual environment
 uv venv .venv --python 3.12
-
-# Install OneEHR in editable mode
 uv pip install -e .
 ```
 
-## Verify
+## Verify The CLI
 
 ```bash
 uv run oneehr --help
 ```
 
-You should see the four subcommands: `preprocess`, `train`, `test`, `analyze`.
+You should see these top-level command groups:
 
-## Optional: docs dependencies
+- `preprocess`
+- `train`
+- `test`
+- `analyze`
+- `cases`
+- `agent`
+- `query`
+- `webui`
 
-To build the documentation site locally:
+Check a few common entrypoints:
+
+```bash
+uv run oneehr query --help
+uv run oneehr agent --help
+uv run oneehr webui serve --help
+```
+
+## Optional Extras
+
+Docs build dependencies:
 
 ```bash
 uv pip install -e ".[docs]"
-uv run mkdocs serve  # MkDocs 2 pre-release, default http://127.0.0.1:5000
+uv run mkdocs serve
+uv run mkdocs build
 ```
 
-## GPU support
+Web UI backend dependencies:
 
-OneEHR uses PyTorch for deep learning models. If you have a CUDA-capable GPU, ensure your PyTorch installation includes CUDA support. The `trainer.device` config defaults to `"auto"`, which will use CUDA if available.
+```bash
+uv pip install -e ".[webui]"
+```
+
+If you also want the browser frontend, install Node dependencies under `webui/`:
+
+```bash
+cd webui
+npm install
+```
+
+## GPU Support
+
+OneEHR uses PyTorch for deep learning models. If you have a CUDA-capable GPU, install a CUDA-enabled PyTorch build. The trainer defaults to `device = "auto"` and will use CUDA when available.
 
 ```toml
 [trainer]
