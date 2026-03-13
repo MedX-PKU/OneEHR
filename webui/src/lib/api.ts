@@ -322,7 +322,6 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
     }>
     highlights: Array<{ title: string; body: string }>
   }>(`/runs/${encodeURIComponent(runName)}/comparison`)
-  const tableMap = new Map(payload.tables.map((table) => [table.name, table] as const))
   const summaryCards: DashboardCard[] =
     payload.summary == null
       ? []
@@ -338,17 +337,11 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
             tone: 'neutral',
           }))
 
-  const mapTable = (name: string): DashboardTable | null => {
-    const table = tableMap.get(name)
-    return mapTablePayload(table)
-  }
-
   return {
     status: payload.status,
     run_name: payload.run_name,
     summary: payload.summary,
-    train_metrics: mapTable('train_metrics'),
-    agent_predict_metrics: mapTable('agent_predict_metrics'),
+    tables: mapTables(payload.tables),
     cards: summaryCards,
     charts: payload.charts.map((chart) => ({
       key: chart.id,
@@ -361,6 +354,39 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
     })),
     highlights: payload.highlights.map((item) => `${item.title}: ${item.body}`),
   }
+}
+
+export async function fetchComparisonTable(
+  runName: string,
+  tableName: string,
+  options: {
+    limit?: number
+    offset?: number
+    sortBy?: string | null
+    sortDir?: 'asc' | 'desc'
+    filterCol?: string | null
+    filterValue?: string | null
+  } = {},
+): Promise<TablePage> {
+  const query = buildQueryString({
+    limit: options.limit ?? 25,
+    offset: options.offset ?? 0,
+    sort_by: options.sortBy,
+    sort_dir: options.sortDir ?? 'desc',
+    filter_col: options.filterCol,
+    filter_value: options.filterValue,
+  })
+  const payload = await request<{
+    table: string
+    title: string
+    offset: number
+    limit: number
+    row_count: number
+    total_rows: number
+    columns: Array<{ name: string }>
+    records: Array<Record<string, unknown>>
+  }>(`/runs/${encodeURIComponent(runName)}/comparison/tables/${encodeURIComponent(tableName)}${query}`)
+  return mapTablePagePayload(payload)
 }
 
 export async function fetchCohortComparison(

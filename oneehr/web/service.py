@@ -213,19 +213,10 @@ class WebUIService:
         df = run_view.analysis_table(module_name, table_name)
         df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
         df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
-        total_rows = int(len(df))
-        page = df.iloc[offset : offset + limit].reset_index(drop=True)
         return {
             "run_name": str(run_name),
             "module": str(module_name),
-            "table": str(table_name),
-            "title": TABLE_TITLES.get(table_name, self._titleize(table_name)),
-            "offset": int(offset),
-            "limit": int(limit),
-            "total_rows": total_rows,
-            "row_count": int(len(page)),
-            "columns": self._column_specs(page if not page.empty else df),
-            "records": as_jsonable(page.to_dict(orient="records")),
+            **self._table_page_payload_from_frame(name=table_name, df=df, limit=limit, offset=offset),
         }
 
     def analysis_cases_index_payload(self, *, run_name: str, module_name: str) -> dict[str, Any]:
@@ -265,8 +256,7 @@ class WebUIService:
         df = pd.DataFrame(payload.get("records", []))
         df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
         df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
-        total_rows = int(len(df))
-        page = df.iloc[offset : offset + limit].reset_index(drop=True)
+        total_rows, page = self._paginate_dataframe(df, limit=limit, offset=offset)
         return {
             "run_name": str(run_name),
             "module": str(module_name),
@@ -537,12 +527,13 @@ class WebUIService:
             }
 
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        train_df = self._read_csv_optional(comparison_dir / "train_metrics.csv")
-        agent_df = self._read_csv_optional(comparison_dir / "agent_predict_metrics.csv")
+        comparison_tables = self._comparison_table_frames(run_view=run_view)
+        train_df = comparison_tables.get("train_metrics", pd.DataFrame())
+        agent_df = comparison_tables.get("agent_predict_metrics", pd.DataFrame())
         tables = []
         charts = []
         highlights = []
-        if not train_df.empty:
+        if "train_metrics" in comparison_tables:
             tables.append(self._table_payload_from_frame(name="train_metrics", df=train_df, preview_limit=8))
             charts.append(
                 {
@@ -564,9 +555,9 @@ class WebUIService:
                     {
                         "title": "Largest training delta",
                         "body": f"{row['model']} {row['metric']} delta_mean={float(row['delta_mean']):.4f}",
-                    }
-                )
-        if not agent_df.empty:
+                        }
+                    )
+        if "agent_predict_metrics" in comparison_tables:
             tables.append(self._table_payload_from_frame(name="agent_predict_metrics", df=agent_df, preview_limit=8))
             charts.append(
                 {
@@ -586,6 +577,30 @@ class WebUIService:
             "tables": tables,
             "charts": charts,
             "highlights": highlights,
+        }
+
+    def comparison_table_payload(
+        self,
+        *,
+        run_name: str,
+        table_name: str,
+        limit: int = 25,
+        offset: int = 0,
+        sort_by: str | None = None,
+        sort_dir: str = "desc",
+        filter_col: str | None = None,
+        filter_value: str | None = None,
+    ) -> dict[str, Any]:
+        run_view = self._resolve_run_view(run_name)
+        comparison_tables = self._comparison_table_frames(run_view=run_view)
+        if table_name not in comparison_tables:
+            raise FileNotFoundError(f"Missing comparison table {table_name!r} for run {run_name!r}")
+        df = comparison_tables[table_name]
+        df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
+        df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
+        return {
+            "run_name": str(run_name),
+            **self._table_page_payload_from_frame(name=table_name, df=df, limit=limit, offset=offset),
         }
 
     def cohort_compare_payload(
@@ -735,6 +750,15 @@ class WebUIService:
                 continue
             previews.append(self._table_payload_from_frame(name=table_name, df=df, preview_limit=8))
         return previews
+
+    def _comparison_table_frames(self, *, run_view: RunView) -> dict[str, pd.DataFrame]:
+        comparison_dir = run_view.run_root / "analysis" / "comparison"
+        frames: dict[str, pd.DataFrame] = {}
+        for table_name in ("train_metrics", "agent_predict_metrics"):
+            df = self._read_csv_optional(comparison_dir / f"{table_name}.csv")
+            if not df.empty:
+                frames[table_name] = df
+        return frames
 
     def _module_charts(
         self,
@@ -935,6 +959,26 @@ class WebUIService:
             "preview": as_jsonable(preview.to_dict(orient="records")),
         }
 
+    def _table_page_payload_from_frame(
+        self,
+        *,
+        name: str,
+        df: pd.DataFrame,
+        limit: int,
+        offset: int,
+    ) -> dict[str, Any]:
+        total_rows, page = self._paginate_dataframe(df, limit=limit, offset=offset)
+        return {
+            "table": str(name),
+            "title": TABLE_TITLES.get(name, self._titleize(name)),
+            "offset": int(offset),
+            "limit": int(limit),
+            "total_rows": total_rows,
+            "row_count": int(len(page)),
+            "columns": self._column_specs(page if not page.empty else df),
+            "records": as_jsonable(page.to_dict(orient="records")),
+        }
+
     def _agent_rows_payload(
         self,
         *,
@@ -1046,6 +1090,17 @@ class WebUIService:
         if not path.exists():
             return pd.DataFrame()
         return pd.read_csv(path)
+
+    def _paginate_dataframe(
+        self,
+        df: pd.DataFrame,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[int, pd.DataFrame]:
+        total_rows = int(len(df))
+        page = df.iloc[offset : offset + limit].reset_index(drop=True)
+        return total_rows, page
 
     def _supports_cases(self, module_name: str) -> bool:
         return module_name in {"prediction_audit", "agent_audit"}

@@ -5,6 +5,7 @@ import { fetchComparison, fetchCohortComparison, fetchRunConsole } from '../lib/
 import type { DashboardCard, DashboardChart, DashboardTable } from '../lib/types'
 import { titleCase } from '../lib/format'
 import { ChartPanel } from '../ui/ChartPanel'
+import { ComparisonTableExplorer } from '../ui/ComparisonTableExplorer'
 import { DataTable } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
 import { KpiCard } from '../ui/KpiCard'
@@ -155,6 +156,8 @@ export function ComparisonPage() {
   })
 
   const splitOptions = runConsoleQuery.data?.run.training.splits ?? []
+  const cohortAnalysisAvailable =
+    runConsoleQuery.data?.analysis.modules.some((module) => module.name === 'cohort_analysis' && module.status === 'ok') ?? false
 
   useEffect(() => {
     if (splitOptions.length === 0) {
@@ -177,7 +180,10 @@ export function ComparisonPage() {
         rightRole,
         topK,
       }),
-    enabled: runConsoleQuery.data != null && (splitOptions.length === 0 || selectedSplit.length > 0),
+    enabled:
+      runConsoleQuery.data != null &&
+      cohortAnalysisAvailable &&
+      (splitOptions.length === 0 || selectedSplit.length > 0),
   })
 
   if (runConsoleQuery.isLoading || comparisonQuery.isLoading) {
@@ -268,8 +274,31 @@ export function ComparisonPage() {
               </section>
             ) : null}
 
-            {comparison.train_metrics ? <DataTable table={comparison.train_metrics} /> : null}
-            {comparison.agent_predict_metrics ? <DataTable table={comparison.agent_predict_metrics} /> : null}
+            {comparison.highlights?.length ? (
+              <article className="panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Highlights</p>
+                    <h2>Largest deltas at a glance</h2>
+                    <p className="panel-copy">
+                      Backend-derived summaries from the compare-run artifacts, surfaced directly in the console.
+                    </p>
+                  </div>
+                </div>
+                <div className="artifact-list">
+                  {comparison.highlights.map((highlight, index) => (
+                    <div key={`${index}-${highlight}`} className="artifact-button">
+                      <div>
+                        <strong>Highlight {index + 1}</strong>
+                        <div className="artifact-meta">{highlight}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ) : null}
+
+            <ComparisonTableExplorer runName={runName} tables={comparison.tables} />
           </div>
         )}
       </section>
@@ -333,7 +362,12 @@ export function ComparisonPage() {
           </label>
         </div>
 
-        {cohortQuery.isLoading ? (
+        {!cohortAnalysisAvailable ? (
+          <EmptyState
+            title="No cohort analysis yet"
+            description="Run `oneehr analyze --module cohort_analysis` after training to populate split-role comparisons."
+          />
+        ) : cohortQuery.isLoading ? (
           <LoadingPanel label="Loading cohort comparison" />
         ) : cohortQuery.isError ? (
           <EmptyState

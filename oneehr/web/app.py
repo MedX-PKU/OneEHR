@@ -234,6 +234,31 @@ def create_app(*, root_dir: str | Path | None = None, static_dir: str | Path | N
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.get("/api/v1/runs/{run_name}/comparison/tables/{table_name}")
+    def comparison_table_route(
+        run_name: str,
+        table_name: str,
+        limit: int = Query(default=25, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+        sort_by: str | None = None,
+        sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+        filter_col: str | None = None,
+        filter_value: str | None = None,
+    ):
+        try:
+            return service.comparison_table_payload(
+                run_name=run_name,
+                table_name=table_name,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
+                filter_col=filter_col,
+                filter_value=filter_value,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get("/api/v1/runs/{run_name}/cohorts/compare")
     def cohort_compare_route(
         run_name: str,

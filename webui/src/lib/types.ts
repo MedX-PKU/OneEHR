@@ -183,8 +183,7 @@ export interface ComparisonPayload {
   status?: string
   run_name: string
   summary: Record<string, unknown> | null
-  train_metrics?: DashboardTable | null
-  agent_predict_metrics?: DashboardTable | null
+  tables: DashboardTable[]
   cards?: DashboardCard[]
   charts?: DashboardChart[]
   highlights?: string[]

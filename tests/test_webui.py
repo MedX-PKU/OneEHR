@@ -94,6 +94,32 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     assert any(table["name"] == "train_metrics" for table in comparison["tables"])
     assert len(comparison["charts"]) >= 1
 
+    table = service.comparison_table_payload(
+        run_name="cmp_webui_a",
+        table_name="train_metrics",
+        limit=1,
+        offset=0,
+        sort_by="delta_mean",
+        sort_dir="desc",
+    )
+    assert table["row_count"] == 1
+    assert table["total_rows"] >= 1
+    assert table["table"] == "train_metrics"
+
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from oneehr.web import create_app
+
+    client = TestClient(create_app(root_dir=run_root_a.parent))
+    route = client.get(
+        f"/api/v1/runs/{run_root_a.name}/comparison/tables/train_metrics",
+        params={"limit": 1, "sort_by": "delta_mean", "sort_dir": "desc"},
+    )
+    assert route.status_code == 200
+    assert route.json()["row_count"] == 1
+    assert route.json()["table"] == "train_metrics"
+
 
 def test_webui_service_cohort_compare_payload(tmp_path: Path) -> None:
     run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_compare", seed=23)
