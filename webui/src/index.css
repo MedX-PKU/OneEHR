@@ -153,6 +153,12 @@ button {
   transform: translateY(-1px);
 }
 
+.button-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .viewport {
   padding: 1.75rem 2rem 2.25rem;
 }
@@ -448,6 +454,18 @@ button {
 .table-toolbar {
   align-items: end;
   margin-bottom: 1rem;
+}
+
+.table-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.table-page-summary {
+  color: var(--text-muted);
+  font-size: 0.92rem;
 }
 
 .table-filter {

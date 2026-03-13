@@ -1,4 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -10,9 +11,17 @@ import { stringifyValue, titleCase } from '../lib/format'
 
 interface DataTableProps {
   table: DashboardTable
+  searchable?: boolean
+  toolbarActions?: ReactNode
+  emptyMessage?: string
 }
 
-export function DataTable({ table }: DataTableProps) {
+export function DataTable({
+  table,
+  searchable = true,
+  toolbarActions = null,
+  emptyMessage = 'No rows available for this table.',
+}: DataTableProps) {
   const [filter, setFilter] = useState('')
   const deferredFilter = useDeferredValue(filter)
 
@@ -32,7 +41,7 @@ export function DataTable({ table }: DataTableProps) {
     data,
     columns,
     state: {
-      globalFilter: deferredFilter,
+      globalFilter: searchable ? deferredFilter : '',
     },
     globalFilterFn: (row, _columnId, filterValue) => {
       const query = String(filterValue).trim().toLowerCase()
@@ -54,15 +63,18 @@ export function DataTable({ table }: DataTableProps) {
           <h3>{table.title}</h3>
           <p>{table.description ?? `${table.row_count} rows available`}</p>
         </div>
-        <label className="table-filter">
-          <span>Search</span>
-          <input
-            type="search"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Filter rows"
-          />
-        </label>
+        {toolbarActions}
+        {searchable ? (
+          <label className="table-filter">
+            <span>Search</span>
+            <input
+              type="search"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="Filter rows"
+            />
+          </label>
+        ) : null}
       </div>
       <div className="table-scroll">
         <table>
@@ -80,15 +92,21 @@ export function DataTable({ table }: DataTableProps) {
             ))}
           </thead>
           <tbody>
-            {instance.getRowModel().rows.map((row) => (
-              <tr key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
+            {instance.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td colSpan={Math.max(table.columns.length, 1)}>{emptyMessage}</td>
               </tr>
-            ))}
+            ) : (
+              instance.getRowModel().rows.map((row) => (
+                <tr key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

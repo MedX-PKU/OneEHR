@@ -8,6 +8,7 @@ import type {
   DashboardCard,
   DashboardChart,
   DashboardTable,
+  TablePage,
   ComparisonPayload,
   FailureCaseArtifact,
   FailureCaseRows,
@@ -149,6 +150,28 @@ function mapTablePayload(table: RawTablePayload | null | undefined): DashboardTa
   }
 }
 
+function mapTablePagePayload(payload: {
+  table: string
+  title: string
+  offset: number
+  limit: number
+  row_count: number
+  total_rows: number
+  columns: Array<{ name: string }>
+  records: Array<Record<string, unknown>>
+}): TablePage {
+  return {
+    key: payload.table,
+    title: payload.title,
+    offset: payload.offset,
+    limit: payload.limit,
+    row_count: payload.row_count,
+    total_rows: payload.total_rows,
+    columns: payload.columns.map((column) => column.name),
+    records: payload.records,
+  }
+}
+
 export async function fetchModuleDashboard(
   runName: string,
   moduleName: string,
@@ -169,6 +192,42 @@ export async function fetchModuleDashboard(
     comparison_available: false,
     notes: payload.highlights.map((item) => `${item.title}: ${item.body}`),
   }
+}
+
+export async function fetchAnalysisTable(
+  runName: string,
+  moduleName: string,
+  tableName: string,
+  options: {
+    limit?: number
+    offset?: number
+    sortBy?: string | null
+    sortDir?: 'asc' | 'desc'
+    filterCol?: string | null
+    filterValue?: string | null
+  } = {},
+): Promise<TablePage> {
+  const query = buildQueryString({
+    limit: options.limit ?? 25,
+    offset: options.offset ?? 0,
+    sort_by: options.sortBy,
+    sort_dir: options.sortDir ?? 'desc',
+    filter_col: options.filterCol,
+    filter_value: options.filterValue,
+  })
+  const payload = await request<{
+    table: string
+    title: string
+    offset: number
+    limit: number
+    row_count: number
+    total_rows: number
+    columns: Array<{ name: string }>
+    records: Array<Record<string, unknown>>
+  }>(
+    `/runs/${encodeURIComponent(runName)}/analysis/${encodeURIComponent(moduleName)}/tables/${encodeURIComponent(tableName)}${query}`,
+  )
+  return mapTablePagePayload(payload)
 }
 
 export async function fetchFailureCases(

@@ -8,6 +8,7 @@ import {
   fetchPatientCase,
 } from '../lib/api'
 import { titleCase } from '../lib/format'
+import { AnalysisTableExplorer } from '../ui/AnalysisTableExplorer'
 import { ChartPanel } from '../ui/ChartPanel'
 import { DataTable } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
@@ -128,11 +129,7 @@ export function ModuleDashboardPage() {
         ))}
       </section>
 
-      <section className="page-stack">
-        {dashboard.tables.map((table) => (
-          <DataTable key={table.key} table={table} />
-        ))}
-      </section>
+      <AnalysisTableExplorer runName={runName} moduleName={moduleName} tables={dashboard.tables} />
 
       {caseArtifactsQuery.data && caseArtifactsQuery.data.length > 0 ? (
         <section className="two-column-grid">

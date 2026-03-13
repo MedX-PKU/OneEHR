@@ -124,6 +124,17 @@ export interface DashboardTable {
   records: Array<Record<string, unknown>>
 }
 
+export interface TablePage {
+  key: string
+  title: string
+  offset: number
+  limit: number
+  row_count: number
+  total_rows: number
+  columns: string[]
+  records: Array<Record<string, unknown>>
+}
+
 export interface FailureCaseArtifact {
   module: string
   name: string

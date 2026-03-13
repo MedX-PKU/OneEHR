@@ -73,7 +73,7 @@ Current pages:
 - run overview
 - case inventory and case detail pages
 - agent summaries for prediction/review outputs
-- module dashboards for `dataset_profile`, `cohort_analysis`, `prediction_audit`, `temporal_analysis`, `interpretability`, and `agent_audit`
+- module dashboards for `dataset_profile`, `cohort_analysis`, `prediction_audit`, `temporal_analysis`, `interpretability`, and `agent_audit`, including server-backed table browsing
 - compare-run view when `analysis/comparison/*` exists
 
 Current drill-downs:
