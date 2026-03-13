@@ -357,6 +357,265 @@ table + .admonition {
     text-decoration: none;
 }
 
+.landing-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 1fr);
+    gap: 1.4rem;
+    margin: 0.35rem 0 2rem;
+    padding: 1.6rem;
+    border: 1px solid #cfe0f7;
+    border-radius: 1.4rem;
+    background:
+        radial-gradient(circle at top right, rgba(14, 165, 164, 0.12), transparent 30%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 247, 255, 0.98) 100%);
+    box-shadow: 0 22px 50px rgba(148, 163, 184, 0.16);
+}
+
+.landing-hero-copy,
+.landing-hero-panel {
+    min-width: 0;
+}
+
+.landing-eyebrow,
+.feature-kicker {
+    margin: 0 0 0.65rem;
+    color: #0f766e;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.landing-hero h1 {
+    margin: 0;
+    font-size: clamp(2.6rem, 6vw, 4.4rem);
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+}
+
+.landing-lede {
+    max-width: 42rem;
+    margin: 1rem 0 0;
+    color: #102a43;
+    font-size: 1.24rem;
+    line-height: 1.45;
+}
+
+.landing-body {
+    max-width: 42rem;
+    margin: 1rem 0 0;
+    color: var(--muted-fg-color);
+    font-size: 1rem;
+    line-height: 1.7;
+}
+
+.landing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-top: 1.35rem;
+}
+
+.landing-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.85rem;
+    padding: 0.72rem 1rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-weight: 630;
+    text-decoration: none;
+    transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.landing-button:hover {
+    transform: translateY(-1px);
+    text-decoration: none;
+}
+
+.landing-button-primary {
+    background: linear-gradient(135deg, #0f4c81 0%, #2563eb 100%);
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+}
+
+.landing-button-primary:hover {
+    color: #ffffff;
+    background: linear-gradient(135deg, #0d436f 0%, #1d4ed8 100%);
+}
+
+.landing-button-secondary {
+    border-color: #c9d9ef;
+    background: rgba(255, 255, 255, 0.9);
+    color: #16324f;
+}
+
+.landing-button-secondary:hover {
+    border-color: #9bb7dc;
+    background: #eef5ff;
+}
+
+.landing-hero-panel {
+    padding: 1rem;
+    border: 1px solid rgba(160, 186, 219, 0.65);
+    border-radius: 1.1rem;
+    background: linear-gradient(180deg, rgba(248, 251, 255, 0.96) 0%, rgba(236, 244, 255, 0.96) 100%);
+}
+
+.landing-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.landing-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.34rem 0.62rem;
+    border: 1px solid #c7dbf7;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.88);
+    color: #1d4f91;
+    font-size: 0.84rem;
+    font-weight: 600;
+}
+
+.landing-stats,
+.feature-grid,
+.workflow-grid,
+.entry-grid,
+.principles-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.landing-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 1rem;
+}
+
+.landing-stat-card,
+.feature-card,
+.workflow-step,
+.entry-card,
+.principle-card {
+    border: 1px solid #d8e3f2;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 30px rgba(148, 163, 184, 0.08);
+}
+
+.landing-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1rem;
+}
+
+.landing-stat-card strong {
+    color: #102a43;
+    font-size: 1.03rem;
+}
+
+.landing-stat-label {
+    color: #5c6f85;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.landing-stat-meta {
+    color: #516173;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.landing-stat-meta code {
+    background: rgba(220, 231, 244, 0.8);
+}
+
+.feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 1.15rem 0 0.25rem;
+}
+
+.feature-card,
+.entry-card,
+.principle-card {
+    padding: 1.15rem;
+}
+
+.feature-card h3,
+.workflow-step h3,
+.entry-card h3,
+.principle-card h3 {
+    margin: 0;
+    color: #102a43;
+}
+
+.feature-card p:last-child,
+.workflow-step p:last-child,
+.entry-card p:last-child,
+.principle-card p:last-child {
+    margin-bottom: 0;
+}
+
+.workflow-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 1.15rem 0 0.25rem;
+}
+
+.workflow-step {
+    position: relative;
+    padding: 1.1rem;
+    overflow: hidden;
+}
+
+.workflow-step::before {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 0.3rem;
+    background: linear-gradient(90deg, #0ea5a4 0%, #2563eb 100%);
+}
+
+.workflow-step-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    margin-bottom: 0.75rem;
+    border-radius: 999px;
+    background: #e9f4ff;
+    color: #0f4c81;
+    font-size: 0.86rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.entry-grid,
+.principles-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 1.15rem 0 0.25rem;
+}
+
+.entry-card a {
+    color: inherit;
+    text-decoration-color: #9db8dd;
+}
+
+.entry-card a:hover {
+    color: #1d4ed8;
+}
+
+.principle-card {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 251, 255, 0.95) 100%);
+}
+
 @media (max-width: 1000px) {
     .site-tagline {
         display: none;
@@ -368,6 +627,14 @@ table + .admonition {
 
     main {
         margin-top: var(--header-height);
+    }
+
+    .landing-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .workflow-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -382,5 +649,30 @@ table + .admonition {
 
     .pagination a.next {
         margin-left: 0;
+    }
+
+    main {
+        padding: 1.35rem 1rem 1.8rem;
+    }
+
+    .landing-hero {
+        padding: 1.1rem;
+        border-radius: 1rem;
+    }
+
+    .landing-actions {
+        flex-direction: column;
+    }
+
+    .landing-button {
+        width: 100%;
+    }
+
+    .landing-stats,
+    .feature-grid,
+    .workflow-grid,
+    .entry-grid,
+    .principles-grid {
+        grid-template-columns: 1fr;
     }
 }
