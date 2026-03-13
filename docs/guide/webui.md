@@ -72,7 +72,7 @@ Current pages:
 - run explorer
 - run overview
 - case inventory filters plus case detail pages
-- agent summaries for prediction/review outputs
+- agent summaries for prediction/review outputs plus detailed row and failure browsing with server-side filters and pagination
 - module dashboards for `dataset_profile`, `cohort_analysis`, `prediction_audit`, `temporal_analysis`, `interpretability`, and `agent_audit`, including server-backed table browsing
 - comparison views for compare-run artifacts plus cohort role comparisons from `cohort_analysis`
 
@@ -92,6 +92,8 @@ GET /api/v1/runs/{run_name}
 GET /api/v1/runs/{run_name}/cases
 GET /api/v1/runs/{run_name}/cases/{case_id}
 GET /api/v1/runs/{run_name}/agents
+GET /api/v1/runs/{run_name}/agents/{task_name}/records
+GET /api/v1/runs/{run_name}/agents/{task_name}/failures
 GET /api/v1/runs/{run_name}/analysis
 GET /api/v1/runs/{run_name}/analysis/{module}/dashboard
 GET /api/v1/runs/{run_name}/analysis/{module}/tables/{table}

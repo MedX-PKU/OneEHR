@@ -7,6 +7,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { KpiCard } from '../ui/KpiCard'
 import { LoadingPanel } from '../ui/LoadingPanel'
 import { DataTable } from '../ui/DataTable'
+import { TablePaginationControls } from '../ui/TablePaginationControls'
 
 const DEFAULT_CASE_PAGE_SIZE = 25
 
@@ -48,8 +49,6 @@ export function CasesPage() {
   const payload = casesQuery.data
   const pageStart = payload.total_rows === 0 ? 0 : payload.offset + 1
   const pageEnd = payload.total_rows === 0 ? 0 : payload.offset + payload.row_count
-  const canGoBack = payload.offset > 0
-  const canGoForward = payload.offset + payload.limit < payload.total_rows
   const table = {
     key: 'cases',
     title: 'Case Inventory',
@@ -201,25 +200,13 @@ export function CasesPage() {
             emptyMessage="No indexed cases matched the current filters."
             toolbarActions={
               <div className="table-toolbar-actions">
-                <span className="table-page-summary">
-                  Page {Math.floor(payload.offset / payload.limit) + 1}
-                </span>
-                <button
-                  type="button"
-                  className="button-link"
-                  onClick={() => setOffset(Math.max(0, payload.offset - payload.limit))}
-                  disabled={!canGoBack}
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  className="button-link"
-                  onClick={() => setOffset(payload.offset + payload.limit)}
-                  disabled={!canGoForward}
-                >
-                  Next
-                </button>
+                <TablePaginationControls
+                  offset={payload.offset}
+                  limit={payload.limit}
+                  totalRows={payload.total_rows}
+                  onPrevious={() => setOffset(Math.max(0, payload.offset - payload.limit))}
+                  onNext={() => setOffset(payload.offset + payload.limit)}
+                />
               </div>
             }
           />

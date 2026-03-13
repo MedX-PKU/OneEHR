@@ -160,6 +160,18 @@ def test_webui_service_agents_payload(tmp_path: Path) -> None:
     assert records["row_count"] >= 1
     assert any(column["name"] == "review_summary" for column in records["columns"])
 
+    paged_records = service.agent_records_payload(
+        run_name="webui_agents",
+        task_name="review",
+        actor="mock-review",
+        limit=1,
+        offset=1,
+    )
+    assert paged_records["status"] == "ok"
+    assert paged_records["limit"] == 1
+    assert paged_records["offset"] == 1
+    assert paged_records["row_count"] <= 1
+
     failures = service.agent_failures_payload(run_name="webui_agents", task_name="review", actor="mock-review")
     assert failures["status"] == "ok"
     assert failures["row_count"] == 0
@@ -176,6 +188,24 @@ def test_webui_service_agents_payload(tmp_path: Path) -> None:
     )
     assert route.status_code == 200
     assert route.json()["row_count"] >= 1
+
+    paged_route = client.get(
+        f"/api/v1/runs/{run_root.name}/agents/review/records",
+        params={"actor": "mock-review", "limit": 1, "offset": 1},
+    )
+    assert paged_route.status_code == 200
+    assert paged_route.json()["limit"] == 1
+    assert paged_route.json()["offset"] == 1
+    assert paged_route.json()["row_count"] <= 1
+
+    failure_route = client.get(
+        f"/api/v1/runs/{run_root.name}/agents/review/failures",
+        params={"actor": "mock-review", "limit": 1, "offset": 0},
+    )
+    assert failure_route.status_code == 200
+    assert failure_route.json()["limit"] == 1
+    assert failure_route.json()["offset"] == 0
+    assert failure_route.json()["row_count"] == 0
 
 
 def test_webui_fastapi_routes(tmp_path: Path) -> None:

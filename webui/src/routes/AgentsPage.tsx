@@ -1,13 +1,17 @@
-import { useDeferredValue, useState } from 'react'
+import { useDeferredValue, useEffect, useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { fetchAgentTaskFailures, fetchAgentTaskRecords, fetchAgents } from '../lib/api'
+import { formatNumber } from '../lib/format'
 import type { AgentRowsPayload, AgentTaskPayload } from '../lib/types'
+import { DataTable } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
 import { KpiCard } from '../ui/KpiCard'
 import { LoadingPanel } from '../ui/LoadingPanel'
 import { StatusBadge } from '../ui/StatusBadge'
-import { DataTable } from '../ui/DataTable'
+import { TablePaginationControls } from '../ui/TablePaginationControls'
+
+const DEFAULT_AGENT_PAGE_SIZE = 25
 
 interface AgentSectionProps {
   runName: string
@@ -17,41 +21,101 @@ interface AgentSectionProps {
   task: AgentTaskPayload
 }
 
-function AgentRowsSection({
-  title,
-  emptyTitle,
-  emptyDescription,
-  payload,
-  isLoading,
-  isError,
-  error,
-}: {
+interface AgentRowsBrowserProps {
   title: string
   emptyTitle: string
   emptyDescription: string
-  payload: AgentRowsPayload | undefined
-  isLoading: boolean
-  isError: boolean
-  error: Error | null
-}) {
-  if (isLoading) {
-    return <LoadingPanel label={`Loading ${title.toLowerCase()}`} />
+  loadingLabel: string
+  queryKeyPrefix: readonly unknown[]
+  enabled: boolean
+  resetKey: string
+  fetchRows: (options: { limit: number; offset: number }) => Promise<AgentRowsPayload>
+}
+
+function describeAgentWindow(payload: AgentRowsPayload): string {
+  const pageStart = payload.total_rows === 0 ? 0 : payload.offset + 1
+  const pageEnd = payload.total_rows === 0 ? 0 : payload.offset + payload.row_count
+  return `Showing ${pageStart}-${pageEnd} of ${formatNumber(payload.total_rows)} rows`
+}
+
+function AgentRowsBrowser({
+  title,
+  emptyTitle,
+  emptyDescription,
+  loadingLabel,
+  queryKeyPrefix,
+  enabled,
+  resetKey,
+  fetchRows,
+}: AgentRowsBrowserProps) {
+  const [limit, setLimit] = useState(DEFAULT_AGENT_PAGE_SIZE)
+  const [offset, setOffset] = useState(0)
+
+  useEffect(() => {
+    setOffset(0)
+  }, [resetKey])
+
+  const rowsQuery = useQuery({
+    queryKey: [...queryKeyPrefix, limit, offset],
+    queryFn: () => fetchRows({ limit, offset }),
+    enabled,
+  })
+
+  if (rowsQuery.isLoading) {
+    return <LoadingPanel label={loadingLabel} />
   }
 
-  if (isError) {
+  if (rowsQuery.isError) {
     return (
       <EmptyState
         title={`${title} unavailable`}
-        description={error?.message ?? `Unable to load ${title.toLowerCase()}.`}
+        description={rowsQuery.error instanceof Error ? rowsQuery.error.message : `Unable to load ${title.toLowerCase()}.`}
       />
     )
   }
 
+  const payload = rowsQuery.data
   if (!payload?.table || payload.total_rows === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />
   }
 
-  return <DataTable table={payload.table} />
+  const table = {
+    ...payload.table,
+    description: describeAgentWindow(payload),
+  }
+
+  return (
+    <DataTable
+      table={table}
+      searchable={false}
+      emptyMessage={emptyDescription}
+      toolbarActions={
+        <div className="table-toolbar-actions">
+          <label className="table-filter">
+            <span>Page size</span>
+            <select
+              value={String(limit)}
+              onChange={(event) => {
+                setLimit(Number(event.target.value))
+                setOffset(0)
+              }}
+            >
+              <option value="25">25 rows</option>
+              <option value="50">50 rows</option>
+              <option value="100">100 rows</option>
+            </select>
+          </label>
+          <TablePaginationControls
+            offset={payload.offset}
+            limit={payload.limit}
+            totalRows={payload.total_rows}
+            onPrevious={() => setOffset(Math.max(0, payload.offset - payload.limit))}
+            onNext={() => setOffset(payload.offset + payload.limit)}
+          />
+        </div>
+      }
+    />
+  )
 }
 
 function AgentSection({ runName, taskName, title, description, task }: AgentSectionProps) {
@@ -60,31 +124,8 @@ function AgentSection({ runName, taskName, title, description, task }: AgentSect
   const [search, setSearch] = useState('')
   const [parsedOk, setParsedOk] = useState('all')
   const deferredSearch = useDeferredValue(search)
-
-  const recordsQuery = useQuery({
-    queryKey: ['agent-records', runName, taskName, actor, split, parsedOk, deferredSearch],
-    queryFn: () =>
-      fetchAgentTaskRecords(runName, taskName, {
-        actor: actor || null,
-        split: split || null,
-        parsedOk: parsedOk === 'all' ? null : parsedOk === 'true',
-        search: deferredSearch || null,
-        limit: 150,
-      }),
-    enabled: task.status === 'ok' && task.detail_available,
-  })
-
-  const failuresQuery = useQuery({
-    queryKey: ['agent-failures', runName, taskName, actor, split, deferredSearch],
-    queryFn: () =>
-      fetchAgentTaskFailures(runName, taskName, {
-        actor: actor || null,
-        split: split || null,
-        search: deferredSearch || null,
-        limit: 150,
-      }),
-    enabled: task.status === 'ok',
-  })
+  const parsedOkValue = parsedOk === 'all' ? null : parsedOk === 'true'
+  const sharedResetKey = `${actor}|${split}|${parsedOk}|${deferredSearch}`
 
   return (
     <section className="page-stack">
@@ -124,10 +165,10 @@ function AgentSection({ runName, taskName, title, description, task }: AgentSect
             <div className="panel-header">
               <div>
                 <p className="eyebrow">Drilldown</p>
-                <h2>Detailed agent rows</h2>
+                <h2>Browse detailed agent outputs</h2>
                 <p className="panel-copy">
-                  Filter saved agent outputs by backend, split, parse status, or free-text search. The table previews
-                  the first 150 matching rows.
+                  Filter saved agent rows by backend, split, parse status, or free-text search. Detailed rows and
+                  failures page independently from the server.
                 </p>
               </div>
             </div>
@@ -184,25 +225,44 @@ function AgentSection({ runName, taskName, title, description, task }: AgentSect
               description="This run only saved summary metrics for this agent workflow."
             />
           ) : (
-            <AgentRowsSection
+            <AgentRowsBrowser
               title={`${title} rows`}
               emptyTitle="No matching detailed rows"
               emptyDescription="No saved rows matched the current filters."
-              payload={recordsQuery.data}
-              isLoading={recordsQuery.isLoading}
-              isError={recordsQuery.isError}
-              error={recordsQuery.error instanceof Error ? recordsQuery.error : null}
+              loadingLabel="Loading detailed agent rows"
+              queryKeyPrefix={['agent-records', runName, taskName, actor, split, parsedOk, deferredSearch]}
+              enabled={task.detail_available}
+              resetKey={sharedResetKey}
+              fetchRows={({ limit, offset }) =>
+                fetchAgentTaskRecords(runName, taskName, {
+                  actor: actor || null,
+                  split: split || null,
+                  parsedOk: parsedOkValue,
+                  search: deferredSearch || null,
+                  limit,
+                  offset,
+                })
+              }
             />
           )}
 
-          <AgentRowsSection
+          <AgentRowsBrowser
             title={`${title} failures`}
             emptyTitle="No failure rows"
             emptyDescription="No agent failures matched the current filters."
-            payload={failuresQuery.data}
-            isLoading={failuresQuery.isLoading}
-            isError={failuresQuery.isError}
-            error={failuresQuery.error instanceof Error ? failuresQuery.error : null}
+            loadingLabel="Loading agent failures"
+            queryKeyPrefix={['agent-failures', runName, taskName, actor, split, deferredSearch]}
+            enabled={task.status === 'ok'}
+            resetKey={`${actor}|${split}|${deferredSearch}`}
+            fetchRows={({ limit, offset }) =>
+              fetchAgentTaskFailures(runName, taskName, {
+                actor: actor || null,
+                split: split || null,
+                search: deferredSearch || null,
+                limit,
+                offset,
+              })
+            }
           />
         </>
       )}

@@ -5,6 +5,7 @@ import { formatNumber } from '../lib/format'
 import { DataTable } from './DataTable'
 import { EmptyState } from './EmptyState'
 import { LoadingPanel } from './LoadingPanel'
+import { TablePaginationControls } from './TablePaginationControls'
 
 interface ServerTableExplorerProps {
   items: ExplorerItem[]
@@ -133,8 +134,6 @@ export function ServerTableExplorer({
   const pageRowCount = pageQuery.data?.row_count ?? 0
   const pageStart = totalRows === 0 ? 0 : offset + 1
   const pageEnd = totalRows === 0 ? 0 : offset + pageRowCount
-  const canGoBack = offset > 0
-  const canGoForward = offset + limit < totalRows
 
   return (
     <section className="page-stack">
@@ -263,25 +262,13 @@ export function ServerTableExplorer({
           emptyMessage={noMatchesMessage}
           toolbarActions={
             <div className="table-toolbar-actions">
-              <span className="table-page-summary">
-                Page {Math.floor(offset / limit) + 1}
-              </span>
-              <button
-                type="button"
-                className="button-link"
-                onClick={() => setOffset(Math.max(0, offset - limit))}
-                disabled={!canGoBack}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="button-link"
-                onClick={() => setOffset(offset + limit)}
-                disabled={!canGoForward}
-              >
-                Next
-              </button>
+              <TablePaginationControls
+                offset={offset}
+                limit={limit}
+                totalRows={totalRows}
+                onPrevious={() => setOffset(Math.max(0, offset - limit))}
+                onNext={() => setOffset(offset + limit)}
+              />
             </div>
           }
         />
