@@ -1,8 +1,10 @@
 import type {
   AgentRowsPayload,
   AgentTaskPayload,
+  AnalysisModuleMeta,
   AgentsPayload,
   RunConsolePayload,
+  RunDetail,
   CaseDetailPayload,
   CasesIndexPayload,
   DashboardCard,
@@ -16,6 +18,8 @@ import type {
   ModuleDashboard,
   PatientCasePayload,
   RunRecord,
+  TestBestModel,
+  TestingSummary,
 } from './types'
 
 const API_BASE = (import.meta.env.VITE_ONEEHR_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -45,13 +49,221 @@ function buildQueryString(params: Record<string, string | number | boolean | nul
   return query ? `?${query}` : ''
 }
 
+const EMPTY_TESTING_SUMMARY: TestingSummary = {
+  record_count: 0,
+  models: [],
+  splits: [],
+  primary_metric: '—',
+  best_model: null,
+  best_score: null,
+  summary_path: null,
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : fallback
+}
+
+function normalizeTestBestModel(value: unknown): TestBestModel | null {
+  const record = asObject(value)
+  if (typeof record.model !== 'string' || typeof record.metric !== 'string') {
+    return null
+  }
+  return {
+    model: record.model,
+    metric: record.metric,
+    value: asNumber(record.value, 0),
+  }
+}
+
+function normalizeTestingSummary(value: unknown): TestingSummary {
+  const record = asObject(value)
+  return {
+    record_count: asNumber(record.record_count, 0),
+    models: asStringArray(record.models),
+    splits: asStringArray(record.splits),
+    primary_metric:
+      typeof record.primary_metric === 'string' && record.primary_metric.length > 0
+        ? record.primary_metric
+        : EMPTY_TESTING_SUMMARY.primary_metric,
+    best_model: normalizeTestBestModel(record.best_model),
+    best_score: record.best_score == null ? null : asNumber(record.best_score, 0),
+    summary_path: typeof record.summary_path === 'string' ? record.summary_path : null,
+  }
+}
+
+function normalizeModule(module: unknown): AnalysisModuleMeta {
+  const record = asObject(module)
+  return {
+    name: typeof record.name === 'string' ? record.name : 'unknown',
+    status: typeof record.status === 'string' ? record.status : 'unknown',
+    title: typeof record.title === 'string' ? record.title : undefined,
+    description: typeof record.description === 'string' ? record.description : undefined,
+    summary_path: typeof record.summary_path === 'string' ? record.summary_path : null,
+    table_names: asStringArray(record.table_names),
+    plot_names: asStringArray(record.plot_names),
+    case_names: asStringArray(record.case_names),
+    route: typeof record.route === 'string' ? record.route : undefined,
+  }
+}
+
+function normalizeRunRecord(run: unknown): RunRecord {
+  const record = asObject(run)
+  const testing = normalizeTestingSummary(record.testing)
+  const hasTestSummary =
+    typeof record.has_test_summary === 'boolean'
+      ? record.has_test_summary
+      : Boolean(testing.summary_path || testing.record_count > 0)
+
+  return {
+    run_name: typeof record.run_name === 'string' ? record.run_name : 'unknown',
+    run_dir: typeof record.run_dir === 'string' ? record.run_dir : '',
+    schema_version: asNumber(record.schema_version, 0),
+    task: asObject(record.task) as RunRecord['task'],
+    split: asObject(record.split) as RunRecord['split'],
+    has_train_summary: Boolean(record.has_train_summary),
+    has_test_summary: hasTestSummary,
+    has_analysis_index: Boolean(record.has_analysis_index),
+    has_cases_index: Boolean(record.has_cases_index),
+    has_agent_predict_summary: Boolean(record.has_agent_predict_summary),
+    has_agent_review_summary: Boolean(record.has_agent_review_summary),
+    testing_status:
+      typeof record.testing_status === 'string' ? record.testing_status : hasTestSummary ? 'ready' : 'pending',
+    testing,
+    mtime_unix: record.mtime_unix == null ? undefined : asNumber(record.mtime_unix, 0),
+  }
+}
+
+function normalizeRunDetail(run: unknown): RunDetail {
+  const record = asObject(run)
+  const analysisModules = asObject(record.analysis).modules
+  return {
+    run_name: typeof record.run_name === 'string' ? record.run_name : 'unknown',
+    run_dir: typeof record.run_dir === 'string' ? record.run_dir : '',
+    manifest: {
+      schema_version: asNumber(asObject(record.manifest).schema_version, 0),
+      task: asObject(asObject(record.manifest).task),
+      split: asObject(asObject(record.manifest).split),
+      cases: asObject(asObject(record.manifest).cases),
+      agent: asObject(asObject(record.manifest).agent),
+    },
+    training: {
+      record_count: asNumber(asObject(record.training).record_count, 0),
+      models: asStringArray(asObject(record.training).models),
+      splits: asStringArray(asObject(record.training).splits),
+      summary_path:
+        typeof asObject(record.training).summary_path === 'string' ? String(asObject(record.training).summary_path) : null,
+    },
+    testing: normalizeTestingSummary(record.testing),
+    analysis: {
+      has_index: Boolean(asObject(record.analysis).has_index),
+      modules: Array.isArray(analysisModules) ? analysisModules.map(normalizeModule) : [],
+      index_path:
+        typeof asObject(record.analysis).index_path === 'string' ? String(asObject(record.analysis).index_path) : null,
+    },
+    cases: {
+      case_count: asNumber(asObject(record.cases).case_count, 0),
+      index_path: typeof asObject(record.cases).index_path === 'string' ? String(asObject(record.cases).index_path) : null,
+    },
+    agent_predict: {
+      record_count: asNumber(asObject(record.agent_predict).record_count, 0),
+      predictors: asStringArray(asObject(record.agent_predict).predictors),
+      summary_path:
+        typeof asObject(record.agent_predict).summary_path === 'string'
+          ? String(asObject(record.agent_predict).summary_path)
+          : null,
+    },
+    agent_review: {
+      record_count: asNumber(asObject(record.agent_review).record_count, 0),
+      reviewers: asStringArray(asObject(record.agent_review).reviewers),
+      summary_path:
+        typeof asObject(record.agent_review).summary_path === 'string'
+          ? String(asObject(record.agent_review).summary_path)
+          : null,
+    },
+    artifacts: asObject(record.artifacts) as Record<string, boolean>,
+  }
+}
+
+function normalizeRunConsole(payload: unknown): RunConsolePayload {
+  const record = asObject(payload)
+  const analysisRecord = asObject(record.analysis)
+  const run = normalizeRunDetail(record.run)
+  const analysisModules = Array.isArray(analysisRecord.modules)
+    ? analysisRecord.modules.map(normalizeModule)
+    : run.analysis.modules
+
+  return {
+    run: {
+      ...run,
+      analysis: {
+        ...run.analysis,
+        modules: analysisModules,
+      },
+    },
+    hero: {
+      run_name: typeof asObject(record.hero).run_name === 'string' ? String(asObject(record.hero).run_name) : run.run_name,
+      task_label:
+        typeof asObject(record.hero).task_label === 'string' ? String(asObject(record.hero).task_label) : 'Unknown task',
+      model_count: asNumber(asObject(record.hero).model_count, run.training.models.length),
+      test_model_count: asNumber(asObject(record.hero).test_model_count, run.testing.models.length),
+      test_record_count: asNumber(asObject(record.hero).test_record_count, run.testing.record_count),
+      analysis_module_count: asNumber(asObject(record.hero).analysis_module_count, analysisModules.length),
+      case_count: asNumber(asObject(record.hero).case_count, run.cases.case_count),
+      agent_predict_record_count: asNumber(asObject(record.hero).agent_predict_record_count, run.agent_predict.record_count),
+      agent_review_record_count: asNumber(asObject(record.hero).agent_review_record_count, run.agent_review.record_count),
+    },
+    analysis: {
+      run_name: typeof analysisRecord.run_name === 'string' ? analysisRecord.run_name : run.run_name,
+      status: typeof analysisRecord.status === 'string' ? analysisRecord.status : run.analysis.has_index ? 'ok' : 'missing',
+      task: asObject(analysisRecord.task),
+      modules: analysisModules,
+      comparison: analysisRecord.comparison != null ? asObject(analysisRecord.comparison) : null,
+    },
+    navigation: {
+      overview_route:
+        typeof asObject(record.navigation).overview_route === 'string'
+          ? String(asObject(record.navigation).overview_route)
+          : `/runs/${encodeURIComponent(run.run_name)}`,
+      cases_route:
+        typeof asObject(record.navigation).cases_route === 'string'
+          ? String(asObject(record.navigation).cases_route)
+          : `/runs/${encodeURIComponent(run.run_name)}/cases`,
+      agents_route:
+        typeof asObject(record.navigation).agents_route === 'string'
+          ? String(asObject(record.navigation).agents_route)
+          : `/runs/${encodeURIComponent(run.run_name)}/agents`,
+      comparison_route:
+        typeof asObject(record.navigation).comparison_route === 'string'
+          ? String(asObject(record.navigation).comparison_route)
+          : `/runs/${encodeURIComponent(run.run_name)}/comparison`,
+    },
+  }
+}
+
 export async function fetchRuns(): Promise<RunRecord[]> {
   const payload = await request<{ runs: RunRecord[] }>('/runs')
-  return payload.runs
+  return (payload.runs ?? []).map(normalizeRunRecord)
 }
 
 export async function fetchRunConsole(runName: string): Promise<RunConsolePayload> {
-  return request<RunConsolePayload>(`/runs/${encodeURIComponent(runName)}`)
+  return normalizeRunConsole(await request<RunConsolePayload>(`/runs/${encodeURIComponent(runName)}`))
 }
 
 interface RawKpiCard {
@@ -187,12 +399,12 @@ export async function fetchModuleDashboard(
     title: payload.module.title,
     status: payload.module.status,
     summary: payload.module.summary,
-    cards: mapCards(payload.module.kpis),
-    charts: mapCharts(payload.charts, payload.highlights),
-    tables: mapTables(payload.tables),
-    case_artifacts: payload.drilldowns.case_artifacts,
+    cards: mapCards(payload.module.kpis ?? []),
+    charts: mapCharts(payload.charts ?? [], payload.highlights ?? []),
+    tables: mapTables(payload.tables ?? []),
+    case_artifacts: payload.drilldowns?.case_artifacts ?? [],
     comparison_available: payload.comparison_available ?? false,
-    notes: payload.highlights.map((item) => `${item.title}: ${item.body}`),
+    notes: (payload.highlights ?? []).map((item) => `${item.title}: ${item.body}`),
   }
 }
 
@@ -327,13 +539,13 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
     payload.summary == null
       ? []
       : Object.entries(payload.summary)
-          .filter((entry): entry is [string, string | number] => {
+          .filter((entry): entry is [string, number] => {
             const value = entry[1]
-            return typeof value === 'string' || typeof value === 'number'
+            return typeof value === 'number'
           })
           .map(([key, value]) => ({
             key,
-            title: key.replace(/_/g, ' '),
+            title: key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
             value,
             tone: 'neutral',
           }))
@@ -342,9 +554,9 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
     status: payload.status,
     run_name: payload.run_name,
     summary: payload.summary,
-    tables: mapTables(payload.tables),
+    tables: mapTables(payload.tables ?? []),
     cards: summaryCards,
-    charts: payload.charts.map((chart) => ({
+    charts: (payload.charts ?? []).map((chart) => ({
       key: chart.id,
       kind: chart.kind,
       title: chart.title,
@@ -353,7 +565,7 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
       group: chart.group_key,
       data: chart.data,
     })),
-    highlights: payload.highlights.map((item) => `${item.title}: ${item.body}`),
+    highlights: (payload.highlights ?? []).map((item) => `${item.title}: ${item.body}`),
   }
 }
 

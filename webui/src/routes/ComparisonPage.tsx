@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { fetchComparison, fetchCohortComparison, fetchRunConsole } from '../lib/api'
 import type { DashboardCard, DashboardChart, DashboardTable } from '../lib/types'
-import { titleCase } from '../lib/format'
+import { formatIdentifierDisplay, formatMetricName, formatNameList, formatTestingBestModel, titleCase } from '../lib/format'
 import { ChartPanel } from '../ui/ChartPanel'
 import { ComparisonTableExplorer } from '../ui/ComparisonTableExplorer'
 import { DataTable } from '../ui/DataTable'
@@ -156,26 +156,16 @@ export function ComparisonPage() {
   })
 
   const splitOptions = runConsoleQuery.data?.run.training.splits ?? []
+  const effectiveSelectedSplit =
+    splitOptions.length === 0 ? '' : splitOptions.includes(selectedSplit) ? selectedSplit : (splitOptions[0] ?? '')
   const cohortAnalysisAvailable =
     runConsoleQuery.data?.analysis.modules.some((module) => module.name === 'cohort_analysis' && module.status === 'ok') ?? false
 
-  useEffect(() => {
-    if (splitOptions.length === 0) {
-      if (selectedSplit !== '') {
-        setSelectedSplit('')
-      }
-      return
-    }
-    if (!selectedSplit || !splitOptions.includes(selectedSplit)) {
-      setSelectedSplit(splitOptions[0] ?? '')
-    }
-  }, [selectedSplit, splitOptions])
-
   const cohortQuery = useQuery({
-    queryKey: ['cohort-compare', runName, selectedSplit, leftRole, rightRole, topK],
+    queryKey: ['cohort-compare', runName, effectiveSelectedSplit, leftRole, rightRole, topK],
     queryFn: () =>
       fetchCohortComparison(runName, {
-        split: selectedSplit || null,
+        split: effectiveSelectedSplit || null,
         leftRole,
         rightRole,
         topK,
@@ -183,7 +173,7 @@ export function ComparisonPage() {
     enabled:
       runConsoleQuery.data != null &&
       cohortAnalysisAvailable &&
-      (splitOptions.length === 0 || selectedSplit.length > 0),
+      (splitOptions.length === 0 || effectiveSelectedSplit.length > 0),
   })
 
   if (runConsoleQuery.isLoading || comparisonQuery.isLoading) {
@@ -201,6 +191,7 @@ export function ComparisonPage() {
 
   const comparison = comparisonQuery.data
   const cohortComparison = cohortQuery.data
+  const testing = runConsoleQuery.data.run.testing
   const compareRunAvailable = comparison?.status === 'ok'
   const cohortCards = cohortComparison ? buildCohortCards(cohortComparison) : []
   const cohortMetricTable = cohortComparison ? buildCohortMetricTable(cohortComparison) : null
@@ -222,11 +213,42 @@ export function ComparisonPage() {
       <section className="page-header">
         <div>
           <p className="eyebrow">Comparison</p>
-          <h1>{runName}</h1>
+          <h1 className="entity-title identifier-text">{formatIdentifierDisplay(runName)}</h1>
           <p className="hero-copy">
-            Compare saved train deltas when they exist, and inspect cohort integrity gaps directly from cohort analysis artifacts.
+            Compare saved train, external-test, and agent deltas when they exist, then inspect cohort integrity gaps directly from cohort analysis artifacts.
           </p>
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">External Test</p>
+            <h2>Current held-out snapshot</h2>
+            <p className="panel-copy">
+              This run-level view stays available even before a compare-run baseline has been generated.
+            </p>
+          </div>
+        </div>
+
+        {testing.record_count === 0 ? (
+          <EmptyState
+            title="No held-out test summary yet"
+            description="Run `oneehr test` to populate external-test rows before comparing this run against a baseline."
+          />
+        ) : (
+          <section className="card-grid kpi-grid">
+            <KpiCard key="test_rows" title="External test rows" value={testing.record_count} subtitle={testing.summary_path ?? 'Saved summary'} />
+            <KpiCard key="test_models" title="Test models" value={testing.models.length} subtitle={formatNameList(testing.models)} />
+            <KpiCard key="test_splits" title="Test splits" value={testing.splits.length} subtitle={formatNameList(testing.splits)} />
+            <KpiCard
+              key="test_best_model"
+              title="Best test model"
+              value={testing.best_model?.model ?? '—'}
+              subtitle={`${formatMetricName(testing.primary_metric)} · ${formatTestingBestModel(testing)}`}
+            />
+          </section>
+        )}
       </section>
 
       <section className="panel">
@@ -235,7 +257,7 @@ export function ComparisonPage() {
             <p className="eyebrow">Compare Run</p>
             <h2>Artifact deltas</h2>
             <p className="panel-copy">
-              Compare-run outputs are optional. When they exist, this section shows saved training and agent metric deltas.
+              Compare-run outputs are optional. When they exist, this section shows saved training, external-test, and agent metric deltas.
             </p>
           </div>
         </div>
@@ -318,7 +340,7 @@ export function ComparisonPage() {
           <label className="table-filter">
             <span>Split</span>
             <select
-              value={selectedSplit}
+              value={effectiveSelectedSplit}
               onChange={(event) => setSelectedSplit(event.target.value)}
               disabled={splitOptions.length === 0}
             >

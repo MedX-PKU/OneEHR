@@ -266,6 +266,7 @@ class AnalysisConfig:
             "dataset_profile",
             "cohort_analysis",
             "prediction_audit",
+            "test_audit",
             "temporal_analysis",
             "interpretability",
             "agent_audit",

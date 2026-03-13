@@ -4,7 +4,10 @@ interface StatusBadgeProps {
 
 const STATUS_LABELS: Record<string, string> = {
   ok: 'OK',
+  ready: 'Ready',
   skipped: 'Skipped',
+  pending: 'Pending',
+  missing: 'Missing',
   error: 'Error',
   warning: 'Warning',
   neutral: 'Unknown',
@@ -24,7 +27,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
             : 'neutral'
   return (
     <span className={`status-badge tone-${tone}`}>
-      {STATUS_LABELS[tone] ?? status ?? 'Unknown'}
+      {STATUS_LABELS[raw] ?? STATUS_LABELS[tone] ?? status ?? 'Unknown'}
     </span>
   )
 }

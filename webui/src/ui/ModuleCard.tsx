@@ -12,6 +12,11 @@ export function ModuleCard({ runName, module }: ModuleCardProps) {
   const title = module.title ?? titleCase(module.name)
   const description =
     module.description ?? `Structured summary, tables, and drill-down views for ${title.toLowerCase()}.`
+  const metadata = [
+    `${module.plot_names?.length ?? 0} chart${module.plot_names?.length === 1 ? '' : 's'}`,
+    `${module.table_names?.length ?? 0} table${module.table_names?.length === 1 ? '' : 's'}`,
+    `${module.case_names?.length ?? 0} case artifact${module.case_names?.length === 1 ? '' : 's'}`,
+  ]
 
   return (
     <Link
@@ -27,6 +32,11 @@ export function ModuleCard({ runName, module }: ModuleCardProps) {
         <StatusBadge status={module.status} />
       </div>
       <p>{description}</p>
+      <div className="capability-row">
+        {metadata.map((item) => (
+          <span key={`${module.name}-${item}`}>{item}</span>
+        ))}
+      </div>
     </Link>
   )
 }

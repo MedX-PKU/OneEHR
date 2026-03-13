@@ -123,8 +123,10 @@ def test_run_view_domain_unifies_run_case_and_analysis_reads(tmp_path: Path) -> 
     run_view = open_run_view(run_root)
     desc = run_view.describe()
     assert desc["cases"]["case_count"] >= 1
+    assert desc["testing"]["record_count"] >= 1
     assert desc["analysis"]["has_index"] is True
     assert "prediction_audit" in run_view.analysis_modules()
+    assert "test_audit" in run_view.analysis_modules()
 
     cases = run_view.case_records(limit=1)
     assert len(cases) == 1
@@ -138,6 +140,22 @@ def test_run_view_domain_unifies_run_case_and_analysis_reads(tmp_path: Path) -> 
     patient_id = str(cases[0]["patient_id"])
     patient_matches = run_view.patient_case_matches(patient_id, "prediction_audit", limit=2)
     assert patient_matches["patient_id"] == patient_id
+
+
+def test_run_view_describe_includes_testing_summary(tmp_path: Path) -> None:
+    run_root, cfg_path = _build_cases_run(tmp_path=tmp_path, run_name="workspace_testing_domain", seed=33)
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg_path), "--force"])
+
+    catalog = RunCatalog(run_root.parent)
+    runs = catalog.list_runs()
+    assert runs[0]["has_test_summary"] is True
+
+    run_view = open_run_view(run_root)
+    desc = run_view.describe()
+    assert desc["testing"]["record_count"] >= 1
+    assert desc["testing"]["summary_path"] == "test_runs/test_summary.json"
+    assert desc["testing"]["best_model"] is not None
+    assert desc["testing"]["best_model"]["metric"] == "auroc"
 
 
 def test_run_view_domain_reads_agent_detail_artifacts(tmp_path: Path) -> None:
@@ -196,6 +214,7 @@ def _build_cases_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[Path,
 
     subprocess.check_call(["oneehr", "preprocess", "--config", str(cfg_path)])
     subprocess.check_call(["oneehr", "train", "--config", str(cfg_path), "--force"])
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg_path), "--force"])
     subprocess.check_call(
         [
             "oneehr",
@@ -208,6 +227,8 @@ def _build_cases_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[Path,
             "cohort_analysis",
             "--module",
             "prediction_audit",
+            "--module",
+            "test_audit",
         ]
     )
     subprocess.check_call(["oneehr", "cases", "build", "--config", str(cfg_path), "--force"])

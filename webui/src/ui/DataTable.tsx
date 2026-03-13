@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-table'
 import type { DashboardTable } from '../lib/types'
 import { stringifyValue, titleCase } from '../lib/format'
+import { StructuredValue } from './StructuredValue'
 
 interface DataTableProps {
   table: DashboardTable
@@ -30,7 +31,7 @@ export function DataTable({
       table.columns.map((column) => ({
         accessorKey: column,
         header: titleCase(column),
-        cell: ({ getValue }: { getValue: () => unknown }) => stringifyValue(getValue()),
+        cell: ({ getValue }: { getValue: () => unknown }) => <StructuredValue value={getValue()} />,
       })),
     [table.columns],
   )

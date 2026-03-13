@@ -1,10 +1,12 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCaseDetail } from '../lib/api'
+import { formatIdentifierDisplay } from '../lib/format'
 import { EmptyState } from '../ui/EmptyState'
 import { KpiCard } from '../ui/KpiCard'
 import { LoadingPanel } from '../ui/LoadingPanel'
 import { DataTable } from '../ui/DataTable'
+import { StructuredValue } from '../ui/StructuredValue'
 
 export function CaseDetailPage() {
   const { runName, caseId } = useParams({ from: '/runs/$runName/cases/$caseId' })
@@ -36,7 +38,7 @@ export function CaseDetailPage() {
       <section className="page-header">
         <div>
           <p className="eyebrow">Case Detail</p>
-          <h1>{String(payload.case.case_id ?? caseId)}</h1>
+          <h1 className="entity-title identifier-text">{formatIdentifierDisplay(payload.case.case_id ?? caseId)}</h1>
           <p className="hero-copy">
             Patient {patientId} | Split {split} | Ground truth {groundTruth}
           </p>
@@ -76,7 +78,9 @@ export function CaseDetailPage() {
             {Object.entries(payload.case).map(([key, value]) => (
               <div key={key}>
                 <span>{key.replace(/_/g, ' ')}</span>
-                <strong>{value == null || value === '' ? '—' : String(value)}</strong>
+                <span className="detail-value">
+                  <StructuredValue value={value} />
+                </span>
               </div>
             ))}
           </div>

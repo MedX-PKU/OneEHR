@@ -63,6 +63,7 @@ def test_cli_analyze_default_writes_structured_outputs(tmp_path: Path) -> None:
     modules = list_analysis_modules(run_root)
     assert "dataset_profile" in modules
     assert "prediction_audit" in modules
+    assert "test_audit" in modules
     assert "interpretability" in modules
     assert "agent_audit" in modules
 
@@ -73,6 +74,7 @@ def test_cli_analyze_default_writes_structured_outputs(tmp_path: Path) -> None:
     assert (analysis_root / "prediction_audit" / "slices.csv").exists()
     assert (analysis_root / "prediction_audit" / "cases").exists()
     assert (analysis_root / "cohort_analysis" / "feature_drift.csv").exists()
+    assert (analysis_root / "test_audit" / "summary.json").exists()
     assert (analysis_root / "temporal_analysis" / "segments.csv").exists()
     assert (analysis_root / "agent_audit" / "summary.json").exists()
     assert any(path.name.startswith("feature_importance_xgboost_") for path in analysis_root.iterdir())
@@ -85,12 +87,38 @@ def test_cli_analyze_default_writes_structured_outputs(tmp_path: Path) -> None:
 
     agent_summary = read_analysis_summary(run_root, "agent_audit")
     assert agent_summary["status"] == "skipped"
+    test_summary = read_analysis_summary(run_root, "test_audit")
+    assert test_summary["status"] == "skipped"
     assert index["comparison"] is None
+
+
+def test_cli_analyze_test_audit_writes_structured_outputs(tmp_path: Path) -> None:
+    run_root, cfg = _build_trained_run(tmp_path=tmp_path, run_name="analysis_test_audit", seed=19)
+
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg), "--force"])
+    subprocess.check_call(["oneehr", "analyze", "--config", str(cfg), "--module", "test_audit"])
+
+    analysis_root = run_root / "analysis" / "test_audit"
+    assert (analysis_root / "summary.json").exists()
+    assert (analysis_root / "slices.csv").exists()
+    assert (analysis_root / "model_summary.csv").exists()
+    assert (analysis_root / "metric_summary.csv").exists()
+    assert (analysis_root / "plots" / "model_primary_metric.json").exists()
+
+    summary = read_analysis_summary(run_root, "test_audit")
+    assert summary["status"] == "ok"
+    assert summary["n_test_slices"] > 0
+    table = read_analysis_table(run_root, "test_audit", "slices")
+    assert not table.empty
+    assert set(table.columns) >= {"model", "split", "auroc"}
 
 
 def test_cli_analyze_compare_run_writes_comparison(tmp_path: Path) -> None:
     run_root_a, cfg_a = _build_trained_run(tmp_path=tmp_path / "run_a", run_name="cmp_a", seed=5)
-    run_root_b, _ = _build_trained_run(tmp_path=tmp_path / "run_b", run_name="cmp_b", seed=8)
+    run_root_b, cfg_b = _build_trained_run(tmp_path=tmp_path / "run_b", run_name="cmp_b", seed=8)
+
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg_a), "--force"])
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg_b), "--force"])
 
     subprocess.check_call(
         [
@@ -108,8 +136,10 @@ def test_cli_analyze_compare_run_writes_comparison(tmp_path: Path) -> None:
     comparison_dir = run_root_a / "analysis" / "comparison"
     assert (comparison_dir / "summary.json").exists()
     assert (comparison_dir / "train_metrics.csv").exists()
+    assert (comparison_dir / "test_metrics.csv").exists()
     summary = json.loads((comparison_dir / "summary.json").read_text(encoding="utf-8"))
     assert summary["train_delta_rows"] > 0
+    assert summary["test_delta_rows"] > 0
     index = read_analysis_index(run_root_a)
     assert index["comparison"]["summary_path"] == "analysis/comparison/summary.json"
 

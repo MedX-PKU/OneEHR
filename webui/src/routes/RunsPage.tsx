@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { fetchModuleDashboard, fetchRunConsole, fetchRuns } from '../lib/api'
-import { formatDate, titleCase } from '../lib/format'
+import { formatDate, formatIdentifierDisplay, formatMetricName, formatTestingBestModel, titleCase } from '../lib/format'
+import { sortModulesByPriority } from '../lib/modules'
 import { ChartPanel } from '../ui/ChartPanel'
 import { DataTable } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
@@ -14,13 +15,16 @@ export function RunsPage() {
     queryFn: fetchRuns,
   })
   const runs = runsQuery.data ?? []
-  const spotlightRun = runs.find((run) => run.has_analysis_index)
+  const spotlightRun =
+    runs.find((run) => run.has_analysis_index && run.has_test_summary) ?? runs.find((run) => run.has_analysis_index)
   const runConsoleQuery = useQuery({
     queryKey: ['run-console', spotlightRun?.run_name],
     queryFn: () => fetchRunConsole(String(spotlightRun?.run_name)),
     enabled: spotlightRun != null,
   })
-  const spotlightModule = runConsoleQuery.data?.analysis.modules.find((module) => module.status === 'ok') ?? null
+  const spotlightModule =
+    sortModulesByPriority((runConsoleQuery.data?.analysis.modules ?? []).filter((module) => module.status === 'ok'))[0] ??
+    null
   const spotlightDashboardQuery = useQuery({
     queryKey: ['module-dashboard-spotlight', spotlightRun?.run_name, spotlightModule?.name],
     queryFn: () => fetchModuleDashboard(String(spotlightRun?.run_name), String(spotlightModule?.name)),
@@ -62,8 +66,8 @@ export function RunsPage() {
             <strong>{runs.filter((run) => run.has_analysis_index).length}</strong>
           </div>
           <div>
-            <span>Agent-enabled</span>
-            <strong>{runs.filter((run) => run.has_agent_predict_summary).length}</strong>
+            <span>Test-ready</span>
+            <strong>{runs.filter((run) => run.has_test_summary).length}</strong>
           </div>
         </div>
       </section>
@@ -72,14 +76,14 @@ export function RunsPage() {
         <div className="panel-header">
           <div>
             <p className="eyebrow">Visual Spotlight</p>
-            <h2>First look at the latest analysis-ready run</h2>
+            <h2>First look at the latest result-rich run</h2>
             <p className="panel-copy">
-              The console now surfaces live charts immediately instead of making you hunt through module pages first.
+              Prioritize runs that already have analysis and held-out test summaries so the first page shows tutorial-grade results.
             </p>
           </div>
           {spotlightRun ? (
             <Link to="/runs/$runName" params={{ runName: spotlightRun.run_name }} className="button-link">
-              Open {spotlightRun.run_name}
+              Open {formatIdentifierDisplay(spotlightRun.run_name)}
             </Link>
           ) : null}
         </div>
@@ -145,7 +149,7 @@ export function RunsPage() {
               <div className="run-card-header">
                 <div>
                   <p className="eyebrow">Run</p>
-                  <h2>{run.run_name}</h2>
+                  <h2>{formatIdentifierDisplay(run.run_name)}</h2>
                 </div>
                 <StatusBadge status={run.has_analysis_index ? 'ok' : 'warning'} />
               </div>
@@ -163,13 +167,28 @@ export function RunsPage() {
                   <strong>{titleCase(String(run.split?.kind ?? 'unknown'))}</strong>
                 </div>
                 <div>
+                  <span>External test</span>
+                  <strong>{run.has_test_summary ? 'Ready' : 'Pending'}</strong>
+                </div>
+                <div>
+                  <span>Primary metric</span>
+                  <strong>{formatMetricName(run.testing?.primary_metric)}</strong>
+                </div>
+                <div>
                   <span>Updated</span>
                   <strong>{formatDate(run.mtime_unix)}</strong>
                 </div>
               </div>
               <div className="capability-row">
                 <span>{run.has_cases_index ? 'Cases ready' : 'No cases'}</span>
-                <span>{run.has_agent_predict_summary ? 'Agent predict' : 'Model only'}</span>
+                <span>{run.has_test_summary ? 'External test ready' : 'No test summary'}</span>
+                <span>
+                  {run.testing?.best_model
+                    ? formatTestingBestModel(run.testing)
+                    : run.has_agent_predict_summary
+                      ? 'Agent predict'
+                      : 'Model only'}
+                </span>
               </div>
             </Link>
           ))}

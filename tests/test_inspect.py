@@ -205,6 +205,7 @@ def _build_analyzed_run(*, tmp_path: Path, run_name: str, seed: int) -> tuple[Pa
 
     subprocess.check_call(["oneehr", "preprocess", "--config", str(cfg)])
     subprocess.check_call(["oneehr", "train", "--config", str(cfg), "--force"])
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg), "--force"])
     subprocess.check_call(
         [
             "oneehr",

@@ -78,6 +78,12 @@ class RunView:
     def training_records(self) -> list[dict[str, Any]]:
         return _ensure_records(self.training_summary())
 
+    def testing_summary(self) -> dict[str, Any]:
+        return self.read_optional_json(Path("test_runs") / "test_summary.json")
+
+    def testing_records(self) -> list[dict[str, Any]]:
+        return _ensure_records(self.testing_summary())
+
     def analysis_index(self) -> dict[str, Any]:
         return _read_analysis_index(self.run_root)
 
@@ -337,10 +343,15 @@ class RunView:
 
     def describe(self) -> dict[str, Any]:
         train_records = self.training_records()
+        test_records = self.testing_records()
         agent_predict_records = self.agent_predict_records()
         agent_review_records = self.agent_review_records()
         analysis_index = self.analysis_index_optional()
         cases_index = self.cases_index_optional()
+        testing_snapshot = _testing_summary_snapshot(
+            test_records,
+            task=self.manifest.data.get("task") or {},
+        )
         modules = []
         if isinstance(analysis_index.get("modules"), list):
             modules = [
@@ -368,6 +379,13 @@ class RunView:
                 "models": sorted({str(rec.get("model")) for rec in train_records if rec.get("model") is not None}),
                 "splits": sorted({str(rec.get("split")) for rec in train_records if rec.get("split") is not None}),
                 "summary_path": _relative_path_or_none(self.run_root / "summary.json", base=self.run_root),
+            },
+            "testing": {
+                **testing_snapshot,
+                "summary_path": _relative_path_or_none(
+                    self.run_root / "test_runs" / "test_summary.json",
+                    base=self.run_root,
+                ),
             },
             "analysis": {
                 "has_index": bool(analysis_index),
@@ -441,10 +459,18 @@ class RunCatalog:
                     "task": dict((manifest.data.get("task") or {})),
                     "split": dict((manifest.data.get("split") or {})),
                     "has_train_summary": bool((path / "summary.json").exists()),
+                    "has_test_summary": bool((path / "test_runs" / "test_summary.json").exists()),
                     "has_analysis_index": bool((path / "analysis" / "index.json").exists()),
                     "has_cases_index": bool((path / "cases" / "index.json").exists()),
                     "has_agent_predict_summary": bool((path / "agent" / "predict" / "summary.json").exists()),
                     "has_agent_review_summary": bool((path / "agent" / "review" / "summary.json").exists()),
+                    "testing": {
+                        **_testing_summary_snapshot(
+                            _ensure_records(_read_top_summary(path / "test_runs" / "test_summary.json")),
+                            task=manifest.data.get("task") or {},
+                        ),
+                        "summary_path": _relative_path_or_none(path / "test_runs" / "test_summary.json", base=path),
+                    },
                     "mtime_unix": float(path.stat().st_mtime),
                 }
             )
@@ -469,6 +495,45 @@ def _relative_path_or_none(path: Path, *, base: Path) -> str | None:
     if not path.exists():
         return None
     return str(path.relative_to(base))
+
+
+def _testing_summary_snapshot(records: list[dict[str, Any]], *, task: dict[str, Any]) -> dict[str, Any]:
+    primary_metric = "auroc" if str(task.get("kind", "binary")) == "binary" else "rmse"
+    best_model = _best_test_metric_model(records, primary_metric=primary_metric)
+    return {
+        "record_count": int(len(records)),
+        "models": sorted({str(rec.get("model")) for rec in records if rec.get("model") is not None}),
+        "splits": sorted({str(rec.get("split")) for rec in records if rec.get("split") is not None}),
+        "primary_metric": primary_metric,
+        "best_model": best_model,
+        "best_score": None if best_model is None else float(best_model["value"]),
+    }
+
+
+def _best_test_metric_model(records: list[dict[str, Any]], *, primary_metric: str) -> dict[str, Any] | None:
+    if not records:
+        return None
+    rows = pd.DataFrame(records)
+    if rows.empty or "model" not in rows.columns or primary_metric not in rows.columns:
+        return None
+    rows[primary_metric] = pd.to_numeric(rows[primary_metric], errors="coerce")
+    rows = rows.dropna(subset=[primary_metric]).reset_index(drop=True)
+    if rows.empty:
+        return None
+    grouped = rows.groupby("model", sort=True)[primary_metric].mean().reset_index(name="mean_metric")
+    ascending = primary_metric == "rmse"
+    best = grouped.sort_values("mean_metric", ascending=ascending, kind="stable").iloc[0]
+    return {
+        "model": str(best["model"]),
+        "metric": primary_metric,
+        "value": float(best["mean_metric"]),
+    }
+
+
+def _read_top_summary(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _agent_task_spec(task_name: str) -> dict[str, Any]:

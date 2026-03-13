@@ -133,6 +133,8 @@ def _run_external_test(
                 if not model_path.exists():
                     model_path = split_dir / "model.pkl"
                 if not model_path.exists():
+                    model_path = split_dir / "model.joblib"
+                if not model_path.exists():
                     continue
                 from oneehr.config.schema import TaskConfig
 

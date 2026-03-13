@@ -71,9 +71,28 @@ def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
     assert patient["patient"]["n_matches"] >= 1
 
 
+def test_webui_service_testing_payloads(tmp_path: Path) -> None:
+    run_root, cfg = _build_trained_run(tmp_path=tmp_path, run_name="webui_test_audit", seed=27)
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg), "--force"])
+    subprocess.check_call(["oneehr", "analyze", "--config", str(cfg), "--module", "test_audit"])
+
+    service = WebUIService(root_dir=run_root.parent)
+    desc = service.describe_run_payload(run_name="webui_test_audit")
+    assert desc["run"]["testing"]["record_count"] >= 1
+    assert desc["hero"]["test_record_count"] >= 1
+
+    dashboard = service.analysis_dashboard_payload(run_name="webui_test_audit", module_name="test_audit")
+    assert dashboard["module"]["name"] == "test_audit"
+    assert dashboard["module"]["summary"]["status"] == "ok"
+    assert any(chart["id"] == "model_primary_metric" for chart in dashboard["charts"])
+    assert any(table["name"] == "metric_summary" for table in dashboard["tables"])
+
+
 def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     run_root_a, cfg_a = _build_trained_run(tmp_path=tmp_path / "run_a", run_name="cmp_webui_a", seed=5)
-    run_root_b, _ = _build_trained_run(tmp_path=tmp_path / "run_b", run_name="cmp_webui_b", seed=8)
+    run_root_b, cfg_b = _build_trained_run(tmp_path=tmp_path / "run_b", run_name="cmp_webui_b", seed=8)
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg_a), "--force"])
+    subprocess.check_call(["oneehr", "test", "--config", str(cfg_b), "--force"])
     subprocess.check_call(
         [
             "oneehr",
@@ -91,7 +110,9 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     comparison = service.comparison_payload(run_name="cmp_webui_a")
     assert comparison["status"] == "ok"
     assert comparison["summary"]["train_delta_rows"] > 0
+    assert comparison["summary"]["test_delta_rows"] > 0
     assert any(table["name"] == "train_metrics" for table in comparison["tables"])
+    assert any(table["name"] == "test_metrics" for table in comparison["tables"])
     assert len(comparison["charts"]) >= 1
 
     dashboard = service.analysis_dashboard_payload(run_name="cmp_webui_a", module_name="prediction_audit")
@@ -122,6 +143,14 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     assert route.status_code == 200
     assert route.json()["row_count"] == 1
     assert route.json()["table"] == "train_metrics"
+
+    test_route = client.get(
+        f"/api/v1/runs/{run_root_a.name}/comparison/tables/test_metrics",
+        params={"limit": 1, "sort_by": "delta_mean", "sort_dir": "desc"},
+    )
+    assert test_route.status_code == 200
+    assert test_route.json()["row_count"] == 1
+    assert test_route.json()["table"] == "test_metrics"
 
     dashboard_route = client.get(f"/api/v1/runs/{run_root_a.name}/analysis/prediction_audit/dashboard")
     assert dashboard_route.status_code == 200

@@ -1,5 +1,21 @@
 export type StatusTone = 'ok' | 'warning' | 'error' | 'neutral'
 
+export interface TestBestModel {
+  model: string
+  metric: string
+  value: number
+}
+
+export interface TestingSummary {
+  record_count: number
+  models: string[]
+  splits: string[]
+  primary_metric: string
+  best_model?: TestBestModel | null
+  best_score?: number | null
+  summary_path?: string | null
+}
+
 export interface RunRecord {
   run_name: string
   run_dir: string
@@ -12,10 +28,13 @@ export interface RunRecord {
     kind?: string
   }
   has_train_summary?: boolean
+  has_test_summary?: boolean
   has_analysis_index?: boolean
   has_cases_index?: boolean
   has_agent_predict_summary?: boolean
   has_agent_review_summary?: boolean
+  testing_status?: string
+  testing?: TestingSummary
   mtime_unix?: number
 }
 
@@ -47,6 +66,7 @@ export interface RunDetail {
     splits: string[]
     summary_path?: string | null
   }
+  testing: TestingSummary
   analysis: {
     has_index: boolean
     modules: AnalysisModuleMeta[]
@@ -75,6 +95,8 @@ export interface RunConsolePayload {
     run_name: string
     task_label: string
     model_count: number
+    test_model_count: number
+    test_record_count: number
     analysis_module_count: number
     case_count: number
     agent_predict_record_count: number

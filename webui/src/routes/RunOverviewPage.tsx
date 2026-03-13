@@ -1,7 +1,15 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { fetchModuleDashboard, fetchRunConsole } from '../lib/api'
-import { titleCase } from '../lib/format'
+import {
+  formatIdentifierDisplay,
+  formatMetricName,
+  formatNameList,
+  formatNumber,
+  formatTestingBestModel,
+  titleCase,
+} from '../lib/format'
+import { sortModulesByPriority } from '../lib/modules'
 import { ChartPanel } from '../ui/ChartPanel'
 import { DataTable } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
@@ -15,8 +23,9 @@ export function RunOverviewPage() {
     queryKey: ['run-console', runName],
     queryFn: () => fetchRunConsole(runName),
   })
-  const readyModules = (runConsoleQuery.data?.analysis.modules ?? []).filter((module) => module.status === 'ok').slice(0, 3)
-  const skippedModules = (runConsoleQuery.data?.analysis.modules ?? []).filter((module) => module.status === 'skipped')
+  const orderedModules = sortModulesByPriority(runConsoleQuery.data?.analysis.modules ?? [])
+  const readyModules = orderedModules.filter((module) => module.status === 'ok').slice(0, 3)
+  const skippedModules = orderedModules.filter((module) => module.status === 'skipped')
   const moduleDashboardQueries = useQueries({
     queries: readyModules.map((module) => ({
       queryKey: ['module-dashboard-overview', runName, module.name],
@@ -52,25 +61,39 @@ export function RunOverviewPage() {
 
   const runConsole = runConsoleQuery.data
   const run = runConsole.run
+  const testAuditModule = orderedModules.find((module) => module.name === 'test_audit' && module.status === 'ok') ?? null
 
   return (
     <div className="page-stack">
       <section className="page-header">
         <div>
           <p className="eyebrow">Run Overview</p>
-          <h1>{run.run_name}</h1>
+          <h1 className="entity-title identifier-text">{formatIdentifierDisplay(run.run_name)}</h1>
           <p className="hero-copy">
             Unified control room for modeling outputs, analysis modules, and future case-level investigations.
           </p>
         </div>
-        <Link to="/runs/$runName/comparison" params={{ runName }} className="button-link">
-          Open comparison
-        </Link>
+        <div className="header-actions">
+          {testAuditModule ? (
+            <Link to="/runs/$runName/analysis/$moduleName" params={{ runName, moduleName: 'test_audit' }} className="button-link">
+              Open Test Audit
+            </Link>
+          ) : null}
+          <Link to="/runs/$runName/comparison" params={{ runName }} className="button-link">
+            Open comparison
+          </Link>
+        </div>
       </section>
 
       <section className="card-grid kpi-grid">
         <KpiCard key="models" title="Models" value={run.training.models.length} subtitle={run.training.models.join(', ') || '—'} />
         <KpiCard key="splits" title="Splits" value={run.training.splits.length} subtitle={run.training.splits.join(', ') || '—'} />
+        <KpiCard
+          key="testing"
+          title="External test"
+          value={run.testing.record_count}
+          subtitle={formatTestingBestModel(run.testing)}
+        />
         <KpiCard key="cases" title="Cases" value={run.cases.case_count} subtitle="Durable case bundles" />
         <KpiCard
           key="modules"
@@ -123,6 +146,57 @@ export function RunOverviewPage() {
         )}
       </section>
 
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">External Testing</p>
+            <h2>Held-out evaluation snapshot</h2>
+            <p className="panel-copy">
+              Run-level testing metadata comes directly from saved `test_summary.json`, even when compare-run artifacts are absent.
+            </p>
+          </div>
+          {testAuditModule ? (
+            <Link to="/runs/$runName/analysis/$moduleName" params={{ runName, moduleName: 'test_audit' }} className="button-link">
+              Inspect test audit
+            </Link>
+          ) : null}
+        </div>
+
+        {run.testing.record_count === 0 ? (
+          <EmptyState
+            title="No external test summary yet"
+            description="Run `oneehr test` for this experiment to populate held-out metrics and unlock the test audit module."
+          />
+        ) : (
+          <div className="detail-grid">
+            <div>
+              <span>Primary metric</span>
+              <strong>{formatMetricName(run.testing.primary_metric)}</strong>
+            </div>
+            <div>
+              <span>Best model</span>
+              <strong>{run.testing.best_model?.model ?? '—'}</strong>
+            </div>
+            <div>
+              <span>Best score</span>
+              <strong>{run.testing.best_score == null ? '—' : formatNumber(run.testing.best_score)}</strong>
+            </div>
+            <div>
+              <span>Test models</span>
+              <strong>{formatNameList(run.testing.models)}</strong>
+            </div>
+            <div>
+              <span>Test splits</span>
+              <strong>{formatNameList(run.testing.splits)}</strong>
+            </div>
+            <div>
+              <span>Summary artifact</span>
+              <strong>{run.testing.summary_path ?? 'Missing'}</strong>
+            </div>
+          </div>
+        )}
+      </section>
+
       <section className="two-column-grid">
         <article className="panel">
           <div className="panel-header">
@@ -147,6 +221,10 @@ export function RunOverviewPage() {
             <div>
               <span>Schema</span>
               <strong>v{run.manifest.schema_version}</strong>
+            </div>
+            <div>
+              <span>Held-out test</span>
+              <strong>{run.testing.summary_path ? 'Present' : 'Missing'}</strong>
             </div>
           </div>
         </article>
@@ -175,11 +253,15 @@ export function RunOverviewPage() {
               <span>Analysis index</span>
               <strong>{run.analysis.index_path ? 'Present' : 'Missing'}</strong>
             </div>
+            <div>
+              <span>Best test model</span>
+              <strong>{run.testing.best_model?.model ?? '—'}</strong>
+            </div>
           </div>
         </article>
       </section>
 
-      {(skippedModules.length > 0 || run.training.record_count === 0 || run.cases.case_count === 0) && (
+      {(skippedModules.length > 0 || run.training.record_count === 0 || run.cases.case_count === 0 || run.testing.record_count === 0) && (
         <section className="panel">
           <div className="panel-header">
             <div>
@@ -201,10 +283,16 @@ export function RunOverviewPage() {
               <strong>{run.cases.case_count}</strong>
             </div>
             <div>
+              <span>Test rows</span>
+              <strong>{run.testing.record_count}</strong>
+            </div>
+            <div>
               <span>Recommended next step</span>
               <strong>
                 {run.training.record_count === 0
                   ? 'Train the run'
+                  : run.testing.record_count === 0
+                    ? 'Run held-out test'
                   : run.cases.case_count === 0
                     ? 'Build cases'
                     : 'Re-run analysis'}
@@ -232,7 +320,7 @@ export function RunOverviewPage() {
           />
         ) : (
           <div className="card-grid modules-grid">
-            {runConsole.analysis.modules.map((module) => (
+            {orderedModules.map((module) => (
               <ModuleCard key={module.name} runName={runName} module={module} />
             ))}
           </div>

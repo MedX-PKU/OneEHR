@@ -15,7 +15,8 @@ import { fetchRunConsole } from './lib/api'
 import { EmptyState } from './ui/EmptyState'
 import { LoadingPanel } from './ui/LoadingPanel'
 import { StatusBadge } from './ui/StatusBadge'
-import { titleCase } from './lib/format'
+import { formatIdentifierDisplay, titleCase } from './lib/format'
+import { sortModulesByPriority } from './lib/modules'
 
 function createLazyPage(load: () => Promise<{ default: ComponentType }>, label: string) {
   const Page = lazy(load)
@@ -111,6 +112,7 @@ function RunLayout() {
   }
 
   const run = runConsoleQuery.data.run
+  const orderedModules = sortModulesByPriority(run.analysis.modules)
 
   return (
     <div className="run-shell">
@@ -157,7 +159,7 @@ function RunLayout() {
 
         <div className="rail-card">
           <p className="eyebrow">Run</p>
-          <h1>{run.run_name}</h1>
+          <h1 className="rail-title identifier-text">{formatIdentifierDisplay(run.run_name)}</h1>
           <div className="detail-grid compact">
             <div>
               <span>Task</span>
@@ -175,13 +177,21 @@ function RunLayout() {
               <span>Splits</span>
               <strong>{run.training.splits.length}</strong>
             </div>
+            <div>
+              <span>Test rows</span>
+              <strong>{run.testing.record_count}</strong>
+            </div>
+            <div>
+              <span>Best test</span>
+              <strong>{run.testing.best_model?.model ?? '—'}</strong>
+            </div>
           </div>
         </div>
 
         <div className="rail-card">
           <p className="eyebrow">Modules</p>
           <div className="stack-list">
-            {run.analysis.modules.map((module) => (
+            {orderedModules.map((module) => (
               <Link
                 key={module.name}
                 to="/runs/$runName/analysis/$moduleName"
@@ -189,7 +199,7 @@ function RunLayout() {
                 activeProps={{ className: 'rail-link active' }}
                 className="rail-link"
               >
-                <span>{titleCase(module.name)}</span>
+                <span>{module.title ?? titleCase(module.name)}</span>
                 <StatusBadge status={module.status} />
               </Link>
             ))}

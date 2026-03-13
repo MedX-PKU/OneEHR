@@ -6,6 +6,7 @@ import {
   fetchModuleDashboard,
   fetchPatientCase,
 } from '../lib/api'
+import { formatMetricName, formatNumber } from '../lib/format'
 import { AnalysisTableExplorer } from '../ui/AnalysisTableExplorer'
 import { ChartPanel } from '../ui/ChartPanel'
 import { DataTable } from '../ui/DataTable'
@@ -14,6 +15,27 @@ import { FailureCaseExplorer } from '../ui/FailureCaseExplorer'
 import { KpiCard } from '../ui/KpiCard'
 import { LoadingPanel } from '../ui/LoadingPanel'
 import { StatusBadge } from '../ui/StatusBadge'
+
+function buildModuleHeroCopy(moduleName: string): string {
+  switch (moduleName) {
+    case 'test_audit':
+      return 'Held-out evaluation metrics, model ranking, and split-level deltas emitted from external testing.'
+    case 'prediction_audit':
+      return 'Model performance, subgroup drift, and saved failure-case artifacts organized for quick review.'
+    case 'cohort_analysis':
+      return 'Split integrity, label-rate gaps, and feature drift summaries across train, validation, and test cohorts.'
+    case 'dataset_profile':
+      return 'Dataset scale, code distribution, and feature-space composition surfaced directly from saved analysis artifacts.'
+    case 'temporal_analysis':
+      return 'Temporal and event-density segmentation that reveals where model behavior shifts across the patient timeline.'
+    case 'interpretability':
+      return 'Saved feature-importance artifacts and supporting tables for explaining model behavior in the tutorial demo.'
+    case 'agent_audit':
+      return 'Agent parse success, failure buckets, and token-usage traces aligned with saved backend outputs.'
+    default:
+      return 'Structured artifacts translated into dashboard cards, rich tables, and visual drill-downs.'
+  }
+}
 
 export function ModuleDashboardPage() {
   const { runName, moduleName } = useParams({ from: '/runs/$runName/analysis/$moduleName' })
@@ -68,6 +90,8 @@ export function ModuleDashboardPage() {
   }
 
   const dashboard = dashboardQuery.data
+  const summary = dashboard.summary
+  const heroCopy = buildModuleHeroCopy(moduleName)
 
   return (
     <div className="page-stack">
@@ -75,10 +99,7 @@ export function ModuleDashboardPage() {
         <div>
           <p className="eyebrow">Analysis Module</p>
           <h1>{dashboard.title}</h1>
-          <p className="hero-copy">
-            {dashboard.notes?.[0] ??
-              'Structured artifacts translated into dashboard cards, rich tables, and visual drill-downs.'}
-          </p>
+          <p className="hero-copy">{heroCopy}</p>
         </div>
         <div className="header-actions">
           <StatusBadge status={dashboard.status} />
@@ -101,6 +122,59 @@ export function ModuleDashboardPage() {
           />
         ))}
       </section>
+
+      {moduleName === 'test_audit' ? (
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Coverage</p>
+              <h2>External test context</h2>
+              <p className="panel-copy">
+                Test audit modules summarize the saved held-out evaluation across models and splits, then expose deltas for comparison when available.
+              </p>
+            </div>
+          </div>
+          <div className="detail-grid">
+            <div>
+              <span>Primary metric</span>
+              <strong>{formatMetricName(summary.primary_metric)}</strong>
+            </div>
+            <div>
+              <span>Test models</span>
+              <strong>{String(summary.n_test_models ?? '—')}</strong>
+            </div>
+            <div>
+              <span>Test slices</span>
+              <strong>{String(summary.n_test_slices ?? '—')}</strong>
+            </div>
+            <div>
+              <span>Best primary metric</span>
+              <strong>{summary.best_primary_metric == null ? '—' : formatNumber(summary.best_primary_metric)}</strong>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {dashboard.notes && dashboard.notes.length > 1 ? (
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Highlights</p>
+              <h2>Saved observations</h2>
+              <p className="panel-copy">
+                Backend-derived notes from the module summary and table previews.
+              </p>
+            </div>
+          </div>
+          <div className="artifact-list">
+            {dashboard.notes.map((note) => (
+              <div key={`${moduleName}-${note}`} className="artifact-button">
+                <div className="artifact-meta">{note}</div>
+              </div>
+            ))}
+          </div>
+        </article>
+      ) : null}
 
       <section className="card-grid chart-grid">
         {dashboard.charts.map((chart) => (

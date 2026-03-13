@@ -44,6 +44,46 @@ export function titleCase(value: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+export function formatNameList(values: Array<string | null | undefined> | null | undefined): string {
+  const items = (values ?? []).filter((value): value is string => typeof value === 'string' && value.length > 0)
+  return items.length > 0 ? items.join(', ') : '—'
+}
+
+export function formatMetricName(value: unknown): string {
+  if (value == null || value === '') {
+    return '—'
+  }
+  const metric = String(value)
+  return metric.length <= 6 ? metric.toUpperCase() : titleCase(metric)
+}
+
+export function formatIdentifierDisplay(value: unknown): string {
+  if (value == null || value === '') {
+    return '—'
+  }
+  return String(value).replace(/([/_:-])/g, '$1\u200b')
+}
+
+export function formatTestingBestModel(
+  testing:
+    | {
+        best_model?: {
+          model?: unknown
+          metric?: unknown
+          value?: unknown
+        } | null
+      }
+    | null
+    | undefined,
+): string {
+  const bestModel = testing?.best_model
+  if (!bestModel || bestModel.model == null) {
+    return 'No test summary'
+  }
+  const metricValue = bestModel.value == null ? '—' : formatNumber(bestModel.value)
+  return `${String(bestModel.model)} ${formatMetricName(bestModel.metric)} ${metricValue}`
+}
+
 export function stringifyValue(value: unknown): string {
   if (value == null || value === '') {
     return '—'

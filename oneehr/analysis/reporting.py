@@ -28,6 +28,7 @@ SUPPORTED_MODULES = (
     "dataset_profile",
     "cohort_analysis",
     "prediction_audit",
+    "test_audit",
     "temporal_analysis",
     "interpretability",
     "agent_audit",
@@ -62,6 +63,7 @@ class AnalysisContext:
     key: pd.DataFrame | None
     splits: list[Any]
     train_summary_records: list[dict[str, Any]]
+    test_summary_records: list[dict[str, Any]]
     agent_predict_summary_records: list[dict[str, Any]]
 
 
@@ -126,6 +128,7 @@ def load_analysis_context(*, cfg, run_root: Path, manifest) -> AnalysisContext:
         key=key,
         splits=load_splits(run_root / "splits"),
         train_summary_records=_read_summary_records(run_root / "summary.json"),
+        test_summary_records=_read_summary_records(run_root / "test_runs" / "test_summary.json"),
         agent_predict_summary_records=_read_summary_records(
             run_root / "agent" / "predict" / "summary.json"
         ),
@@ -150,6 +153,7 @@ def run_analysis_suite(
         "dataset_profile": _module_dataset_profile,
         "cohort_analysis": _module_cohort_analysis,
         "prediction_audit": _module_prediction_audit,
+        "test_audit": _module_test_audit,
         "temporal_analysis": _module_temporal_analysis,
         "interpretability": _module_interpretability,
         "agent_audit": _module_agent_audit,
@@ -470,6 +474,87 @@ def _module_temporal_analysis(
         run_root=ctx.run_root,
         module_dir=module_dir,
         module_name="temporal_analysis",
+        summary=summary,
+        tables=tables,
+        plot_specs=plots,
+        case_tables={},
+        save_plot_specs=save_plot_specs,
+        legacy_paths=[],
+    )
+
+
+def _module_test_audit(
+    *,
+    ctx: AnalysisContext,
+    analysis_root: Path,
+    case_limit: int,
+    method: str | None,
+    save_plot_specs: bool,
+) -> AnalysisModuleResult:
+    del case_limit, method
+    module_dir = ensure_dir(analysis_root / "test_audit")
+
+    test_df = _flatten_summary_records(ctx.test_summary_records, model_key="model")
+    if not test_df.empty:
+        test_df = test_df.sort_values(["model", "split"], kind="stable").reset_index(drop=True)
+
+    metric_key = _primary_metric(ctx.cfg.task.kind)
+    model_primary_df = _summarize_metric_frame(test_df, group_col="model", metric_col=metric_key)
+    full_metric_summary = (
+        summarize_metrics(test_df, group_cols=["model"])
+        if not test_df.empty
+        else pd.DataFrame(columns=["model", "metric", "mean", "std", "ci95_low", "ci95_high", "n"])
+    )
+    if not full_metric_summary.empty:
+        full_metric_summary = full_metric_summary.sort_values(["model", "metric"], kind="stable").reset_index(drop=True)
+
+    tables = {
+        "slices": test_df,
+        "model_summary": model_primary_df,
+        "metric_summary": full_metric_summary,
+    }
+    plots: dict[str, dict[str, Any]] = {}
+    if not model_primary_df.empty:
+        plots["model_primary_metric"] = _bar_plot_spec(
+            title=f"External Test Primary Metric by Model ({metric_key})",
+            items=model_primary_df.to_dict(orient="records"),
+            x_key="model",
+            y_key=f"{metric_key}_mean",
+        )
+    if not test_df.empty and metric_key in test_df.columns:
+        plots["split_primary_metric"] = _grouped_bar_plot_spec(
+            title=f"External Test {metric_key.upper()} by Split",
+            rows=test_df.to_dict(orient="records"),
+            x_key="split",
+            y_key=metric_key,
+            group_key="model",
+        )
+
+    best_model = None
+    best_metric = None
+    if not model_primary_df.empty and f"{metric_key}_mean" in model_primary_df.columns:
+        best_row = model_primary_df.sort_values(
+            f"{metric_key}_mean",
+            ascending=(metric_key == "rmse"),
+            kind="stable",
+        ).iloc[0]
+        best_model = str(best_row.get("model"))
+        best_metric = float(best_row.get(f"{metric_key}_mean"))
+
+    summary = {
+        "schema_version": ANALYSIS_SCHEMA_VERSION,
+        "module": "test_audit",
+        "status": "ok" if not test_df.empty else "skipped",
+        "n_test_slices": int(len(test_df)),
+        "n_test_models": int(test_df["model"].astype(str).nunique()) if not test_df.empty else 0,
+        "primary_metric": metric_key,
+        "best_model": best_model,
+        "best_primary_metric": best_metric,
+    }
+    return _write_module_artifacts(
+        run_root=ctx.run_root,
+        module_dir=module_dir,
+        module_name="test_audit",
         summary=summary,
         tables=tables,
         plot_specs=plots,
@@ -830,6 +915,13 @@ def _write_run_comparison(
     )
     if not agent_predict_delta.empty:
         agent_predict_delta.to_csv(comparison_dir / "agent_predict_metrics.csv", index=False)
+    test_delta = _compare_summary_records(
+        current_records=_read_summary_records(current_run_root / "test_runs" / "test_summary.json"),
+        other_records=_read_summary_records(compare_run_root / "test_runs" / "test_summary.json"),
+        model_key="model",
+    )
+    if not test_delta.empty:
+        test_delta.to_csv(comparison_dir / "test_metrics.csv", index=False)
 
     summary = {
         "schema_version": ANALYSIS_SCHEMA_VERSION,
@@ -838,6 +930,7 @@ def _write_run_comparison(
         "task": current_task,
         "train_delta_rows": int(len(train_delta)),
         "agent_predict_delta_rows": int(len(agent_predict_delta)),
+        "test_delta_rows": int(len(test_delta)),
     }
     write_json(comparison_dir / "summary.json", summary)
     return {
@@ -851,6 +944,11 @@ def _write_run_comparison(
             None
             if agent_predict_delta.empty
             else str((comparison_dir / "agent_predict_metrics.csv").relative_to(current_run_root))
+        ),
+        "test_metrics_path": (
+            None
+            if test_delta.empty
+            else str((comparison_dir / "test_metrics.csv").relative_to(current_run_root))
         ),
     }
 
@@ -1208,13 +1306,16 @@ def _quantile_labels(values: pd.Series, *, prefix: str) -> pd.Series:
 def _flatten_summary_records(records: list[dict[str, Any]], *, model_key: str) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for rec in records:
-        metrics = rec.get("metrics") or {}
-        if not isinstance(metrics, dict):
-            continue
+        metrics = rec.get("metrics") if isinstance(rec.get("metrics"), dict) else {}
         row = {model_key: rec.get(model_key), "split": rec.get("split"), **metrics}
         for key in ("parse_success_rate", "coverage", "total_rows", "parsed_ok_rows", "ground_truth_rows", "scored_rows"):
             if key in rec:
                 row[key] = rec.get(key)
+        for key, value in rec.items():
+            if key in {model_key, "split", "metrics", "artifacts"}:
+                continue
+            if isinstance(value, (int, float)):
+                row[key] = value
         rows.append(row)
     return pd.DataFrame(rows)
 

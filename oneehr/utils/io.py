@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
 
 def as_jsonable(v: Any) -> Any:
     """Recursively convert a value to a JSON-serializable form."""
-    if isinstance(v, (str, int, float, bool)) or v is None:
+    if isinstance(v, float):
+        return v if math.isfinite(v) else None
+    if isinstance(v, (str, int, bool)) or v is None:
         return v
     if isinstance(v, Path):
         return str(v)
@@ -19,9 +22,9 @@ def as_jsonable(v: Any) -> Any:
         import pandas as pd  # type: ignore
 
         if isinstance(v, np.ndarray):
-            return v.tolist()
+            return as_jsonable(v.tolist())
         if isinstance(v, (np.integer, np.floating, np.bool_)):
-            return v.item()
+            return as_jsonable(v.item())
         if isinstance(v, pd.Series):
             return {str(k): as_jsonable(x) for k, x in v.to_dict().items()}
         if isinstance(v, pd.DataFrame):

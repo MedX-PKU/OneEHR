@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,10 @@ MODULE_META: dict[str, dict[str, str]] = {
     "prediction_audit": {
         "title": "Prediction Audit",
         "description": "Model metrics, subgroup slices, and highest-error prediction cases.",
+    },
+    "test_audit": {
+        "title": "Test Audit",
+        "description": "External-test metrics, model ranking, and split-level evaluation deltas.",
     },
     "temporal_analysis": {
         "title": "Temporal Analysis",
@@ -48,6 +53,7 @@ MODULE_KPI_FIELDS: dict[str, list[str]] = {
     ],
     "cohort_analysis": ["split_count", "role_count", "largest_label_rate_gap"],
     "prediction_audit": ["n_prediction_slices", "n_subgroup_rows"],
+    "test_audit": ["n_test_slices", "n_test_models", "best_primary_metric"],
     "temporal_analysis": ["n_segments"],
     "interpretability": ["result_count"],
     "agent_audit": ["n_slices", "n_failure_buckets"],
@@ -77,10 +83,12 @@ TABLE_TITLES = {
     "slices": "Slices",
     "subgroups": "Subgroups",
     "model_summary": "Model Summary",
+    "metric_summary": "Metric Summary",
     "segments": "Segments",
     "artifacts": "Artifacts",
     "failures": "Failures",
     "train_metrics": "Train Metric Deltas",
+    "test_metrics": "External Test Metric Deltas",
     "agent_predict_metrics": "Agent Predict Metric Deltas",
     "timeline": "Case Timeline",
     "predictions": "Case Predictions",
@@ -103,6 +111,7 @@ class WebUIService:
         for row in rows:
             item = dict(row)
             item["analysis_status"] = "ready" if item.get("has_analysis_index") else "pending"
+            item["testing_status"] = "ready" if item.get("has_test_summary") else "pending"
             item["task_label"] = self._task_label(item.get("task"))
             item["route"] = f"/runs/{item['run_name']}"
             out.append(item)
@@ -121,8 +130,10 @@ class WebUIService:
             "run_name": run["run_name"],
             "task_label": self._task_label((run.get("manifest") or {}).get("task")),
             "model_count": int(len((run.get("training") or {}).get("models") or [])),
+            "test_model_count": int(len((run.get("testing") or {}).get("models") or [])),
             "analysis_module_count": int(len(analysis.get("modules", []))),
             "case_count": int(((run.get("cases") or {}).get("case_count")) or 0),
+            "test_record_count": int(((run.get("testing") or {}).get("record_count")) or 0),
             "agent_predict_record_count": int(((run.get("agent_predict") or {}).get("record_count")) or 0),
             "agent_review_record_count": int(((run.get("agent_review") or {}).get("record_count")) or 0),
         }
@@ -531,6 +542,7 @@ class WebUIService:
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         comparison_tables = self._comparison_table_frames(run_view=run_view)
         train_df = comparison_tables.get("train_metrics", pd.DataFrame())
+        test_df = comparison_tables.get("test_metrics", pd.DataFrame())
         agent_df = comparison_tables.get("agent_predict_metrics", pd.DataFrame())
         tables = []
         charts = []
@@ -557,8 +569,32 @@ class WebUIService:
                     {
                         "title": "Largest training delta",
                         "body": f"{row['model']} {row['metric']} delta_mean={float(row['delta_mean']):.4f}",
-                        }
-                    )
+                    }
+                )
+        if "test_metrics" in comparison_tables:
+            tables.append(self._table_payload_from_frame(name="test_metrics", df=test_df, preview_limit=8))
+            charts.append(
+                {
+                    "id": "test_delta_mean",
+                    "kind": "grouped_bar",
+                    "title": "External Test Metric Deltas",
+                    "x_key": "model",
+                    "y_key": "delta_mean",
+                    "group_key": "metric",
+                    "data": as_jsonable(test_df.to_dict(orient="records")),
+                }
+            )
+            top = test_df.assign(abs_delta=test_df["delta_mean"].abs()).sort_values(
+                "abs_delta", ascending=False, kind="stable"
+            )
+            if not top.empty:
+                row = top.iloc[0]
+                highlights.append(
+                    {
+                        "title": "Largest external-test delta",
+                        "body": f"{row['model']} {row['metric']} delta_mean={float(row['delta_mean']):.4f}",
+                    }
+                )
         if "agent_predict_metrics" in comparison_tables:
             tables.append(self._table_payload_from_frame(name="agent_predict_metrics", df=agent_df, preview_limit=8))
             charts.append(
@@ -762,7 +798,7 @@ class WebUIService:
     def _comparison_table_frames(self, *, run_view: RunView) -> dict[str, pd.DataFrame]:
         comparison_dir = run_view.run_root / "analysis" / "comparison"
         frames: dict[str, pd.DataFrame] = {}
-        for table_name in ("train_metrics", "agent_predict_metrics"):
+        for table_name in ("train_metrics", "test_metrics", "agent_predict_metrics"):
             df = self._read_csv_optional(comparison_dir / f"{table_name}.csv")
             if not df.empty:
                 frames[table_name] = df
@@ -827,6 +863,15 @@ class WebUIService:
                 continue
             out.append(self._kpi_card(field=field, value=summary.get(field)))
         if module_name == "prediction_audit" and summary.get("primary_metric") is not None:
+            out.append(
+                {
+                    "id": "primary_metric",
+                    "label": "Primary Metric",
+                    "value": str(summary["primary_metric"]),
+                    "format": "text",
+                }
+            )
+        if module_name == "test_audit" and summary.get("primary_metric") is not None:
             out.append(
                 {
                     "id": "primary_metric",
@@ -909,7 +954,20 @@ class WebUIService:
                         highlights.append(
                             {
                                 "title": "Best model summary",
-                                "body": f"{best.get('model')} {metric_key}={best.get(metric_key)}",
+                                "body": f"{best.get('model')} {metric_key}={self._format_highlight_value(best.get(metric_key))}",
+                            }
+                        )
+        elif module_name == "test_audit":
+            model_summary = self._find_table_preview(tables, "model_summary")
+            if model_summary and model_summary.get("preview"):
+                best = self._top_row_by_metric(model_summary["preview"])
+                if best is not None:
+                    metric_key = next((key for key in best if key.endswith("_mean")), None)
+                    if metric_key is not None:
+                        highlights.append(
+                            {
+                                "title": "Best external-test model",
+                                "body": f"{best.get('model')} {metric_key}={self._format_highlight_value(best.get(metric_key))}",
                             }
                         )
         elif module_name == "temporal_analysis":
@@ -942,7 +1000,7 @@ class WebUIService:
                 highlights.append(
                     {
                         "title": "Best parse success",
-                        "body": f"{top.get('predictor_name')} {top.get('split')} rate={top.get('parse_success_rate')}",
+                        "body": f"{top.get('predictor_name')} {top.get('split')} rate={self._format_highlight_value(top.get('parse_success_rate'))}",
                     }
                 )
         if not highlights and summary.get("reason") is not None:
@@ -1065,6 +1123,22 @@ class WebUIService:
             "format": fmt,
         }
 
+    def _format_highlight_value(self, value: Any) -> str:
+        if value is None:
+            return "—"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (int, float)):
+            numeric = float(value)
+            if not math.isfinite(numeric):
+                return "—"
+            if abs(numeric) >= 1000:
+                return f"{numeric:,.1f}"
+            if abs(numeric) >= 1:
+                return f"{numeric:.3f}".rstrip("0").rstrip(".")
+            return f"{numeric:.4f}".rstrip("0").rstrip(".")
+        return str(value)
+
     def _column_specs(self, df: pd.DataFrame) -> list[dict[str, Any]]:
         if df.empty:
             return []
@@ -1130,10 +1204,15 @@ class WebUIService:
         metric_key = next((key for key in rows[0] if key.endswith("_mean")), None)
         if metric_key is None:
             return rows[0]
+
         def _metric(row: dict[str, Any]) -> float:
             raw = row.get(metric_key)
             try:
                 return float(raw)
             except (TypeError, ValueError):
                 return float("-inf")
+
+        metric_name = metric_key.removesuffix("_mean").lower()
+        if any(token in metric_name for token in ("rmse", "mae", "mse", "loss", "error")):
+            return min(rows, key=_metric)
         return max(rows, key=_metric)

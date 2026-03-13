@@ -8,7 +8,13 @@ import pandas as pd
 def _read_raw(path: Path) -> pd.DataFrame:
     if path.suffix.lower() not in {".xlsx", ".xls"}:
         raise ValueError(f"TJH raw must be an Excel file. Got: {path}")
-    return pd.read_excel(path)
+    try:
+        return pd.read_excel(path, engine="openpyxl")
+    except ImportError as exc:
+        raise ImportError(
+            "Reading TJH Excel inputs requires openpyxl. "
+            "Install dependencies with `uv pip install -e .` or `uv pip install openpyxl`."
+        ) from exc
 
 
 def _normalize_tjh(df_raw: pd.DataFrame) -> pd.DataFrame:
@@ -161,4 +167,3 @@ if __name__ == "__main__":
     p.add_argument("--out-dir", required=True, help="Output directory for dynamic/static/label CSVs")
     args = p.parse_args()
     main(args.raw, args.out_dir)
-
