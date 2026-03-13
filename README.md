@@ -124,6 +124,7 @@ Current console surfaces:
 
 - run overview and analysis module dashboards
 - server-backed analysis table browsing with filtering, sorting, and pagination
+- server-backed failure artifact browsing for analysis case slices
 - durable case bundle browsing, split/search filters, and case detail views
 - agent predict/review summaries
 - compare-run views plus cohort role comparisons from `cohort_analysis`

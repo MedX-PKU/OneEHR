@@ -78,7 +78,7 @@ Current pages:
 
 Current drill-downs:
 
-- failure-case artifact browsing for `prediction_audit` and `agent_audit`
+- failure-case artifact browsing for `prediction_audit` and `agent_audit`, including server-side filters and pagination
 - patient-level match lookup within saved case slices
 
 ## API Surface

@@ -135,6 +135,15 @@ export interface TablePage {
   records: Array<Record<string, unknown>>
 }
 
+export interface ExplorerItem {
+  key: string
+  title: string
+  description?: string | null
+  row_count: number
+  columns: string[]
+  badge?: string | number | null
+}
+
 export interface FailureCaseArtifact {
   module: string
   name: string
@@ -144,12 +153,9 @@ export interface FailureCaseArtifact {
   columns: string[]
 }
 
-export interface FailureCaseRows {
+export interface FailureCasePage extends TablePage {
   module: string
   name?: string | null
-  row_count: number
-  columns: string[]
-  records: Array<Record<string, unknown>>
 }
 
 export interface PatientCasePayload {

@@ -1,25 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
   fetchCaseArtifacts,
-  fetchFailureCases,
   fetchModuleDashboard,
   fetchPatientCase,
 } from '../lib/api'
-import { titleCase } from '../lib/format'
 import { AnalysisTableExplorer } from '../ui/AnalysisTableExplorer'
 import { ChartPanel } from '../ui/ChartPanel'
 import { DataTable } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
+import { FailureCaseExplorer } from '../ui/FailureCaseExplorer'
 import { KpiCard } from '../ui/KpiCard'
 import { LoadingPanel } from '../ui/LoadingPanel'
 import { StatusBadge } from '../ui/StatusBadge'
 
 export function ModuleDashboardPage() {
   const { runName, moduleName } = useParams({ from: '/runs/$runName/analysis/$moduleName' })
-  const [selectedArtifact, setSelectedArtifact] = useState<string | null>(null)
   const [patientId, setPatientId] = useState('')
+  const deferredPatientId = useDeferredValue(patientId.trim())
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard', runName, moduleName],
@@ -32,31 +31,11 @@ export function ModuleDashboardPage() {
     enabled: moduleName === 'prediction_audit' || moduleName === 'agent_audit',
   })
 
-  const caseRowsQuery = useQuery({
-    queryKey: ['case-rows', runName, moduleName, selectedArtifact],
-    queryFn: () => fetchFailureCases(runName, moduleName, selectedArtifact ?? undefined),
-    enabled: Boolean(selectedArtifact),
-  })
-
   const patientQuery = useQuery({
-    queryKey: ['patient-case', runName, moduleName, patientId],
-    queryFn: () => fetchPatientCase(runName, moduleName, patientId),
-    enabled: patientId.trim().length > 0,
+    queryKey: ['patient-case', runName, moduleName, deferredPatientId],
+    queryFn: () => fetchPatientCase(runName, moduleName, deferredPatientId),
+    enabled: deferredPatientId.length > 0,
   })
-
-  const caseTable = useMemo(() => {
-    if (!caseRowsQuery.data) {
-      return null
-    }
-    return {
-      key: `case-${caseRowsQuery.data.name ?? 'rows'}`,
-      title: `${titleCase(moduleName)} case drill-down`,
-      description: caseRowsQuery.data.name ?? undefined,
-      row_count: caseRowsQuery.data.row_count,
-      columns: caseRowsQuery.data.columns,
-      records: caseRowsQuery.data.records,
-    }
-  }, [caseRowsQuery.data, moduleName])
 
   const patientTable = useMemo(() => {
     if (!patientQuery.data) {
@@ -132,53 +111,31 @@ export function ModuleDashboardPage() {
       <AnalysisTableExplorer runName={runName} moduleName={moduleName} tables={dashboard.tables} />
 
       {caseArtifactsQuery.data && caseArtifactsQuery.data.length > 0 ? (
-        <section className="two-column-grid">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Drill-down</p>
-                <h2>Failure artifacts</h2>
-              </div>
-            </div>
-            <div className="artifact-list">
-              {caseArtifactsQuery.data.map((artifact) => (
-                <button
-                  key={artifact.name}
-                  type="button"
-                  className={`artifact-button ${selectedArtifact === artifact.name ? 'active' : ''}`}
-                  onClick={() => setSelectedArtifact(artifact.name)}
-                >
-                  <strong>{artifact.name}</strong>
-                  <span>{artifact.row_count} rows</span>
-                </button>
-              ))}
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Patient lookup</p>
-                <h2>Audit matches</h2>
-              </div>
-            </div>
-            <label className="table-filter wide">
-              <span>Patient ID</span>
-              <input
-                value={patientId}
-                onChange={(event) => setPatientId(event.target.value)}
-                placeholder="e.g. p0001"
-              />
-            </label>
-            <p className="panel-copy">
-              Search patient-level matches inside analysis case artifacts without leaving the current module view.
-            </p>
-          </article>
-        </section>
+        <FailureCaseExplorer runName={runName} moduleName={moduleName} artifacts={caseArtifactsQuery.data} />
       ) : null}
 
-      {caseRowsQuery.isLoading ? <LoadingPanel label="Loading case rows" /> : null}
-      {caseTable ? <DataTable table={caseTable} /> : null}
+      {caseArtifactsQuery.data && caseArtifactsQuery.data.length > 0 ? (
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Patient Lookup</p>
+              <h2>Audit matches</h2>
+              <p className="panel-copy">
+                Search patient-level matches inside saved analysis case artifacts without leaving the current module view.
+              </p>
+            </div>
+          </div>
+          <label className="table-filter wide">
+            <span>Patient ID</span>
+            <input
+              value={patientId}
+              onChange={(event) => setPatientId(event.target.value)}
+              placeholder="e.g. p0001"
+            />
+          </label>
+        </article>
+      ) : null}
+
       {patientQuery.isLoading ? <LoadingPanel label="Searching patient matches" /> : null}
       {patientTable ? <DataTable table={patientTable} /> : null}
     </div>

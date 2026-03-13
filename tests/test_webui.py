@@ -207,6 +207,15 @@ def test_webui_fastapi_routes(tmp_path: Path) -> None:
     assert cases.status_code == 200
     assert len(cases.json()["case_artifacts"]) > 0
 
+    case_name = cases.json()["case_artifacts"][0]["name"]
+    case_rows = client.get(
+        f"/api/v1/runs/{run_root.name}/analysis/prediction_audit/cases/{case_name}",
+        params={"limit": 1, "filter_col": "patient_id", "filter_value": "p0"},
+    )
+    assert case_rows.status_code == 200
+    assert case_rows.json()["row_count"] == 1
+    assert case_rows.json()["total_rows"] >= 1
+
     cases_response = client.get(f"/api/v1/runs/{run_root.name}/cases")
     assert cases_response.status_code == 200
     assert cases_response.json()["case_count"] >= 1

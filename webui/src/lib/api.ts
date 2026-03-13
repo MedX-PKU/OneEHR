@@ -9,10 +9,10 @@ import type {
   DashboardChart,
   DashboardTable,
   TablePage,
+  FailureCasePage,
   ComparisonPayload,
   CohortComparison,
   FailureCaseArtifact,
-  FailureCaseRows,
   ModuleDashboard,
   PatientCasePayload,
   RunRecord,
@@ -231,25 +231,48 @@ export async function fetchAnalysisTable(
   return mapTablePagePayload(payload)
 }
 
-export async function fetchFailureCases(
+export async function fetchFailureCaseRows(
   runName: string,
   moduleName: string,
-  artifactName?: string,
-): Promise<FailureCaseRows> {
-  const caseName = artifactName ?? ''
+  artifactName: string,
+  options: {
+    limit?: number
+    offset?: number
+    sortBy?: string | null
+    sortDir?: 'asc' | 'desc'
+    filterCol?: string | null
+    filterValue?: string | null
+  } = {},
+): Promise<FailureCasePage> {
+  const query = buildQueryString({
+    limit: options.limit ?? 25,
+    offset: options.offset ?? 0,
+    sort_by: options.sortBy,
+    sort_dir: options.sortDir ?? 'desc',
+    filter_col: options.filterCol,
+    filter_value: options.filterValue,
+  })
   const payload = await request<{
     module: string
     name: string
+    offset: number
+    limit: number
     row_count: number
+    total_rows: number
     columns: Array<{ name: string }>
     records: Array<Record<string, unknown>>
   }>(
-    `/runs/${encodeURIComponent(runName)}/analysis/${encodeURIComponent(moduleName)}/cases/${encodeURIComponent(caseName)}`,
+    `/runs/${encodeURIComponent(runName)}/analysis/${encodeURIComponent(moduleName)}/cases/${encodeURIComponent(artifactName)}${query}`,
   )
   return {
     module: payload.module,
     name: payload.name,
+    key: payload.name,
+    title: payload.name,
+    offset: payload.offset,
+    limit: payload.limit,
     row_count: payload.row_count,
+    total_rows: payload.total_rows,
     columns: payload.columns.map((column) => column.name),
     records: payload.records,
   }
