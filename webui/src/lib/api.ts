@@ -339,7 +339,21 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
   }
 }
 
-export async function fetchCasesIndex(runName: string): Promise<CasesIndexPayload> {
+export async function fetchCasesIndex(
+  runName: string,
+  options: {
+    split?: string | null
+    search?: string | null
+    limit?: number
+    offset?: number
+  } = {},
+): Promise<CasesIndexPayload> {
+  const query = buildQueryString({
+    split: options.split,
+    search: options.search,
+    limit: options.limit ?? 25,
+    offset: options.offset ?? 0,
+  })
   const payload = await request<{
     run_name: string
     status: string
@@ -351,7 +365,7 @@ export async function fetchCasesIndex(runName: string): Promise<CasesIndexPayloa
     splits: string[]
     columns: Array<{ name: string }>
     records: Array<Record<string, unknown>>
-  }>(`/runs/${encodeURIComponent(runName)}/cases`)
+  }>(`/runs/${encodeURIComponent(runName)}/cases${query}`)
 
   return {
     run_name: payload.run_name,

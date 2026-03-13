@@ -111,6 +111,12 @@ def test_webui_service_cases_payloads(tmp_path: Path) -> None:
     assert detail["predictions"]["row_count"] >= 1
     assert detail["static"]["feature_count"] >= 1
 
+    split_name = str(cases["records"][0]["split"])
+    filtered = service.cases_payload(run_name="webui_cases", split=split_name, limit=10)
+    assert filtered["row_count"] >= 1
+    assert split_name in filtered["splits"]
+    assert all(str(record["split"]) == split_name for record in filtered["records"])
+
 
 def test_webui_service_agents_payload(tmp_path: Path) -> None:
     with _mock_review_server() as (_, base_url):
@@ -186,6 +192,15 @@ def test_webui_fastapi_routes(tmp_path: Path) -> None:
     cases_response = client.get(f"/api/v1/runs/{run_root.name}/cases")
     assert cases_response.status_code == 200
     assert cases_response.json()["case_count"] >= 1
+
+    split_name = str(cases_response.json()["records"][0]["split"])
+    filtered_cases = client.get(
+        f"/api/v1/runs/{run_root.name}/cases",
+        params={"split": split_name, "limit": 1},
+    )
+    assert filtered_cases.status_code == 200
+    assert filtered_cases.json()["row_count"] == 1
+    assert split_name in filtered_cases.json()["splits"]
 
     case_id = cases_response.json()["records"][0]["case_id"]
     case_detail = client.get(f"/api/v1/runs/{run_root.name}/cases/{case_id}")

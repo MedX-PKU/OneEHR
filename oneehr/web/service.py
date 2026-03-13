@@ -322,6 +322,7 @@ class WebUIService:
             }
 
         df = pd.DataFrame(run_view.case_records())
+        splits = sorted(df["split"].astype(str).unique().tolist()) if "split" in df.columns else []
         if split is not None and not df.empty and "split" in df.columns:
             df = df[df["split"].astype(str) == str(split)].reset_index(drop=True)
         if search is not None and search.strip() and not df.empty:
@@ -342,7 +343,7 @@ class WebUIService:
             "limit": int(limit),
             "row_count": int(len(page)),
             "total_rows": total_rows,
-            "splits": sorted(df["split"].astype(str).unique().tolist()) if "split" in df.columns else [],
+            "splits": splits,
             "columns": self._column_specs(page if not page.empty else df),
             "records": as_jsonable(page.to_dict(orient="records")),
         }

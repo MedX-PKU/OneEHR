@@ -1,17 +1,36 @@
+import { useDeferredValue, useEffect, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { formatNumber } from '../lib/format'
 import { fetchCasesIndex } from '../lib/api'
 import { EmptyState } from '../ui/EmptyState'
 import { KpiCard } from '../ui/KpiCard'
 import { LoadingPanel } from '../ui/LoadingPanel'
 import { DataTable } from '../ui/DataTable'
 
+const DEFAULT_CASE_PAGE_SIZE = 25
+
 export function CasesPage() {
   const { runName } = useParams({ from: '/runs/$runName/cases' })
+  const [split, setSplit] = useState('')
+  const [search, setSearch] = useState('')
+  const [limit, setLimit] = useState(DEFAULT_CASE_PAGE_SIZE)
+  const [offset, setOffset] = useState(0)
+  const deferredSearch = useDeferredValue(search)
   const casesQuery = useQuery({
-    queryKey: ['cases', runName],
-    queryFn: () => fetchCasesIndex(runName),
+    queryKey: ['cases', runName, split, deferredSearch, limit, offset],
+    queryFn: () =>
+      fetchCasesIndex(runName, {
+        split: split || null,
+        search: deferredSearch || null,
+        limit,
+        offset,
+      }),
   })
+
+  useEffect(() => {
+    setOffset(0)
+  }, [split, search, limit])
 
   if (casesQuery.isLoading) {
     return <LoadingPanel label="Loading cases" />
@@ -27,10 +46,14 @@ export function CasesPage() {
   }
 
   const payload = casesQuery.data
+  const pageStart = payload.total_rows === 0 ? 0 : payload.offset + 1
+  const pageEnd = payload.total_rows === 0 ? 0 : payload.offset + payload.row_count
+  const canGoBack = payload.offset > 0
+  const canGoForward = payload.offset + payload.limit < payload.total_rows
   const table = {
     key: 'cases',
     title: 'Case Inventory',
-    description: `${payload.total_rows} cases in this run`,
+    description: `Showing ${pageStart}-${pageEnd} of ${formatNumber(payload.total_rows)} indexed cases`,
     row_count: payload.total_rows,
     columns: payload.columns,
     records: payload.records,
@@ -67,6 +90,50 @@ export function CasesPage() {
         />
       ) : (
         <>
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Inventory Controls</p>
+                <h2>Filter the indexed cases</h2>
+                <p className="panel-copy">
+                  Query saved case bundles by split or patient/case search without loading the full inventory into the browser.
+                </p>
+              </div>
+            </div>
+            <div className="filter-grid">
+              <label className="table-filter">
+                <span>Split</span>
+                <select value={split} onChange={(event) => setSplit(event.target.value)}>
+                  <option value="">All splits</option>
+                  {payload.splits.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="table-filter wide">
+                <span>Search</span>
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search case ID or patient ID"
+                />
+              </label>
+
+              <label className="table-filter">
+                <span>Page size</span>
+                <select value={String(limit)} onChange={(event) => setLimit(Number(event.target.value))}>
+                  <option value="25">25 rows</option>
+                  <option value="50">50 rows</option>
+                  <option value="100">100 rows</option>
+                </select>
+              </label>
+            </div>
+          </article>
+
           <section className="two-column-grid">
             <article className="panel">
               <div className="panel-header">
@@ -128,7 +195,34 @@ export function CasesPage() {
             </article>
           </section>
 
-          <DataTable table={table} />
+          <DataTable
+            table={table}
+            searchable={false}
+            emptyMessage="No indexed cases matched the current filters."
+            toolbarActions={
+              <div className="table-toolbar-actions">
+                <span className="table-page-summary">
+                  Page {Math.floor(payload.offset / payload.limit) + 1}
+                </span>
+                <button
+                  type="button"
+                  className="button-link"
+                  onClick={() => setOffset(Math.max(0, payload.offset - payload.limit))}
+                  disabled={!canGoBack}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="button-link"
+                  onClick={() => setOffset(payload.offset + payload.limit)}
+                  disabled={!canGoForward}
+                >
+                  Next
+                </button>
+              </div>
+            }
+          />
         </>
       )}
     </div>
