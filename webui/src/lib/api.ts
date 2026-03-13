@@ -63,6 +63,7 @@ interface RawKpiCard {
 
 interface RawDashboard {
   run_name: string
+  comparison_available?: boolean
   module: {
     name: string
     title: string
@@ -190,7 +191,7 @@ export async function fetchModuleDashboard(
     charts: mapCharts(payload.charts, payload.highlights),
     tables: mapTables(payload.tables),
     case_artifacts: payload.drilldowns.case_artifacts,
-    comparison_available: false,
+    comparison_available: payload.comparison_available ?? false,
     notes: payload.highlights.map((item) => `${item.title}: ${item.body}`),
   }
 }

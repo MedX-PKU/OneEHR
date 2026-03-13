@@ -167,7 +167,8 @@ class WebUIService:
 
     def analysis_dashboard_payload(self, *, run_name: str, module_name: str) -> dict[str, Any]:
         run_view = self._resolve_run_view(run_name)
-        module_item = self._get_module_index_item(run_name=run_name, module_name=module_name)
+        analysis_index = self.analysis_index_payload(run_name=run_name)
+        module_item = self._get_module_index_item(run_name=run_name, module_name=module_name, index=analysis_index)
         summary = self._read_module_summary(run_view=run_view, module_name=module_name)
         tables = self._module_table_previews(run_view=run_view, module_name=module_name, module_item=module_item)
         charts = self._module_charts(run_view=run_view, module_name=module_name, module_item=module_item)
@@ -193,6 +194,7 @@ class WebUIService:
             "tables": tables,
             "highlights": highlights,
             "drilldowns": drilldowns,
+            "comparison_available": bool(analysis_index.get("comparison")),
         }
 
     def analysis_table_payload(
@@ -721,8 +723,14 @@ class WebUIService:
             "route": f"/runs/{run_name}/analysis/{name}",
         }
 
-    def _get_module_index_item(self, *, run_name: str, module_name: str) -> dict[str, Any]:
-        index = self.analysis_index_payload(run_name=run_name)
+    def _get_module_index_item(
+        self,
+        *,
+        run_name: str,
+        module_name: str,
+        index: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        index = index or self.analysis_index_payload(run_name=run_name)
         modules = index.get("modules", [])
         for item in modules:
             if item.get("name") == module_name:

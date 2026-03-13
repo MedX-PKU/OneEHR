@@ -94,6 +94,9 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     assert any(table["name"] == "train_metrics" for table in comparison["tables"])
     assert len(comparison["charts"]) >= 1
 
+    dashboard = service.analysis_dashboard_payload(run_name="cmp_webui_a", module_name="prediction_audit")
+    assert dashboard["comparison_available"] is True
+
     table = service.comparison_table_payload(
         run_name="cmp_webui_a",
         table_name="train_metrics",
@@ -119,6 +122,10 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     assert route.status_code == 200
     assert route.json()["row_count"] == 1
     assert route.json()["table"] == "train_metrics"
+
+    dashboard_route = client.get(f"/api/v1/runs/{run_root_a.name}/analysis/prediction_audit/dashboard")
+    assert dashboard_route.status_code == 200
+    assert dashboard_route.json()["comparison_available"] is True
 
 
 def test_webui_service_cohort_compare_payload(tmp_path: Path) -> None:
