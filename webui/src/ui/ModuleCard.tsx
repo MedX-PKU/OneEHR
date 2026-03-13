@@ -9,6 +9,10 @@ interface ModuleCardProps {
 }
 
 export function ModuleCard({ runName, module }: ModuleCardProps) {
+  const title = module.title ?? titleCase(module.name)
+  const description =
+    module.description ?? `Structured summary, tables, and drill-down views for ${title.toLowerCase()}.`
+
   return (
     <Link
       to="/runs/$runName/analysis/$moduleName"
@@ -18,13 +22,11 @@ export function ModuleCard({ runName, module }: ModuleCardProps) {
       <div className="module-card-header">
         <div>
           <p className="eyebrow">Analysis Module</p>
-          <h3>{titleCase(module.name)}</h3>
+          <h3>{title}</h3>
         </div>
         <StatusBadge status={module.status} />
       </div>
-      <p>
-        Structured summary, tables, and drill-down views for {titleCase(module.name).toLowerCase()}.
-      </p>
+      <p>{description}</p>
     </Link>
   )
 }
