@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OneEHR TJH Demo Slides</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #edf4f1;
+        --panel: rgba(255, 255, 255, 0.88);
+        --panel-strong: rgba(255, 255, 255, 0.96);
+        --ink: #153630;
+        --muted: #5f7b74;
+        --accent: #11756d;
+        --accent-soft: rgba(17, 117, 109, 0.12);
+        --warm: #d88a43;
+        --border: rgba(21, 54, 48, 0.1);
+        --shadow: 0 28px 80px rgba(21, 54, 48, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(17, 117, 109, 0.14), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(216, 138, 67, 0.14), transparent 26%),
+          linear-gradient(180deg, #edf4f1 0%, #f7fbf9 100%);
+      }
+
+      .deck-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .deck {
+        position: relative;
+        width: min(96vw, 1600px);
+        aspect-ratio: 16 / 10;
+        overflow: hidden;
+        border-radius: 32px;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        background: rgba(255, 255, 255, 0.35);
+        backdrop-filter: blur(20px);
+      }
+
+      .slides {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        transition: transform 360ms ease;
+      }
+
+      .slide {
+        flex: 0 0 100%;
+        height: 100%;
+        padding: 56px 64px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 28px;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(244, 249, 247, 0.72)),
+          linear-gradient(180deg, rgba(17, 117, 109, 0.04), rgba(255, 255, 255, 0.02));
+      }
+
+      .slide-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: var(--accent);
+        font-size: 14px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1,
+      h2 {
+        font-family: "IBM Plex Serif", Georgia, serif;
+        line-height: 0.96;
+        letter-spacing: -0.03em;
+      }
+
+      h1 {
+        font-size: 72px;
+      }
+
+      h2 {
+        font-size: 50px;
+      }
+
+      .lede {
+        max-width: 920px;
+        font-size: 26px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+
+      .slide-no {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 74px;
+        height: 48px;
+        padding: 0 18px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.74);
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+        gap: 28px;
+        align-items: stretch;
+      }
+
+      .panel,
+      .metric-card,
+      .image-card,
+      .quote-card {
+        border-radius: 28px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .panel,
+      .quote-card {
+        padding: 28px 30px;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .metric-card {
+        padding: 22px 24px 24px;
+      }
+
+      .metric-card .label {
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 13px;
+      }
+
+      .metric-card .value {
+        margin-top: 12px;
+        font-size: 48px;
+        font-weight: 700;
+        line-height: 0.95;
+        overflow-wrap: anywhere;
+      }
+
+      .metric-card .meta {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.3;
+      }
+
+      .bullet-list {
+        display: grid;
+        gap: 14px;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      .bullet-list li {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(17, 117, 109, 0.06);
+        color: var(--ink);
+        font-size: 21px;
+        line-height: 1.35;
+      }
+
+      .bullet-list strong {
+        color: var(--accent);
+      }
+
+      .pipeline {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .step {
+        position: relative;
+        padding: 22px 18px;
+        border-radius: 22px;
+        background: var(--panel-strong);
+        border: 1px solid var(--border);
+      }
+
+      .step::after {
+        content: "→";
+        position: absolute;
+        top: 50%;
+        right: -16px;
+        transform: translateY(-50%);
+        color: rgba(21, 54, 48, 0.22);
+        font-size: 24px;
+      }
+
+      .step:last-child::after {
+        display: none;
+      }
+
+      .step .num {
+        color: var(--warm);
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .step h3 {
+        margin-top: 12px;
+        font-size: 24px;
+      }
+
+      .step p {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.3;
+      }
+
+      .image-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .image-card {
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .image-card .caption {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.88);
+      }
+
+      .image-card .caption h3 {
+        font-size: 24px;
+      }
+
+      .image-card .caption p {
+        margin-top: 8px;
+        font-size: 16px;
+        color: var(--muted);
+      }
+
+      .image-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .quote-card {
+        display: grid;
+        gap: 18px;
+      }
+
+      .quote-card .quote {
+        font-size: 34px;
+        font-family: "IBM Plex Serif", Georgia, serif;
+        line-height: 1.15;
+      }
+
+      .quote-card .source {
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .dots {
+        display: flex;
+        gap: 10px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(21, 54, 48, 0.18);
+      }
+
+      .dot.active {
+        width: 28px;
+        background: var(--accent);
+      }
+
+      .kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        height: 30px;
+        padding: 0 10px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--ink);
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .accent {
+        color: var(--accent);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      @media (max-width: 1280px) {
+        .deck-shell {
+          padding: 8px;
+        }
+
+        .slide {
+          padding: 32px;
+        }
+
+        h1 {
+          font-size: 56px;
+        }
+
+        h2 {
+          font-size: 40px;
+        }
+
+        .lede {
+          font-size: 21px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck-shell">
+      <div class="deck">
+        <div class="slides" id="slides">
+          <section class="slide">
+            <div class="slide-header">
+              <div>
+                <p class="eyebrow">KDD Hands-on Tutorial</p>
+                <h1>OneEHR</h1>
+                <p class="lede">
+                  Real TJH data, end-to-end modeling, held-out testing, agent workflows, case bundles, and a polished web console in one demo.
+                </p>
+              </div>
+              <div class="slide-no">01</div>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <p class="eyebrow">What This Demo Shows</p>
+                <ul class="bullet-list">
+                  <li><strong>Real dataset:</strong> TJH train cohort plus external held-out cohort.</li>
+                  <li><strong>Full chain:</strong> preprocess → train → test → analyze → agent predict → cases → agent review.</li>
+                  <li><strong>Production-style UX:</strong> one web UI for model results, test audit, comparison, and agent outputs.</li>
+                  <li><strong>LLM integration:</strong> Zenmux OpenAI-compatible backend with <code>openai/gpt-5.4</code>.</li>
+                </ul>
+              </div>
+
+              <div class="quote-card">
+                <p class="eyebrow">Tutorial Theme</p>
+                <div class="quote">From raw longitudinal EHR tables to an interpretable, reviewable, demo-ready operations console.</div>
+                <div class="source">OneEHR turns offline experiments into artifacts that are easy to inspect live.</div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <span>Use <span class="kbd">←</span> and <span class="kbd">→</span> to navigate</span>
+              <div class="dots" data-dots></div>
+            </div>
+          </section>
+
+          <section class="slide">
+            <div class="slide-header">
+              <div>
+                <p class="eyebrow">System View</p>
+                <h2>OneEHR Tutorial Pipeline</h2>
+                <p class="lede">
+                  The demo is structured so every stage leaves durable artifacts that feed the next stage and stay explorable in the UI.
+                </p>
+              </div>
+              <div class="slide-no">02</div>
+            </div>
+
+            <div class="pipeline">
+              <div class="step">
+                <div class="num">Stage 1</div>
+                <h3>Preprocess</h3>
+                <p>Standardize TJH raw Excel into train and external-test CSV tables.</p>
+              </div>
+              <div class="step">
+                <div class="num">Stage 2</div>
+                <h3>Train</h3>
+                <p>Fit tabular baselines on the train cohort with durable manifests and split outputs.</p>
+              </div>
+              <div class="step">
+                <div class="num">Stage 3</div>
+                <h3>Test</h3>
+                <p>Run held-out evaluation on the external cohort and persist test summaries.</p>
+              </div>
+              <div class="step">
+                <div class="num">Stage 4</div>
+                <h3>Analyze</h3>
+                <p>Emit dataset, cohort, prediction, test, temporal, interpretability, and agent audit modules.</p>
+              </div>
+              <div class="step">
+                <div class="num">Stage 5</div>
+                <h3>Predict</h3>
+                <p>Call Zenmux-backed LLM predictors over saved patient instances.</p>
+              </div>
+              <div class="step">
+                <div class="num">Stage 6</div>
+                <h3>Cases</h3>
+                <p>Materialize case bundles with timeline, static context, predictions, and analysis references.</p>
+              </div>
+              <div class="step">
+                <div class="num">Stage 7</div>
+                <h3>Review</h3>
+                <p>Run agent review and compare model, external-test, and agent deltas in one console.</p>
+              </div>
+            </div>
+
+            <div class="footer">
+              <span class="muted">Every stage stays queryable from the web UI and the CLI.</span>
+              <div class="dots" data-dots></div>
+            </div>
+          </section>
+
+          <section class="slide">
+            <div class="slide-header">
+              <div>
+                <p class="eyebrow">Real TJH Data</p>
+                <h2>Dataset + Runtime Snapshot</h2>
+                <p class="lede">
+                  This tutorial run is not synthetic. It uses the real TJH files and a real LLM agent path.
+                </p>
+              </div>
+              <div class="slide-no">03</div>
+            </div>
+
+            <div class="metric-grid">
+              <article class="metric-card">
+                <div class="label">Train Events</div>
+                <div class="value">67,442</div>
+                <div class="meta">361 static rows, 722 label rows</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">External Events</div>
+                <div class="value">1,018</div>
+                <div class="meta">110 static rows, 220 label rows</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">Models</div>
+                <div class="value">2</div>
+                <div class="meta">xgboost and rf</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">Agent Backend</div>
+                <div class="value">Zenmux</div>
+                <div class="meta">Requested model: openai/gpt-5.4</div>
+              </article>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <p class="eyebrow">Run Products</p>
+                <ul class="bullet-list">
+                  <li><strong>Fast baseline:</strong> `tjh_tutorial_fast` for compare-run reference.</li>
+                  <li><strong>Showcase run:</strong> `tjh_tutorial_showcase` with agents, cases, and comparison artifacts.</li>
+                  <li><strong>UI modules:</strong> dataset profile, cohort analysis, prediction audit, test audit, temporal analysis, interpretability, agent audit.</li>
+                </ul>
+              </div>
+
+              <div class="quote-card">
+                <p class="eyebrow">Design Goal</p>
+                <div class="quote">Make the first screen already feel like a result, not a debug console.</div>
+                <div class="source">This is why test audit and comparison are promoted to top-level demo views.</div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <span class="muted">The same artifacts can be consumed from CLI, notebooks, or the web console.</span>
+              <div class="dots" data-dots></div>
+            </div>
+          </section>
+
+          <section class="slide">
+            <div class="slide-header">
+              <div>
+                <p class="eyebrow">Results</p>
+                <h2>Showcase Run Metrics</h2>
+                <p class="lede">
+                  The tutorial run already produces enough structure for a compelling live walkthrough.
+                </p>
+              </div>
+              <div class="slide-no">04</div>
+            </div>
+
+            <div class="metric-grid">
+              <article class="metric-card">
+                <div class="label">Best Held-out AUROC</div>
+                <div class="value accent">0.5722</div>
+                <div class="meta">xgboost on external test</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">Test Models</div>
+                <div class="value">2</div>
+                <div class="meta">rf, xgboost</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">Case Bundles</div>
+                <div class="value">18</div>
+                <div class="meta">timeline + static + prediction evidence</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">Agent Outputs</div>
+                <div class="value">4</div>
+                <div class="meta">1 predict record, 3 review groups</div>
+              </article>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <p class="eyebrow">Why This Matters</p>
+                <ul class="bullet-list">
+                  <li><strong>Held-out testing</strong> is explicit, not buried inside a notebook cell.</li>
+                  <li><strong>Comparison artifacts</strong> make baseline-vs-showcase deltas demoable.</li>
+                  <li><strong>Case bundles</strong> let the audience inspect a patient without leaving the system.</li>
+                  <li><strong>Agent review</strong> makes the LLM path reviewable instead of opaque.</li>
+                </ul>
+              </div>
+
+              <div class="quote-card">
+                <p class="eyebrow">Demo Message</p>
+                <div class="quote">OneEHR is not only about training models. It is about preserving experiment state in a way humans can actually inspect.</div>
+                <div class="source">This is the bridge from research pipeline to hands-on tutorial experience.</div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <span class="muted">Showcase artifacts are under `logs/tjh_tutorial_showcase/`.</span>
+              <div class="dots" data-dots></div>
+            </div>
+          </section>
+
+          <section class="slide">
+            <div class="slide-header">
+              <div>
+                <p class="eyebrow">Visual Tour</p>
+                <h2>What the Audience Sees</h2>
+                <p class="lede">
+                  The landing page, run overview, and test audit are strong first impressions because they already contain charts and saved metrics.
+                </p>
+              </div>
+              <div class="slide-no">05</div>
+            </div>
+
+            <div class="image-grid">
+              <article class="image-card">
+                <div class="caption">
+                  <h3>Runs Landing</h3>
+                  <p>Highlights analysis-ready and test-ready runs, with visual spotlight on `test_audit`.</p>
+                </div>
+                <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/01-runs.png" alt="Runs page screenshot" />
+              </article>
+              <article class="image-card">
+                <div class="caption">
+                  <h3>Run Overview</h3>
+                  <p>Summarizes models, held-out results, cases, and connected modules from a single page.</p>
+                </div>
+                <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/02-overview.png" alt="Run overview screenshot" />
+              </article>
+            </div>
+
+            <div class="footer">
+              <span class="muted">These pages are sized for a 2560×1600 laptop presentation flow.</span>
+              <div class="dots" data-dots></div>
+            </div>
+          </section>
+
+          <section class="slide">
+            <div class="slide-header">
+              <div>
+                <p class="eyebrow">Deep Dives</p>
+                <h2>Audit, Comparison, and Agents</h2>
+                <p class="lede">
+                  After the audience sees the run overview, the demo can move into focused analysis and agent operations without changing tools.
+                </p>
+              </div>
+              <div class="slide-no">06</div>
+            </div>
+
+            <div class="image-grid">
+              <article class="image-card">
+                <div class="caption">
+                  <h3>Test Audit</h3>
+                  <p>Held-out metric ranking across models, designed for immediate tutorial discussion.</p>
+                </div>
+                <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/03-test-audit.png" alt="Test audit screenshot" />
+              </article>
+              <article class="image-card">
+                <div class="caption">
+                  <h3>Comparison Console</h3>
+                  <p>Shows current held-out snapshot and saved compare-run deltas in one place.</p>
+                </div>
+                <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/05-comparison.png" alt="Comparison screenshot" />
+              </article>
+            </div>
+
+            <div class="footer">
+              <span class="muted">The same run also exposes case detail and an agent operations console.</span>
+              <div class="dots" data-dots></div>
+            </div>
+          </section>
+
+          <section class="slide">
+            <div class="slide-header">
+              <div>
+                <p class="eyebrow">Live Demo Flow</p>
+                <h2>Recommended 5-Minute Walkthrough</h2>
+                <p class="lede">
+                  This sequence keeps the story tight: real data, model results, external validation, agent usage, and patient-level inspection.
+                </p>
+              </div>
+              <div class="slide-no">07</div>
+            </div>
+
+            <div class="two-col">
+              <div class="panel">
+                <p class="eyebrow">Step-by-Step</p>
+                <ul class="bullet-list">
+                  <li><strong>1.</strong> Open the runs landing page and explain the result-rich spotlight.</li>
+                  <li><strong>2.</strong> Enter `tjh_tutorial_showcase` and call out models, cases, and held-out test cards.</li>
+                  <li><strong>3.</strong> Open <span class="accent">Test Audit</span> to discuss external validation across models.</li>
+                  <li><strong>4.</strong> Jump to <span class="accent">Prediction Audit</span> and <span class="accent">Comparison</span> to show richer diagnostics.</li>
+                  <li><strong>5.</strong> Open one case bundle and finish in <span class="accent">Agents</span> to show LLM outputs and review artifacts.</li>
+                </ul>
+              </div>
+
+              <div class="image-card">
+                <div class="caption">
+                  <h3>Agent Console</h3>
+                  <p>Close with saved LLM outputs so the audience sees the end-to-end path, not just model metrics.</p>
+                </div>
+                <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/07-agents.png" alt="Agents screenshot" />
+              </div>
+            </div>
+
+            <div class="footer">
+              <span>Open this file in a browser and press <span class="kbd">F</span> for full screen.</span>
+              <div class="dots" data-dots></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const slides = document.getElementById('slides')
+      const slideCount = slides.children.length
+      const dotGroups = Array.from(document.querySelectorAll('[data-dots]'))
+      let index = 0
+
+      function renderDots() {
+        for (const group of dotGroups) {
+          group.innerHTML = ''
+          for (let i = 0; i < slideCount; i += 1) {
+            const dot = document.createElement('span')
+            dot.className = `dot${i === index ? ' active' : ''}`
+            group.appendChild(dot)
+          }
+        }
+      }
+
+      function show(next) {
+        index = Math.max(0, Math.min(slideCount - 1, next))
+        slides.style.transform = `translateX(-${index * 100}%)`
+        renderDots()
+      }
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
+          event.preventDefault()
+          show(index + 1)
+        }
+        if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+          event.preventDefault()
+          show(index - 1)
+        }
+        if (event.key.toLowerCase() === 'f') {
+          document.documentElement.requestFullscreen?.()
+        }
+      })
+
+      renderDots()
+    </script>
+  </body>
+</html>
