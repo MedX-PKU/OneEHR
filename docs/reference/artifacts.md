@@ -4,6 +4,15 @@ OneEHR writes all experiment outputs to a structured run directory under `{outpu
 
 The public contract is the structured artifact tree itself: JSON, JSONL, CSV, and Parquet. There is no markdown or HTML report layer in the current architecture.
 
+Typical writers:
+
+- `preprocess` writes the run manifest, binned data, labels, feature metadata, and tabular views
+- `train` writes model checkpoints, split metrics, predictions, and HPO outputs
+- `test` writes evaluation outputs under `test_runs/`
+- `analyze` writes `analysis/`
+- `cases build` writes `cases/`
+- `agent predict` and `agent review` write `agent/`
+
 ---
 
 ## Run directory layout

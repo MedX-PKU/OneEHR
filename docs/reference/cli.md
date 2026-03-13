@@ -1,6 +1,6 @@
 # CLI Reference
 
-OneEHR exposes eight top-level commands:
+OneEHR exposes eight top-level command groups:
 
 - `preprocess`
 - `train`
@@ -11,6 +11,12 @@ OneEHR exposes eight top-level commands:
 - `query`
 - `webui`
 
+Use them as three layers:
+
+- run-building: `preprocess`, `train`, `test`, `analyze`
+- case and agent workflows: `cases`, `agent`
+- read-only consumption: `query`, `webui`
+
 View the live interface with:
 
 ```bash
@@ -20,7 +26,7 @@ uv run oneehr --help
 ## `oneehr preprocess`
 
 ```bash
-oneehr preprocess --config <toml> [--overview] [--overview-top-k-codes N]
+uv run oneehr preprocess --config <toml> [--overview] [--overview-top-k-codes N]
 ```
 
 Runs preprocessing and, optionally, prints a dataset overview JSON payload.
@@ -28,7 +34,7 @@ Runs preprocessing and, optionally, prints a dataset overview JSON payload.
 ## `oneehr train`
 
 ```bash
-oneehr train --config <toml> [--force]
+uv run oneehr train --config <toml> [--force]
 ```
 
 Trains configured models and writes model artifacts, predictions, and `summary.json`.
@@ -36,7 +42,7 @@ Trains configured models and writes model artifacts, predictions, and `summary.j
 ## `oneehr test`
 
 ```bash
-oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
+uv run oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
 ```
 
 Evaluates trained models on held-out or external test data.
@@ -44,7 +50,7 @@ Evaluates trained models on held-out or external test data.
 ## `oneehr analyze`
 
 ```bash
-oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
+uv run oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
 ```
 
 Writes structured analysis outputs under `analysis/`.
@@ -61,7 +67,7 @@ Supported modules:
 ## `oneehr cases`
 
 ```bash
-oneehr cases build --config <toml> [--run-dir DIR] [--force]
+uv run oneehr cases build --config <toml> [--run-dir DIR] [--force]
 ```
 
 Materializes durable case bundles under `cases/`.
@@ -71,13 +77,13 @@ Materializes durable case bundles under `cases/`.
 Prediction:
 
 ```bash
-oneehr agent predict --config <toml> [--run-dir DIR] [--force]
+uv run oneehr agent predict --config <toml> [--run-dir DIR] [--force]
 ```
 
 Review:
 
 ```bash
-oneehr agent review --config <toml> [--run-dir DIR] [--force]
+uv run oneehr agent review --config <toml> [--run-dir DIR] [--force]
 ```
 
 `agent predict` writes under `agent/predict/`.
@@ -91,64 +97,64 @@ oneehr agent review --config <toml> [--run-dir DIR] [--force]
 ### Runs
 
 ```bash
-oneehr query runs list [--root DIR]
-oneehr query runs describe [--config <toml> | --run-dir DIR]
+uv run oneehr query runs list [--root DIR]
+uv run oneehr query runs describe [--config <toml> | --run-dir DIR]
 ```
 
 ### Prompts
 
 ```bash
-oneehr query prompts list [--family prediction|review]
-oneehr query prompts describe --template NAME
+uv run oneehr query prompts list [--family prediction|review]
+uv run oneehr query prompts describe --template NAME
 ```
 
 ### Cases
 
 ```bash
-oneehr query cases index [--config <toml> | --run-dir DIR]
-oneehr query cases list [--config <toml> | --run-dir DIR] [--limit N]
-oneehr query cases read [--config <toml> | --run-dir DIR] --case-id ID [--limit N]
-oneehr query cases timeline [--config <toml> | --run-dir DIR] --case-id ID [--limit N]
-oneehr query cases static [--config <toml> | --run-dir DIR] --case-id ID
-oneehr query cases predictions [--config <toml> | --run-dir DIR] --case-id ID [--origin model|agent] [--predictor-name NAME] [--limit N]
-oneehr query cases evidence [--config <toml> | --run-dir DIR] --case-id ID [--limit N]
-oneehr query cases render-prompt [--config <toml> | --run-dir DIR] --case-id ID [--template NAME] [--origin model|agent] [--predictor-name NAME] [--limit N]
+uv run oneehr query cases index [--config <toml> | --run-dir DIR]
+uv run oneehr query cases list [--config <toml> | --run-dir DIR] [--limit N]
+uv run oneehr query cases read [--config <toml> | --run-dir DIR] --case-id ID [--limit N]
+uv run oneehr query cases timeline [--config <toml> | --run-dir DIR] --case-id ID [--limit N]
+uv run oneehr query cases static [--config <toml> | --run-dir DIR] --case-id ID
+uv run oneehr query cases predictions [--config <toml> | --run-dir DIR] --case-id ID [--origin model|agent] [--predictor-name NAME] [--limit N]
+uv run oneehr query cases evidence [--config <toml> | --run-dir DIR] --case-id ID [--limit N]
+uv run oneehr query cases render-prompt [--config <toml> | --run-dir DIR] --case-id ID [--template NAME] [--origin model|agent] [--predictor-name NAME] [--limit N]
 ```
 
 ### Analysis
 
 ```bash
-oneehr query analysis modules [--config <toml> | --run-dir DIR]
-oneehr query analysis index [--config <toml> | --run-dir DIR]
-oneehr query analysis summary [--config <toml> | --run-dir DIR] --module NAME
-oneehr query analysis table [--config <toml> | --run-dir DIR] --module NAME --table NAME [--limit N]
-oneehr query analysis plot [--config <toml> | --run-dir DIR] --module NAME --plot NAME
-oneehr query analysis failures [--config <toml> | --run-dir DIR] [--module NAME]
-oneehr query analysis failure-cases [--config <toml> | --run-dir DIR] [--module NAME] [--name NAME] [--limit N]
-oneehr query analysis patient-case [--config <toml> | --run-dir DIR] --patient-id ID [--module NAME] [--limit N]
+uv run oneehr query analysis modules [--config <toml> | --run-dir DIR]
+uv run oneehr query analysis index [--config <toml> | --run-dir DIR]
+uv run oneehr query analysis summary [--config <toml> | --run-dir DIR] --module NAME
+uv run oneehr query analysis table [--config <toml> | --run-dir DIR] --module NAME --table NAME [--limit N]
+uv run oneehr query analysis plot [--config <toml> | --run-dir DIR] --module NAME --plot NAME
+uv run oneehr query analysis failures [--config <toml> | --run-dir DIR] [--module NAME]
+uv run oneehr query analysis failure-cases [--config <toml> | --run-dir DIR] [--module NAME] [--name NAME] [--limit N]
+uv run oneehr query analysis patient-case [--config <toml> | --run-dir DIR] --patient-id ID [--module NAME] [--limit N]
 ```
 
 ### Cohorts
 
 ```bash
-oneehr query cohorts compare [--config <toml> | --run-dir DIR] [--split NAME] [--left-role train|val|test] [--right-role train|val|test] [--top-k N]
+uv run oneehr query cohorts compare [--config <toml> | --run-dir DIR] [--split NAME] [--left-role train|val|test] [--right-role train|val|test] [--top-k N]
 ```
 
 ### Agent Artifacts
 
 ```bash
-oneehr query agent predict-summary [--config <toml> | --run-dir DIR]
-oneehr query agent review-summary [--config <toml> | --run-dir DIR]
-oneehr query agent predict-records [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--parsed-ok true|false] [--search TEXT] [--limit N] [--offset N]
-oneehr query agent review-records [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--parsed-ok true|false] [--search TEXT] [--limit N] [--offset N]
-oneehr query agent predict-failures [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--search TEXT] [--limit N] [--offset N]
-oneehr query agent review-failures [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--search TEXT] [--limit N] [--offset N]
+uv run oneehr query agent predict-summary [--config <toml> | --run-dir DIR]
+uv run oneehr query agent review-summary [--config <toml> | --run-dir DIR]
+uv run oneehr query agent predict-records [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--parsed-ok true|false] [--search TEXT] [--limit N] [--offset N]
+uv run oneehr query agent review-records [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--parsed-ok true|false] [--search TEXT] [--limit N] [--offset N]
+uv run oneehr query agent predict-failures [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--search TEXT] [--limit N] [--offset N]
+uv run oneehr query agent review-failures [--config <toml> | --run-dir DIR] [--actor NAME] [--split NAME] [--search TEXT] [--limit N] [--offset N]
 ```
 
 ## `oneehr webui`
 
 ```bash
-oneehr webui serve [--root DIR] [--host HOST] [--port PORT] [--frontend-dist DIR] [--reload]
+uv run oneehr webui serve [--root DIR] [--host HOST] [--port PORT] [--frontend-dist DIR] [--reload]
 ```
 
 Serves the FastAPI backend and, when `webui/dist` exists, the built React dashboard.
