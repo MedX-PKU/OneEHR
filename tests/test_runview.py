@@ -18,7 +18,7 @@ from oneehr.query import (
     get_case_timeline,
     render_case_prompt,
 )
-from oneehr.workspace import WorkspaceStore, open_run_workspace
+from oneehr.runview import RunCatalog, open_run_view
 from test_review import _build_review_run, _mock_review_server
 
 
@@ -112,35 +112,35 @@ def test_cases_respect_saved_test_splits(tmp_path: Path) -> None:
         assert str(row["patient_id"]) in split_to_test[str(row["split"])]
 
 
-def test_workspace_domain_unifies_run_case_and_analysis_reads(tmp_path: Path) -> None:
+def test_run_view_domain_unifies_run_case_and_analysis_reads(tmp_path: Path) -> None:
     run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="workspace_domain", seed=29)
 
-    store = WorkspaceStore(run_root.parent)
-    runs = store.list_runs()
+    catalog = RunCatalog(run_root.parent)
+    runs = catalog.list_runs()
     assert runs[0]["run_name"] == "workspace_domain"
     assert runs[0]["has_cases_index"] is True
 
-    workspace = open_run_workspace(run_root)
-    desc = workspace.describe()
+    run_view = open_run_view(run_root)
+    desc = run_view.describe()
     assert desc["cases"]["case_count"] >= 1
     assert desc["analysis"]["has_index"] is True
-    assert "prediction_audit" in workspace.analysis_modules()
+    assert "prediction_audit" in run_view.analysis_modules()
 
-    cases = workspace.case_records(limit=1)
+    cases = run_view.case_records(limit=1)
     assert len(cases) == 1
     case_id = str(cases[0]["case_id"])
-    case = workspace.read_case(case_id, limit=2)
+    case = run_view.read_case(case_id, limit=2)
     assert case["case_id"] == case_id
     assert len(case["events"]) == 2
 
-    artifacts = workspace.failure_case_artifacts("prediction_audit")
+    artifacts = run_view.failure_case_artifacts("prediction_audit")
     assert len(artifacts) >= 1
     patient_id = str(cases[0]["patient_id"])
-    patient_matches = workspace.patient_case_matches(patient_id, "prediction_audit", limit=2)
+    patient_matches = run_view.patient_case_matches(patient_id, "prediction_audit", limit=2)
     assert patient_matches["patient_id"] == patient_id
 
 
-def test_workspace_domain_reads_agent_detail_artifacts(tmp_path: Path) -> None:
+def test_run_view_domain_reads_agent_detail_artifacts(tmp_path: Path) -> None:
     with _mock_review_server() as (_, base_url):
         run_root, cfg_path = _build_review_run(
             tmp_path=tmp_path,
@@ -153,17 +153,17 @@ def test_workspace_domain_reads_agent_detail_artifacts(tmp_path: Path) -> None:
             env={**os.environ, "TEST_OPENAI_API_KEY": "dummy"},
         )
 
-    workspace = open_run_workspace(run_root)
-    assert workspace.agent_task_actors("review") == ["mock-review"]
-    assert workspace.agent_task_splits("review") == ["fold0", "fold1"]
-    assert workspace.agent_task_detail_artifacts("review")
+    run_view = open_run_view(run_root)
+    assert run_view.agent_task_actors("review") == ["mock-review"]
+    assert run_view.agent_task_splits("review") == ["fold0", "fold1"]
+    assert run_view.agent_task_detail_artifacts("review")
 
-    detail_rows = workspace.agent_task_detail_rows("review", actor="mock-review", parsed_ok=True)
+    detail_rows = run_view.agent_task_detail_rows("review", actor="mock-review", parsed_ok=True)
     assert not detail_rows.empty
     assert "review_summary" in detail_rows.columns
     assert set(detail_rows["reviewer_name"].astype(str)) == {"mock-review"}
 
-    failure_rows = workspace.agent_task_failure_rows("review", actor="mock-review")
+    failure_rows = run_view.agent_task_failure_rows("review", actor="mock-review")
     assert failure_rows.empty
 
 

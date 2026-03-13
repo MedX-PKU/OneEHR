@@ -43,16 +43,16 @@ AGENT_TASK_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
-def open_run_workspace(run_root: str | Path) -> RunWorkspace:
+def open_run_view(run_root: str | Path) -> RunView:
     root = Path(run_root).resolve()
     manifest = read_run_manifest(root)
     if manifest is None:
         raise FileNotFoundError(f"Missing run_manifest.json under {root}")
-    return RunWorkspace(run_root=root, manifest=manifest)
+    return RunView(run_root=root, manifest=manifest)
 
 
 @dataclass(frozen=True)
-class RunWorkspace:
+class RunView:
     run_root: Path
     manifest: RunManifest
 
@@ -417,7 +417,7 @@ class RunWorkspace:
 
 
 @dataclass(frozen=True)
-class WorkspaceStore:
+class RunCatalog:
     root_dir: Path
 
     def __init__(self, root_dir: str | Path):
@@ -450,12 +450,12 @@ class WorkspaceStore:
             )
         return rows
 
-    def open_run(self, run_name: str) -> RunWorkspace:
+    def open_run(self, run_name: str) -> RunView:
         run_root = (self.root_dir / run_name).resolve()
         manifest = read_run_manifest(run_root)
         if manifest is None:
             raise FileNotFoundError(f"Missing run under {self.root_dir}: {run_name}")
-        return RunWorkspace(run_root=run_root, manifest=manifest)
+        return RunView(run_root=run_root, manifest=manifest)
 
 
 def _ensure_records(payload: dict[str, Any]) -> list[dict[str, Any]]:

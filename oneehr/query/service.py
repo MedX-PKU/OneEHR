@@ -14,11 +14,11 @@ from oneehr.query.primitives import (
 )
 from oneehr.agent.templates import describe_prompt_template as _describe_prompt_template
 from oneehr.agent.templates import list_prompt_templates as _list_prompt_templates
-from oneehr.workspace import WorkspaceStore, open_run_workspace
+from oneehr.runview import RunCatalog, open_run_view
 
 
 def list_runs(root: str | Path) -> list[dict[str, Any]]:
-    return WorkspaceStore(root).list_runs()
+    return RunCatalog(root).list_runs()
 
 
 def list_prompt_templates(*, family: str | None = None) -> list[dict[str, Any]]:
@@ -30,11 +30,11 @@ def describe_prompt_template(name: str) -> dict[str, Any]:
 
 
 def read_agent_predict_summary(run_root: str | Path) -> dict[str, Any]:
-    return open_run_workspace(run_root).agent_predict_summary()
+    return open_run_view(run_root).agent_predict_summary()
 
 
 def read_agent_review_summary(run_root: str | Path) -> dict[str, Any]:
-    return open_run_workspace(run_root).agent_review_summary()
+    return open_run_view(run_root).agent_review_summary()
 
 
 def read_agent_predict_records(
@@ -128,15 +128,15 @@ def read_agent_review_failures(
 
 
 def read_cases_index(run_root: str | Path) -> dict[str, Any]:
-    return open_run_workspace(run_root).cases_index()
+    return open_run_view(run_root).cases_index()
 
 
 def list_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
-    return open_run_workspace(run_root).case_records(limit=limit)
+    return open_run_view(run_root).case_records(limit=limit)
 
 
 def read_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    return open_run_workspace(run_root).read_case(case_id, limit=limit)
+    return open_run_view(run_root).read_case(case_id, limit=limit)
 
 
 def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
@@ -188,19 +188,19 @@ def render_case_prompt(
 
 
 def describe_run(run_root: str | Path) -> dict[str, Any]:
-    return open_run_workspace(run_root).describe()
+    return open_run_view(run_root).describe()
 
 
 def list_analysis_modules(run_root: str | Path) -> list[str]:
-    return open_run_workspace(run_root).analysis_modules()
+    return open_run_view(run_root).analysis_modules()
 
 
 def read_analysis_index(run_root: str | Path) -> dict[str, Any]:
-    return open_run_workspace(run_root).analysis_index()
+    return open_run_view(run_root).analysis_index()
 
 
 def read_analysis_summary(run_root: str | Path, module_name: str) -> dict[str, Any]:
-    return open_run_workspace(run_root).analysis_summary(module_name)
+    return open_run_view(run_root).analysis_summary(module_name)
 
 
 def read_analysis_table(
@@ -210,7 +210,7 @@ def read_analysis_table(
     *,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    df = open_run_workspace(run_root).analysis_table(module_name, table_name)
+    df = open_run_view(run_root).analysis_table(module_name, table_name)
     if limit is not None:
         df = df.head(int(limit)).reset_index(drop=True)
     return {
@@ -223,11 +223,11 @@ def read_analysis_table(
 
 
 def read_analysis_plot_spec(run_root: str | Path, module_name: str, plot_name: str) -> dict[str, Any]:
-    return open_run_workspace(run_root).analysis_plot_spec(module_name, plot_name)
+    return open_run_view(run_root).analysis_plot_spec(module_name, plot_name)
 
 
 def list_failure_cases(run_root: str | Path, module_name: str = "prediction_audit") -> list[dict[str, Any]]:
-    return open_run_workspace(run_root).failure_case_artifacts(module_name)
+    return open_run_view(run_root).failure_case_artifacts(module_name)
 
 
 def read_failure_cases(
@@ -237,7 +237,7 @@ def read_failure_cases(
     name: str | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    return open_run_workspace(run_root).failure_case_rows(module_name, name=name, limit=limit)
+    return open_run_view(run_root).failure_case_rows(module_name, name=name, limit=limit)
 
 
 def describe_patient_case(
@@ -247,7 +247,7 @@ def describe_patient_case(
     *,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    return open_run_workspace(run_root).patient_case_matches(patient_id, module_name, limit=limit)
+    return open_run_view(run_root).patient_case_matches(patient_id, module_name, limit=limit)
 
 
 def compare_cohorts(
@@ -258,9 +258,9 @@ def compare_cohorts(
     right_role: str = "test",
     top_k: int = 10,
 ) -> dict[str, Any]:
-    workspace = open_run_workspace(run_root)
-    split_roles = workspace.analysis_table("cohort_analysis", "split_roles")
-    drift = workspace.analysis_table("cohort_analysis", "feature_drift")
+    run_view = open_run_view(run_root)
+    split_roles = run_view.analysis_table("cohort_analysis", "split_roles")
+    drift = run_view.analysis_table("cohort_analysis", "feature_drift")
     if split_roles.empty:
         raise ValueError("cohort_analysis split_roles table is empty")
 
@@ -324,8 +324,8 @@ def _read_agent_rows(
     limit: int | None,
     offset: int,
 ) -> dict[str, Any]:
-    workspace = open_run_workspace(run_root)
-    summary = workspace.agent_task_summary_optional(task_name)
+    run_view = open_run_view(run_root)
+    summary = run_view.agent_task_summary_optional(task_name)
     if not summary:
         return {
             "task_name": str(task_name),
@@ -342,14 +342,14 @@ def _read_agent_rows(
         }
 
     if kind == "records":
-        detail_artifacts = workspace.agent_task_detail_artifacts(task_name)
+        detail_artifacts = run_view.agent_task_detail_artifacts(task_name)
         if not detail_artifacts:
             return {
                 "task_name": str(task_name),
                 "kind": str(kind),
                 "status": "unavailable",
-                "actors": workspace.agent_task_actors(task_name),
-                "splits": workspace.agent_task_splits(task_name),
+                "actors": run_view.agent_task_actors(task_name),
+                "splits": run_view.agent_task_splits(task_name),
                 "offset": int(offset),
                 "limit": None if limit is None else int(limit),
                 "row_count": 0,
@@ -357,7 +357,7 @@ def _read_agent_rows(
                 "columns": [],
                 "records": [],
             }
-        df = workspace.agent_task_detail_rows(
+        df = run_view.agent_task_detail_rows(
             task_name,
             actor=actor,
             split=split,
@@ -365,7 +365,7 @@ def _read_agent_rows(
             search=search,
         )
     else:
-        df = workspace.agent_task_failure_rows(
+        df = run_view.agent_task_failure_rows(
             task_name,
             actor=actor,
             split=split,
@@ -378,8 +378,8 @@ def _read_agent_rows(
         "task_name": str(task_name),
         "kind": str(kind),
         "status": "ok",
-        "actors": workspace.agent_task_actors(task_name),
-        "splits": workspace.agent_task_splits(task_name),
+        "actors": run_view.agent_task_actors(task_name),
+        "splits": run_view.agent_task_splits(task_name),
         "offset": int(offset),
         "limit": None if limit is None else int(limit),
         "row_count": int(len(page)),

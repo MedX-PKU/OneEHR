@@ -8,7 +8,7 @@ import pandas as pd
 
 from oneehr.query import compare_cohorts
 from oneehr.utils.io import as_jsonable
-from oneehr.workspace import RunWorkspace, WorkspaceStore
+from oneehr.runview import RunCatalog, RunView
 
 
 MODULE_META: dict[str, dict[str, str]] = {
@@ -95,10 +95,10 @@ TABLE_TITLES = {
 class WebUIService:
     def __init__(self, *, root_dir: str | Path):
         self.root_dir = Path(root_dir).resolve()
-        self.store = WorkspaceStore(self.root_dir)
+        self.catalog = RunCatalog(self.root_dir)
 
     def list_runs_payload(self) -> dict[str, Any]:
-        rows = self.store.list_runs()
+        rows = self.catalog.list_runs()
         out = []
         for row in rows:
             item = dict(row)
@@ -114,8 +114,8 @@ class WebUIService:
         }
 
     def describe_run_payload(self, *, run_name: str) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
-        run = workspace.describe()
+        run_view = self._resolve_run_view(run_name)
+        run = run_view.describe()
         analysis = self.analysis_index_payload(run_name=run_name)
         hero = {
             "run_name": run["run_name"],
@@ -139,9 +139,9 @@ class WebUIService:
         }
 
     def analysis_index_payload(self, *, run_name: str) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         try:
-            index = workspace.analysis_index()
+            index = run_view.analysis_index()
         except FileNotFoundError:
             return {
                 "run_name": str(run_name),
@@ -166,18 +166,18 @@ class WebUIService:
         }
 
     def analysis_dashboard_payload(self, *, run_name: str, module_name: str) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         module_item = self._get_module_index_item(run_name=run_name, module_name=module_name)
-        summary = self._read_module_summary(workspace=workspace, module_name=module_name)
-        tables = self._module_table_previews(workspace=workspace, module_name=module_name, module_item=module_item)
-        charts = self._module_charts(workspace=workspace, module_name=module_name, module_item=module_item)
+        summary = self._read_module_summary(run_view=run_view, module_name=module_name)
+        tables = self._module_table_previews(run_view=run_view, module_name=module_name, module_item=module_item)
+        charts = self._module_charts(run_view=run_view, module_name=module_name, module_item=module_item)
         highlights = self._module_highlights(
-            workspace=workspace,
+            run_view=run_view,
             module_name=module_name,
             summary=summary,
             tables=tables,
         )
-        case_artifacts = workspace.failure_case_artifacts(module_name) if self._supports_cases(module_name) else []
+        case_artifacts = run_view.failure_case_artifacts(module_name) if self._supports_cases(module_name) else []
         drilldowns = {
             "case_artifacts": case_artifacts,
             "patient_case_supported": bool(self._supports_cases(module_name)),
@@ -208,9 +208,9 @@ class WebUIService:
         filter_col: str | None = None,
         filter_value: str | None = None,
     ) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
-        df = workspace.analysis_table(module_name, table_name)
+        df = run_view.analysis_table(module_name, table_name)
         df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
         df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
         total_rows = int(len(df))
@@ -229,7 +229,7 @@ class WebUIService:
         }
 
     def analysis_cases_index_payload(self, *, run_name: str, module_name: str) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
         if not self._supports_cases(module_name):
             return {
@@ -240,7 +240,7 @@ class WebUIService:
         return {
             "run_name": str(run_name),
             "module": str(module_name),
-            "case_artifacts": workspace.failure_case_artifacts(module_name),
+            "case_artifacts": run_view.failure_case_artifacts(module_name),
         }
 
     def analysis_case_rows_payload(
@@ -256,12 +256,12 @@ class WebUIService:
         filter_col: str | None = None,
         filter_value: str | None = None,
     ) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
-        cases = workspace.failure_case_artifacts(module_name)
+        cases = run_view.failure_case_artifacts(module_name)
         if case_name not in {row["name"] for row in cases}:
             raise FileNotFoundError(f"Unknown case artifact {case_name!r} for module {module_name!r}")
-        payload = workspace.failure_case_rows(module_name, name=case_name)
+        payload = run_view.failure_case_rows(module_name, name=case_name)
         df = pd.DataFrame(payload.get("records", []))
         df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
         df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
@@ -287,9 +287,9 @@ class WebUIService:
         patient_id: str,
         limit: int = 25,
     ) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         self._get_module_index_item(run_name=run_name, module_name=module_name)
-        payload = workspace.patient_case_matches(patient_id, module_name, limit=limit)
+        payload = run_view.patient_case_matches(patient_id, module_name, limit=limit)
         return {
             "run_name": str(run_name),
             "module": str(module_name),
@@ -305,8 +305,8 @@ class WebUIService:
         split: str | None = None,
         search: str | None = None,
     ) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
-        index = workspace.cases_index_optional()
+        run_view = self._resolve_run_view(run_name)
+        index = run_view.cases_index_optional()
         if not index:
             return {
                 "run_name": str(run_name),
@@ -321,7 +321,7 @@ class WebUIService:
                 "records": [],
             }
 
-        df = pd.DataFrame(workspace.case_records())
+        df = pd.DataFrame(run_view.case_records())
         if split is not None and not df.empty and "split" in df.columns:
             df = df[df["split"].astype(str) == str(split)].reset_index(drop=True)
         if search is not None and search.strip() and not df.empty:
@@ -348,8 +348,8 @@ class WebUIService:
         }
 
     def case_detail_payload(self, *, run_name: str, case_id: str, limit: int = 100) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
-        case = workspace.read_case(case_id, limit=limit)
+        run_view = self._resolve_run_view(run_name)
+        case = run_view.read_case(case_id, limit=limit)
         static_payload = case.get("static", {})
         static_features = {}
         if isinstance(static_payload, dict):
@@ -396,21 +396,21 @@ class WebUIService:
         }
 
     def agents_payload(self, *, run_name: str) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         return {
             "run_name": str(run_name),
             "predict": self._agent_task_payload(
-                workspace=workspace,
+                run_view=run_view,
                 task_name="predict",
-                summary=workspace.agent_predict_summary_optional(),
-                records=workspace.agent_predict_records(),
+                summary=run_view.agent_predict_summary_optional(),
+                records=run_view.agent_predict_records(),
                 actor_field="predictor_name",
             ),
             "review": self._agent_task_payload(
-                workspace=workspace,
+                run_view=run_view,
                 task_name="review",
-                summary=workspace.agent_review_summary_optional(),
-                records=workspace.agent_review_records(),
+                summary=run_view.agent_review_summary_optional(),
+                records=run_view.agent_review_records(),
                 actor_field="reviewer_name",
             ),
         }
@@ -427,8 +427,8 @@ class WebUIService:
         limit: int = 100,
         offset: int = 0,
     ) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
-        summary = workspace.agent_task_summary_optional(task_name)
+        run_view = self._resolve_run_view(run_name)
+        summary = run_view.agent_task_summary_optional(task_name)
         if not summary:
             return self._empty_agent_rows_payload(
                 run_name=run_name,
@@ -442,9 +442,9 @@ class WebUIService:
                 offset=offset,
             )
 
-        detail_available = bool(workspace.agent_task_detail_artifacts(task_name))
-        actors = workspace.agent_task_actors(task_name)
-        splits = workspace.agent_task_splits(task_name)
+        detail_available = bool(run_view.agent_task_detail_artifacts(task_name))
+        actors = run_view.agent_task_actors(task_name)
+        splits = run_view.agent_task_splits(task_name)
         if not detail_available:
             return self._empty_agent_rows_payload(
                 run_name=run_name,
@@ -458,7 +458,7 @@ class WebUIService:
                 offset=offset,
             )
 
-        df = workspace.agent_task_detail_rows(
+        df = run_view.agent_task_detail_rows(
             task_name,
             actor=actor,
             split=split,
@@ -488,8 +488,8 @@ class WebUIService:
         limit: int = 100,
         offset: int = 0,
     ) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
-        summary = workspace.agent_task_summary_optional(task_name)
+        run_view = self._resolve_run_view(run_name)
+        summary = run_view.agent_task_summary_optional(task_name)
         if not summary:
             return self._empty_agent_rows_payload(
                 run_name=run_name,
@@ -503,7 +503,7 @@ class WebUIService:
                 offset=offset,
             )
 
-        df = workspace.agent_task_failure_rows(
+        df = run_view.agent_task_failure_rows(
             task_name,
             actor=actor,
             split=split,
@@ -513,17 +513,17 @@ class WebUIService:
             run_name=run_name,
             task_name=task_name,
             kind="failures",
-            actors=workspace.agent_task_actors(task_name),
-            splits=workspace.agent_task_splits(task_name),
-            detail_available=bool(workspace.agent_task_detail_artifacts(task_name)),
+            actors=run_view.agent_task_actors(task_name),
+            splits=run_view.agent_task_splits(task_name),
+            detail_available=bool(run_view.agent_task_detail_artifacts(task_name)),
             df=df,
             limit=limit,
             offset=offset,
         )
 
     def comparison_payload(self, *, run_name: str) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
-        comparison_dir = workspace.run_root / "analysis" / "comparison"
+        run_view = self._resolve_run_view(run_name)
+        comparison_dir = run_view.run_root / "analysis" / "comparison"
         summary_path = comparison_dir / "summary.json"
         if not summary_path.exists():
             return {
@@ -596,11 +596,11 @@ class WebUIService:
         right_role: str,
         top_k: int,
     ) -> dict[str, Any]:
-        workspace = self._resolve_workspace(run_name)
+        run_view = self._resolve_run_view(run_name)
         return {
             "run_name": str(run_name),
             "comparison": compare_cohorts(
-                workspace.run_root,
+                run_view.run_root,
                 split=split,
                 left_role=left_role,
                 right_role=right_role,
@@ -608,13 +608,13 @@ class WebUIService:
             ),
         }
 
-    def _resolve_workspace(self, run_name: str) -> RunWorkspace:
-        return self.store.open_run(run_name)
+    def _resolve_run_view(self, run_name: str) -> RunView:
+        return self.catalog.open_run(run_name)
 
     def _agent_task_payload(
         self,
         *,
-        workspace: RunWorkspace,
+        run_view: RunView,
         task_name: str,
         summary: dict[str, Any],
         records: list[dict[str, Any]],
@@ -678,8 +678,8 @@ class WebUIService:
             "cards": cards,
             "table": self._table_payload_from_frame(name=table_name, df=df, preview_limit=None),
             "actors": actors,
-            "splits": workspace.agent_task_splits(task_name),
-            "detail_available": bool(workspace.agent_task_detail_artifacts(task_name)),
+            "splits": run_view.agent_task_splits(task_name),
+            "detail_available": bool(run_view.agent_task_detail_artifacts(task_name)),
         }
 
     def _normalize_module_index_item(self, *, run_name: str, item: dict[str, Any]) -> dict[str, Any]:
@@ -713,23 +713,23 @@ class WebUIService:
                 return item
         raise FileNotFoundError(f"Missing analysis module {module_name!r} for run {run_name!r}")
 
-    def _read_module_summary(self, *, workspace: RunWorkspace, module_name: str) -> dict[str, Any]:
+    def _read_module_summary(self, *, run_view: RunView, module_name: str) -> dict[str, Any]:
         try:
-            return workspace.analysis_summary(module_name)
+            return run_view.analysis_summary(module_name)
         except FileNotFoundError:
             return {"module": module_name, "status": "missing"}
 
     def _module_table_previews(
         self,
         *,
-        workspace: RunWorkspace,
+        run_view: RunView,
         module_name: str,
         module_item: dict[str, Any],
     ) -> list[dict[str, Any]]:
         previews = []
         for table_name in module_item.get("table_names", []):
             try:
-                df = workspace.analysis_table(module_name, table_name)
+                df = run_view.analysis_table(module_name, table_name)
             except FileNotFoundError:
                 continue
             previews.append(self._table_payload_from_frame(name=table_name, df=df, preview_limit=8))
@@ -738,14 +738,14 @@ class WebUIService:
     def _module_charts(
         self,
         *,
-        workspace: RunWorkspace,
+        run_view: RunView,
         module_name: str,
         module_item: dict[str, Any],
     ) -> list[dict[str, Any]]:
         charts = []
         for plot_name in module_item.get("plot_names", []):
             try:
-                spec = workspace.analysis_plot_spec(module_name, plot_name)
+                spec = run_view.analysis_plot_spec(module_name, plot_name)
             except FileNotFoundError:
                 continue
             charts.append(
@@ -766,7 +766,7 @@ class WebUIService:
         fallback = []
         table_names = module_item.get("table_names", [])
         if module_name == "interpretability" and "artifacts" in table_names:
-            df = workspace.analysis_table(module_name, "artifacts")
+            df = run_view.analysis_table(module_name, "artifacts")
             ok_rows = df[df.get("status", "").astype(str) == "ok"].copy() if "status" in df.columns else df
             if not ok_rows.empty:
                 fallback.append(
@@ -830,7 +830,7 @@ class WebUIService:
     def _module_highlights(
         self,
         *,
-        workspace: RunWorkspace,
+        run_view: RunView,
         module_name: str,
         summary: dict[str, Any],
         tables: list[dict[str, Any]],
@@ -849,7 +849,7 @@ class WebUIService:
         elif module_name == "cohort_analysis":
             try:
                 comparison = compare_cohorts(
-                    workspace.run_root,
+                    run_view.run_root,
                     split=None,
                     left_role="train",
                     right_role="test",

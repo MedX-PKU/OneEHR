@@ -9,11 +9,11 @@ from oneehr.agent.render import render_prompt
 from oneehr.agent.predict_schema import schema_prompt_text
 from oneehr.agent.templates import get_prompt_template
 from oneehr.agent.review_schema import review_schema_prompt_text
-from oneehr.workspace import open_run_workspace
+from oneehr.runview import open_run_view
 
 
 def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    case = open_run_workspace(run_root).read_case(case_id, limit=limit)
+    case = open_run_view(run_root).read_case(case_id, limit=limit)
     events = list(case.get("events", []))
     return {
         "case_id": str(case_id),
@@ -24,7 +24,7 @@ def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None =
 
 
 def get_case_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
-    case = open_run_workspace(run_root).read_case(case_id)
+    case = open_run_view(run_root).read_case(case_id)
     features = case_static_features(case)
     return {
         "case_id": str(case_id),
@@ -42,7 +42,7 @@ def get_case_predictions(
     predictor_name: str | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    case = open_run_workspace(run_root).read_case(case_id, limit=limit)
+    case = open_run_view(run_root).read_case(case_id, limit=limit)
     rows = select_case_predictions(case, origin=origin, predictor_name=predictor_name)
     return {
         "case_id": str(case_id),
@@ -53,7 +53,7 @@ def get_case_predictions(
 
 
 def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    case = open_run_workspace(run_root).read_case(case_id, limit=limit)
+    case = open_run_view(run_root).read_case(case_id, limit=limit)
     return {
         "case_id": str(case_id),
         "case": {
@@ -77,7 +77,7 @@ def render_case_prompt(
     origin: str | None = None,
     predictor_name: str | None = None,
 ) -> dict[str, Any]:
-    case = open_run_workspace(run_root).read_case(case_id)
+    case = open_run_view(run_root).read_case(case_id)
     template = get_prompt_template(template_name or cfg.agent.predict.prompt_template)
 
     if template.family == "prediction":

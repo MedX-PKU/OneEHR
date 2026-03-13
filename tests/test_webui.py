@@ -10,7 +10,7 @@ from oneehr.web.service import WebUIService
 from test_analysis import _build_trained_run
 from test_inspect import _build_analyzed_run
 from test_review import _build_review_run, _mock_review_server
-from test_workspace import _build_cases_run
+from test_runview import _build_cases_run
 
 
 def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
