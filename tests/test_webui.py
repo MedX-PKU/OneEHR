@@ -95,6 +95,24 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     assert len(comparison["charts"]) >= 1
 
 
+def test_webui_service_cohort_compare_payload(tmp_path: Path) -> None:
+    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_compare", seed=23)
+    service = WebUIService(root_dir=run_root.parent)
+
+    payload = service.cohort_compare_payload(
+        run_name="webui_cohort_compare",
+        split="fold0",
+        left_role="train",
+        right_role="test",
+        top_k=4,
+    )
+    assert payload["comparison"]["split"] == "fold0"
+    assert payload["comparison"]["left_role"] == "train"
+    assert payload["comparison"]["right_role"] == "test"
+    assert payload["comparison"]["feature_drift_available"] is True
+    assert len(payload["comparison"]["top_feature_drift"]) <= 4
+
+
 def test_webui_service_cases_payloads(tmp_path: Path) -> None:
     run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="webui_cases", seed=19)
     service = WebUIService(root_dir=run_root.parent)
@@ -210,6 +228,25 @@ def test_webui_fastapi_routes(tmp_path: Path) -> None:
     agents = client.get(f"/api/v1/runs/{run_root.name}/agents")
     assert agents.status_code == 200
     assert agents.json()["predict"]["status"] == "missing"
+
+
+def test_webui_fastapi_cohort_compare_route(tmp_path: Path) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from oneehr.web import create_app
+
+    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_api", seed=27)
+    client = TestClient(create_app(root_dir=run_root.parent))
+
+    response = client.get(
+        f"/api/v1/runs/{run_root.name}/cohorts/compare",
+        params={"split": "fold0", "left_role": "train", "right_role": "test", "top_k": 3},
+    )
+    assert response.status_code == 200
+    assert response.json()["comparison"]["split"] == "fold0"
+    assert response.json()["comparison"]["feature_drift_available"] is True
+    assert len(response.json()["comparison"]["top_feature_drift"]) <= 3
 
 
 def test_cli_webui_help() -> None:

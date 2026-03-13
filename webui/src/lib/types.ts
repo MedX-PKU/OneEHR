@@ -184,6 +184,17 @@ export interface ComparisonPayload {
   highlights?: string[]
 }
 
+export interface CohortComparison {
+  split: string
+  left_role: string
+  right_role: string
+  left: Record<string, unknown>
+  right: Record<string, unknown>
+  deltas: Record<string, number | null>
+  feature_drift_available: boolean
+  top_feature_drift: Array<Record<string, unknown>>
+}
+
 export interface CasesIndexPayload {
   run_name: string
   status: string

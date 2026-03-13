@@ -10,6 +10,7 @@ import type {
   DashboardTable,
   TablePage,
   ComparisonPayload,
+  CohortComparison,
   FailureCaseArtifact,
   FailureCaseRows,
   ModuleDashboard,
@@ -337,6 +338,37 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
     })),
     highlights: payload.highlights.map((item) => `${item.title}: ${item.body}`),
   }
+}
+
+export async function fetchCohortComparison(
+  runName: string,
+  options: {
+    split?: string | null
+    leftRole?: 'train' | 'val' | 'test'
+    rightRole?: 'train' | 'val' | 'test'
+    topK?: number
+  } = {},
+): Promise<CohortComparison> {
+  const query = buildQueryString({
+    split: options.split,
+    left_role: options.leftRole ?? 'train',
+    right_role: options.rightRole ?? 'test',
+    top_k: options.topK ?? 10,
+  })
+  const payload = await request<{
+    run_name: string
+    comparison: {
+      split: string
+      left_role: string
+      right_role: string
+      left: Record<string, unknown>
+      right: Record<string, unknown>
+      deltas: Record<string, number | null>
+      feature_drift_available: boolean
+      top_feature_drift: Array<Record<string, unknown>>
+    }
+  }>(`/runs/${encodeURIComponent(runName)}/cohorts/compare${query}`)
+  return payload.comparison
 }
 
 export async function fetchCasesIndex(

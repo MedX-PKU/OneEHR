@@ -126,7 +126,7 @@ Current console surfaces:
 - server-backed analysis table browsing with filtering, sorting, and pagination
 - durable case bundle browsing, split/search filters, and case detail views
 - agent predict/review summaries
-- compare-run views when `analysis/comparison/*` exists
+- compare-run views plus cohort role comparisons from `cohort_analysis`
 
 ## Data Model
 
