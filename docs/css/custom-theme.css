@@ -112,6 +112,60 @@ nav.right {
     padding-top: 1.25rem;
 }
 
+nav.left ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+nav.left > ul > li {
+    margin: 0 0 0.95rem;
+}
+
+nav.left li > a {
+    display: block;
+    padding: 0.34rem 0.2rem;
+    border-radius: 0.55rem;
+    color: var(--fg-color);
+    text-decoration: none;
+}
+
+nav.left > ul > li > a {
+    font-weight: 640;
+    letter-spacing: 0.01em;
+}
+
+nav.left li > ul {
+    margin-top: 0.3rem;
+    margin-left: 0.45rem;
+    padding-left: 0.85rem;
+    border-left: 1px solid #d7e3f3;
+}
+
+nav.left li > ul > li {
+    margin: 0.12rem 0;
+}
+
+nav.left li > ul > li > a {
+    color: #44566c;
+    font-size: 0.95rem;
+}
+
+nav.left li > a:hover {
+    background: rgba(37, 99, 235, 0.08);
+    color: var(--link-color);
+}
+
+nav.left li > a.active {
+    background: linear-gradient(180deg, #eef4ff 0%, #e3eeff 100%);
+    color: #1d4ed8;
+    font-weight: 650;
+}
+
+nav.left > ul > li:has(> ul > li > a.active) > a {
+    color: #102a43;
+}
+
 main {
     margin-top: var(--header-height);
     min-height: calc(100vh - var(--header-height));
