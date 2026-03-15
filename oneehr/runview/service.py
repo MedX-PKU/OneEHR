@@ -17,6 +17,12 @@ from oneehr.analysis.read import (
     read_analysis_table as _read_analysis_table,
     read_failure_cases as _read_failure_cases,
 )
+from oneehr.eval.query import (
+    read_eval_index as _read_eval_index,
+    read_eval_report_summary as _read_eval_report_summary,
+    read_eval_summary as _read_eval_summary,
+    read_eval_table_frame as _read_eval_table_frame,
+)
 from oneehr.artifacts.read import RunManifest, read_run_manifest
 from oneehr.cases.bundle import (
     list_cases as _list_cases,
@@ -107,6 +113,36 @@ class RunView:
 
     def analysis_plot_spec(self, module_name: str, plot_name: str) -> dict[str, Any]:
         return _read_analysis_plot_spec(self.run_root, module_name, plot_name)
+
+    def eval_index(self) -> dict[str, Any]:
+        return _read_eval_index(self.run_root)
+
+    def eval_index_optional(self) -> dict[str, Any]:
+        try:
+            return self.eval_index()
+        except FileNotFoundError:
+            return {}
+
+    def eval_summary(self) -> dict[str, Any]:
+        return _read_eval_summary(self.run_root)
+
+    def eval_summary_optional(self) -> dict[str, Any]:
+        try:
+            return self.eval_summary()
+        except FileNotFoundError:
+            return {}
+
+    def eval_report_summary(self) -> dict[str, Any]:
+        return _read_eval_report_summary(self.run_root)
+
+    def eval_report_summary_optional(self) -> dict[str, Any]:
+        try:
+            return self.eval_report_summary()
+        except FileNotFoundError:
+            return {}
+
+    def eval_table(self, table_name: str) -> pd.DataFrame:
+        return _read_eval_table_frame(self.run_root, table_name=table_name)
 
     def failure_case_artifacts(self, module_name: str = "prediction_audit") -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -348,6 +384,9 @@ class RunView:
         agent_review_records = self.agent_review_records()
         analysis_index = self.analysis_index_optional()
         cases_index = self.cases_index_optional()
+        eval_index = self.eval_index_optional()
+        eval_summary = self.eval_summary_optional()
+        eval_report = self.eval_report_summary_optional()
         testing_snapshot = _testing_summary_snapshot(
             test_records,
             task=self.manifest.data.get("task") or {},
@@ -392,6 +431,18 @@ class RunView:
                 "modules": modules,
                 "index_path": _relative_path_or_none(self.run_root / "analysis" / "index.json", base=self.run_root),
             },
+            "eval": {
+                "instance_count": int(eval_index.get("instance_count", 0) or 0),
+                "system_count": int(len(_ensure_records(eval_summary))),
+                "leaderboard_rows": int(eval_report.get("leaderboard_rows", 0) or 0),
+                "primary_metric": eval_report.get("primary_metric"),
+                "index_path": _relative_path_or_none(self.run_root / "eval" / "index.json", base=self.run_root),
+                "summary_path": _relative_path_or_none(self.run_root / "eval" / "summary.json", base=self.run_root),
+                "report_summary_path": _relative_path_or_none(
+                    self.run_root / "eval" / "reports" / "summary.json",
+                    base=self.run_root,
+                ),
+            },
             "cases": {
                 "case_count": int(cases_index.get("case_count", 0) or 0),
                 "index_path": _relative_path_or_none(self.run_root / "cases" / "index.json", base=self.run_root),
@@ -428,6 +479,7 @@ class RunView:
                 "has_models_dir": bool((self.run_root / "models").exists()),
                 "has_preds_dir": bool((self.run_root / "preds").exists()),
                 "has_splits_dir": bool((self.run_root / "splits").exists()),
+                "has_eval_dir": bool((self.run_root / "eval").exists()),
                 "has_cases_dir": bool((self.run_root / "cases").exists()),
                 "has_agent_dir": bool((self.run_root / "agent").exists()),
             },
@@ -461,6 +513,9 @@ class RunCatalog:
                     "has_train_summary": bool((path / "summary.json").exists()),
                     "has_test_summary": bool((path / "test_runs" / "test_summary.json").exists()),
                     "has_analysis_index": bool((path / "analysis" / "index.json").exists()),
+                    "has_eval_index": bool((path / "eval" / "index.json").exists()),
+                    "has_eval_summary": bool((path / "eval" / "summary.json").exists()),
+                    "has_eval_report_summary": bool((path / "eval" / "reports" / "summary.json").exists()),
                     "has_cases_index": bool((path / "cases" / "index.json").exists()),
                     "has_agent_predict_summary": bool((path / "agent" / "predict" / "summary.json").exists()),
                     "has_agent_review_summary": bool((path / "agent" / "review" / "summary.json").exists()),

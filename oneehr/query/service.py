@@ -12,6 +12,14 @@ from oneehr.query.primitives import (
     get_case_timeline as _get_case_timeline,
     render_case_prompt as _render_case_prompt,
 )
+from oneehr.eval.query import (
+    read_eval_index as _read_eval_index,
+    read_eval_report_summary as _read_eval_report_summary,
+    read_eval_summary as _read_eval_summary,
+    read_eval_table as _read_eval_table,
+    read_instance_payload as _read_eval_instance_payload,
+    read_trace_rows as _read_eval_trace_rows,
+)
 from oneehr.agent.templates import describe_prompt_template as _describe_prompt_template
 from oneehr.agent.templates import list_prompt_templates as _list_prompt_templates
 from oneehr.runview import RunCatalog, open_run_view
@@ -27,6 +35,53 @@ def list_prompt_templates(*, family: str | None = None) -> list[dict[str, Any]]:
 
 def describe_prompt_template(name: str) -> dict[str, Any]:
     return _describe_prompt_template(name)
+
+
+def read_eval_index(run_root: str | Path) -> dict[str, Any]:
+    return _read_eval_index(run_root)
+
+
+def read_eval_summary(run_root: str | Path) -> dict[str, Any]:
+    return _read_eval_summary(run_root)
+
+
+def read_eval_report_summary(run_root: str | Path) -> dict[str, Any]:
+    return _read_eval_report_summary(run_root)
+
+
+def read_eval_table(
+    run_root: str | Path,
+    *,
+    table_name: str,
+    limit: int | None = None,
+    offset: int = 0,
+) -> dict[str, Any]:
+    return _read_eval_table(run_root, table_name=table_name, limit=limit, offset=offset)
+
+
+def read_eval_instance(run_root: str | Path, *, instance_id: str) -> dict[str, Any]:
+    return _read_eval_instance_payload(run_root, instance_id=instance_id)
+
+
+def read_eval_trace(
+    run_root: str | Path,
+    *,
+    system_name: str,
+    limit: int = 25,
+    offset: int = 0,
+    stage: str | None = None,
+    role: str | None = None,
+    round_index: int | None = None,
+) -> dict[str, Any]:
+    return _read_eval_trace_rows(
+        run_root,
+        system_name=system_name,
+        limit=limit,
+        offset=offset,
+        stage=stage,
+        role=role,
+        round_index=round_index,
+    )
 
 
 def read_agent_predict_summary(run_root: str | Path) -> dict[str, Any]:

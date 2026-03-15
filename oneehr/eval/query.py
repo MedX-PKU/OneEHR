@@ -7,6 +7,71 @@ from typing import Any
 import pandas as pd
 
 
+EVAL_TABLE_PATHS = {
+    "leaderboard": Path("eval") / "reports" / "leaderboard.csv",
+    "split_metrics": Path("eval") / "reports" / "split_metrics.csv",
+    "pairwise": Path("eval") / "reports" / "pairwise.csv",
+}
+
+
+def read_eval_index(run_root: str | Path) -> dict[str, Any]:
+    run_root = Path(run_root)
+    index_path = run_root / "eval" / "index.json"
+    if not index_path.exists():
+        raise FileNotFoundError(f"Missing eval index: {index_path}")
+    return json.loads(index_path.read_text(encoding="utf-8"))
+
+
+def read_eval_summary(run_root: str | Path) -> dict[str, Any]:
+    run_root = Path(run_root)
+    summary_path = run_root / "eval" / "summary.json"
+    if not summary_path.exists():
+        raise FileNotFoundError(f"Missing eval summary: {summary_path}")
+    return json.loads(summary_path.read_text(encoding="utf-8"))
+
+
+def read_eval_report_summary(run_root: str | Path) -> dict[str, Any]:
+    run_root = Path(run_root)
+    summary_path = run_root / "eval" / "reports" / "summary.json"
+    if not summary_path.exists():
+        raise FileNotFoundError(f"Missing eval report summary: {summary_path}")
+    return json.loads(summary_path.read_text(encoding="utf-8"))
+
+
+def read_eval_table_frame(run_root: str | Path, *, table_name: str) -> pd.DataFrame:
+    run_root = Path(run_root)
+    try:
+        rel_path = EVAL_TABLE_PATHS[str(table_name)]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported eval table {table_name!r}") from exc
+    path = run_root / rel_path
+    if not path.exists():
+        raise FileNotFoundError(f"Missing eval table: {path}")
+    return pd.read_csv(path)
+
+
+def read_eval_table(
+    run_root: str | Path,
+    *,
+    table_name: str,
+    limit: int | None = None,
+    offset: int = 0,
+) -> dict[str, Any]:
+    df = read_eval_table_frame(run_root, table_name=table_name)
+    total_rows = int(len(df))
+    page = df.iloc[int(offset) : int(offset) + int(limit)] if limit is not None else df.iloc[int(offset) :]
+    page = page.astype(object).where(pd.notna(page), None)
+    return {
+        "table": str(table_name),
+        "total_rows": total_rows,
+        "row_count": int(len(page)),
+        "offset": int(offset),
+        "limit": None if limit is None else int(limit),
+        "columns": [str(col) for col in df.columns],
+        "records": page.to_dict(orient="records"),
+    }
+
+
 def read_trace_rows(
     run_root: str | Path,
     *,

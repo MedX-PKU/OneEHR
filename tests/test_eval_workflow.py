@@ -10,27 +10,22 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from oneehr.eval.query import read_instance_payload, read_trace_rows
+from oneehr.web.service import WebUIService
 from test_analysis import _build_trained_run
 
 
-def test_eval_cli_e2e_all_supported_frameworks(tmp_path: Path, monkeypatch) -> None:
+def test_eval_cli_e2e_all_supported_frameworks(tmp_path: Path) -> None:
     with _mock_eval_server() as (server, base_url):
-        run_root, cfg_path = _build_trained_run(
+        run_root, cfg_path = _build_eval_run(
             tmp_path=tmp_path,
             run_name="eval_e2e",
             seed=23,
+            base_url=base_url,
         )
-        _append_eval_config(cfg_path, base_url=base_url)
-
-        monkeypatch.setenv("TEST_OPENAI_API_KEY", "dummy")
-        env = os.environ.copy()
-        env["TEST_OPENAI_API_KEY"] = "dummy"
-
-        subprocess.check_call(["oneehr", "eval", "build", "--config", str(cfg_path), "--force"], env=env)
-        subprocess.check_call(["oneehr", "eval", "run", "--config", str(cfg_path), "--force"], env=env)
-        subprocess.check_call(["oneehr", "eval", "report", "--config", str(cfg_path), "--force"], env=env)
+        env = _eval_env()
 
     expected_systems = {
         "xgboost_ref",
@@ -131,7 +126,118 @@ def test_eval_cli_e2e_all_supported_frameworks(tmp_path: Path, monkeypatch) -> N
     )
     assert cli_trace["system_name"] == "healthcareagent_eval"
     assert cli_trace["row_count"] >= 1
+
+    query_report = json.loads(
+        subprocess.check_output(
+            ["oneehr", "query", "eval", "report", "--config", str(cfg_path)],
+            env=env,
+            text=True,
+        )
+    )
+    assert query_report["report"]["primary_metric"] == "accuracy"
+
+    query_table = json.loads(
+        subprocess.check_output(
+            [
+                "oneehr",
+                "query",
+                "eval",
+                "table",
+                "--config",
+                str(cfg_path),
+                "--table",
+                "leaderboard",
+                "--limit",
+                "2",
+            ],
+            env=env,
+            text=True,
+        )
+    )
+    assert query_table["table"]["table"] == "leaderboard"
+    assert query_table["table"]["row_count"] == 2
+
+    service = WebUIService(root_dir=run_root.parent)
+    eval_payload = service.eval_payload(run_name=run_root.name)
+    assert eval_payload["status"] == "ok"
+    assert eval_payload["index"]["instance_count"] == 4
+    assert any(table["name"] == "leaderboard" for table in eval_payload["tables"])
+
+    eval_table_payload = service.eval_table_payload(
+        run_name=run_root.name,
+        table_name="leaderboard",
+        limit=3,
+        offset=0,
+        sort_by="accuracy",
+        sort_dir="desc",
+    )
+    assert eval_table_payload["table"] == "leaderboard"
+    assert eval_table_payload["row_count"] == 3
+
+    eval_instance_payload = service.eval_instance_payload(
+        run_name=run_root.name,
+        instance_id=first_instance_id,
+    )
+    assert eval_instance_payload["instance"]["instance_id"] == first_instance_id
+
+    eval_trace_payload = service.eval_trace_payload(
+        run_name=run_root.name,
+        system_name="healthcareagent_eval",
+        stage="plan",
+        limit=5,
+    )
+    assert eval_trace_payload["row_count"] >= 1
+    assert eval_trace_payload["table"] == "trace_rows"
+
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from oneehr.web import create_app
+
+    client = TestClient(create_app(root_dir=run_root.parent))
+    eval_route = client.get(f"/api/v1/runs/{run_root.name}/eval")
+    assert eval_route.status_code == 200
+    assert eval_route.json()["status"] == "ok"
+
+    table_route = client.get(
+        f"/api/v1/runs/{run_root.name}/eval/tables/leaderboard",
+        params={"limit": 2, "sort_by": "accuracy", "sort_dir": "desc"},
+    )
+    assert table_route.status_code == 200
+    assert table_route.json()["table"] == "leaderboard"
+    assert table_route.json()["row_count"] == 2
+
+    instance_route = client.get(f"/api/v1/runs/{run_root.name}/eval/instances/{first_instance_id}")
+    assert instance_route.status_code == 200
+    assert instance_route.json()["instance"]["instance_id"] == first_instance_id
+
+    trace_route = client.get(
+        f"/api/v1/runs/{run_root.name}/eval/traces/healthcareagent_eval",
+        params={"stage": "plan", "limit": 5},
+    )
+    assert trace_route.status_code == 200
+    assert trace_route.json()["row_count"] >= 1
     assert len(server.requests) > 0
+
+
+def _build_eval_run(*, tmp_path: Path, run_name: str, seed: int, base_url: str) -> tuple[Path, Path]:
+    run_root, cfg_path = _build_trained_run(
+        tmp_path=tmp_path,
+        run_name=run_name,
+        seed=seed,
+    )
+    _append_eval_config(cfg_path, base_url=base_url)
+    env = _eval_env()
+    subprocess.check_call(["oneehr", "eval", "build", "--config", str(cfg_path), "--force"], env=env)
+    subprocess.check_call(["oneehr", "eval", "run", "--config", str(cfg_path), "--force"], env=env)
+    subprocess.check_call(["oneehr", "eval", "report", "--config", str(cfg_path), "--force"], env=env)
+    return run_root, cfg_path
+
+
+def _eval_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["TEST_OPENAI_API_KEY"] = "dummy"
+    return env
 
 
 def _append_eval_config(path: Path, *, base_url: str) -> None:

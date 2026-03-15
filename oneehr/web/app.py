@@ -50,6 +50,68 @@ def create_app(*, root_dir: str | Path | None = None, static_dir: str | Path | N
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.get("/api/v1/runs/{run_name}/eval")
+    def eval_route(run_name: str):
+        try:
+            return service.eval_payload(run_name=run_name)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/v1/runs/{run_name}/eval/tables/{table_name}")
+    def eval_table_route(
+        run_name: str,
+        table_name: str,
+        limit: int = Query(default=25, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+        sort_by: str | None = None,
+        sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+        filter_col: str | None = None,
+        filter_value: str | None = None,
+    ):
+        try:
+            return service.eval_table_payload(
+                run_name=run_name,
+                table_name=table_name,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
+                filter_col=filter_col,
+                filter_value=filter_value,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/v1/runs/{run_name}/eval/instances/{instance_id}")
+    def eval_instance_route(run_name: str, instance_id: str):
+        try:
+            return service.eval_instance_payload(run_name=run_name, instance_id=instance_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/v1/runs/{run_name}/eval/traces/{system_name}")
+    def eval_trace_route(
+        run_name: str,
+        system_name: str,
+        limit: int = Query(default=25, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+        stage: str | None = None,
+        role: str | None = None,
+        round_index: int | None = Query(default=None, ge=0),
+    ):
+        try:
+            return service.eval_trace_payload(
+                run_name=run_name,
+                system_name=system_name,
+                limit=limit,
+                offset=offset,
+                stage=stage,
+                role=role,
+                round_index=round_index,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get("/api/v1/runs/{run_name}/cases")
     def cases_route(
         run_name: str,

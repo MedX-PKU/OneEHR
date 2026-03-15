@@ -9,6 +9,8 @@ import pandas as pd
 
 from oneehr.query import (
     compare_cohorts,
+    read_eval_instance,
+    read_eval_trace,
     read_agent_predict_failures,
     read_agent_predict_records,
     read_agent_review_failures,
@@ -103,6 +105,10 @@ TABLE_TITLES = {
     "patient_case_matches": "Patient Case Matches",
     "agent_predict_records": "Agent Prediction Records",
     "agent_review_records": "Agent Review Records",
+    "leaderboard": "Evaluation Leaderboard",
+    "split_metrics": "Evaluation Split Metrics",
+    "pairwise": "Evaluation Pairwise Deltas",
+    "trace_rows": "Evaluation Trace Rows",
 }
 
 
@@ -118,6 +124,7 @@ class WebUIService:
             item = dict(row)
             item["analysis_status"] = "ready" if item.get("has_analysis_index") else "pending"
             item["testing_status"] = "ready" if item.get("has_test_summary") else "pending"
+            item["eval_status"] = "ready" if item.get("has_eval_report_summary") else "pending"
             item["task_label"] = self._task_label(item.get("task"))
             item["route"] = f"/runs/{item['run_name']}"
             out.append(item)
@@ -138,6 +145,8 @@ class WebUIService:
             "model_count": int(len((run.get("training") or {}).get("models") or [])),
             "test_model_count": int(len((run.get("testing") or {}).get("models") or [])),
             "analysis_module_count": int(len(analysis.get("modules", []))),
+            "eval_instance_count": int(((run.get("eval") or {}).get("instance_count")) or 0),
+            "eval_system_count": int(((run.get("eval") or {}).get("system_count")) or 0),
             "case_count": int(((run.get("cases") or {}).get("case_count")) or 0),
             "test_record_count": int(((run.get("testing") or {}).get("record_count")) or 0),
             "agent_predict_record_count": int(((run.get("agent_predict") or {}).get("record_count")) or 0),
@@ -149,6 +158,7 @@ class WebUIService:
             "analysis": analysis,
             "navigation": {
                 "overview_route": f"/runs/{run_name}",
+                "eval_route": f"/runs/{run_name}/eval",
                 "cases_route": f"/runs/{run_name}/cases",
                 "agents_route": f"/runs/{run_name}/agents",
                 "comparison_route": f"/runs/{run_name}/comparison",
@@ -423,6 +433,142 @@ class WebUIService:
                 records=run_view.agent_review_records(),
                 actor_field="reviewer_name",
             ),
+        }
+
+    def eval_payload(self, *, run_name: str) -> dict[str, Any]:
+        run_view = self._resolve_run_view(run_name)
+        index = run_view.eval_index_optional()
+        summary = run_view.eval_summary_optional()
+        report = run_view.eval_report_summary_optional()
+        if not index and not summary and not report:
+            return {
+                "run_name": str(run_name),
+                "status": "missing",
+                "index": None,
+                "systems": None,
+                "report": None,
+                "tables": [],
+                "highlights": [],
+            }
+
+        tables = []
+        frames: dict[str, pd.DataFrame] = {}
+        for table_name in ("leaderboard", "split_metrics", "pairwise"):
+            try:
+                frame = run_view.eval_table(table_name)
+            except (FileNotFoundError, ValueError):
+                continue
+            frames[table_name] = frame
+            tables.append(self._table_payload_from_frame(name=table_name, df=frame, preview_limit=8))
+
+        highlights: list[dict[str, str]] = []
+        leaderboard = frames.get("leaderboard", pd.DataFrame())
+        if not leaderboard.empty:
+            metric = str(report.get("primary_metric") or "accuracy")
+            if metric in leaderboard.columns:
+                best = leaderboard.iloc[0]
+                highlights.append(
+                    {
+                        "title": "Top system",
+                        "body": (
+                            f"{best.get('system_name')} "
+                            f"{metric}={self._format_highlight_value(best.get(metric))}"
+                        ),
+                    }
+                )
+        pairwise = frames.get("pairwise", pd.DataFrame())
+        if not pairwise.empty:
+            top = pairwise.assign(
+                abs_delta=pd.to_numeric(pairwise["delta"], errors="coerce").abs()
+            ).sort_values(
+                "abs_delta",
+                ascending=False,
+                kind="stable",
+            ).iloc[0]
+            highlights.append(
+                {
+                    "title": "Largest pairwise delta",
+                    "body": (
+                        f"{top.get('left_system')} vs {top.get('right_system')} "
+                        f"delta={self._format_highlight_value(top.get('delta'))}"
+                    ),
+                }
+            )
+
+        return {
+            "run_name": str(run_name),
+            "status": "ok",
+            "index": as_jsonable(index),
+            "systems": as_jsonable(summary),
+            "report": as_jsonable(report),
+            "tables": tables,
+            "highlights": highlights,
+        }
+
+    def eval_table_payload(
+        self,
+        *,
+        run_name: str,
+        table_name: str,
+        limit: int = 25,
+        offset: int = 0,
+        sort_by: str | None = None,
+        sort_dir: str = "desc",
+        filter_col: str | None = None,
+        filter_value: str | None = None,
+    ) -> dict[str, Any]:
+        run_view = self._resolve_run_view(run_name)
+        df = run_view.eval_table(table_name)
+        df = self._filter_dataframe(df, filter_col=filter_col, filter_value=filter_value)
+        df = self._sort_dataframe(df, sort_by=sort_by, sort_dir=sort_dir)
+        return {
+            "run_name": str(run_name),
+            **self._table_page_payload_from_frame(name=table_name, df=df, limit=limit, offset=offset),
+        }
+
+    def eval_instance_payload(self, *, run_name: str, instance_id: str) -> dict[str, Any]:
+        run_view = self._resolve_run_view(run_name)
+        payload = read_eval_instance(run_view.run_root, instance_id=instance_id)
+        return {
+            "run_name": str(run_name),
+            "instance": payload,
+        }
+
+    def eval_trace_payload(
+        self,
+        *,
+        run_name: str,
+        system_name: str,
+        limit: int = 25,
+        offset: int = 0,
+        stage: str | None = None,
+        role: str | None = None,
+        round_index: int | None = None,
+    ) -> dict[str, Any]:
+        run_view = self._resolve_run_view(run_name)
+        payload = read_eval_trace(
+            run_view.run_root,
+            system_name=system_name,
+            limit=limit,
+            offset=offset,
+            stage=stage,
+            role=role,
+            round_index=round_index,
+        )
+        df = pd.DataFrame(payload.get("records", []))
+        if df.empty and payload.get("records") == []:
+            df = pd.DataFrame(columns=[])
+        return {
+            "run_name": str(run_name),
+            "system_name": str(system_name),
+            "table": "trace_rows",
+            "title": TABLE_TITLES["trace_rows"],
+            "offset": int(payload.get("offset", 0)),
+            "limit": int(payload.get("limit", 0)),
+            "total_rows": int(payload.get("total_rows", 0)),
+            "row_count": int(payload.get("row_count", 0)),
+            "columns": self._column_specs(df),
+            "records": as_jsonable(payload.get("records", [])),
         }
 
     def agent_records_payload(

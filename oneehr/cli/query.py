@@ -9,15 +9,14 @@ from oneehr.utils.io import as_jsonable
 
 
 def register_query_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("query", help="Read run artifacts as JSON for notebooks, agents, and web UIs")
+    parser = subparsers.add_parser("query", help="Read run artifacts as JSON for notebooks and web UIs")
     query_sub = parser.add_subparsers(dest="query_group")
 
     _register_runs_parser(query_sub)
     _register_prompts_parser(query_sub)
-    _register_cases_parser(query_sub)
+    _register_eval_parser(query_sub)
     _register_analysis_parser(query_sub)
     _register_cohorts_parser(query_sub)
-    _register_agent_parser(query_sub)
 
 
 def _register_runs_parser(query_sub) -> None:
@@ -93,6 +92,45 @@ def _register_cases_parser(query_sub) -> None:
     prompt_cmd.add_argument("--origin", default=None, help="Optional target prediction origin for review prompts")
     prompt_cmd.add_argument("--predictor-name", default=None, help="Optional target predictor/backend name")
     prompt_cmd.set_defaults(handler=_run_cases_render_prompt)
+
+
+def _register_eval_parser(query_sub) -> None:
+    parser = query_sub.add_parser("eval", help="Query unified evaluation artifacts")
+    sub = parser.add_subparsers(dest="query_action")
+
+    index_cmd = sub.add_parser("index", help="Read the frozen eval instance index")
+    _add_run_locator_args(index_cmd)
+    index_cmd.set_defaults(handler=_run_eval_index)
+
+    summary_cmd = sub.add_parser("summary", help="Read eval system execution summary")
+    _add_run_locator_args(summary_cmd)
+    summary_cmd.set_defaults(handler=_run_eval_summary)
+
+    report_cmd = sub.add_parser("report", help="Read eval report summary")
+    _add_run_locator_args(report_cmd)
+    report_cmd.set_defaults(handler=_run_eval_report)
+
+    table_cmd = sub.add_parser("table", help="Read one eval report table")
+    _add_run_locator_args(table_cmd)
+    table_cmd.add_argument("--table", required=True, choices=["leaderboard", "split_metrics", "pairwise"])
+    table_cmd.add_argument("--limit", type=int, default=None, help="Optional max rows to return")
+    table_cmd.add_argument("--offset", type=int, default=0, help="Optional row offset")
+    table_cmd.set_defaults(handler=_run_eval_table)
+
+    instance_cmd = sub.add_parser("instance", help="Read one eval instance with aligned outputs")
+    _add_run_locator_args(instance_cmd)
+    instance_cmd.add_argument("--instance-id", required=True, help="Eval instance identifier")
+    instance_cmd.set_defaults(handler=_run_eval_instance)
+
+    trace_cmd = sub.add_parser("trace", help="Read eval trace rows for one system")
+    _add_run_locator_args(trace_cmd)
+    trace_cmd.add_argument("--system", required=True, help="System name")
+    trace_cmd.add_argument("--limit", type=int, default=25)
+    trace_cmd.add_argument("--offset", type=int, default=0)
+    trace_cmd.add_argument("--stage", default=None)
+    trace_cmd.add_argument("--role", default=None)
+    trace_cmd.add_argument("--round", dest="round_index", type=int, default=None)
+    trace_cmd.set_defaults(handler=_run_eval_trace)
 
 
 def _register_analysis_parser(query_sub) -> None:
@@ -220,6 +258,79 @@ def _run_prompts_describe(args: argparse.Namespace) -> None:
     from oneehr.query import describe_prompt_template
 
     _emit({"query": "prompts.describe", "template": describe_prompt_template(args.template)})
+
+
+def _run_eval_index(args: argparse.Namespace) -> None:
+    from oneehr.query import read_eval_index
+
+    run_root = _resolve_run_root(args, label="query eval index")
+    _emit({"query": "eval.index", "run_dir": str(run_root), "index": read_eval_index(run_root)})
+
+
+def _run_eval_summary(args: argparse.Namespace) -> None:
+    from oneehr.query import read_eval_summary
+
+    run_root = _resolve_run_root(args, label="query eval summary")
+    _emit({"query": "eval.summary", "run_dir": str(run_root), "summary": read_eval_summary(run_root)})
+
+
+def _run_eval_report(args: argparse.Namespace) -> None:
+    from oneehr.query import read_eval_report_summary
+
+    run_root = _resolve_run_root(args, label="query eval report")
+    _emit({"query": "eval.report", "run_dir": str(run_root), "report": read_eval_report_summary(run_root)})
+
+
+def _run_eval_table(args: argparse.Namespace) -> None:
+    from oneehr.query import read_eval_table
+
+    run_root = _resolve_run_root(args, label="query eval table")
+    _emit(
+        {
+            "query": "eval.table",
+            "run_dir": str(run_root),
+            "table": read_eval_table(
+                run_root,
+                table_name=args.table,
+                limit=args.limit,
+                offset=args.offset,
+            ),
+        }
+    )
+
+
+def _run_eval_instance(args: argparse.Namespace) -> None:
+    from oneehr.query import read_eval_instance
+
+    run_root = _resolve_run_root(args, label="query eval instance")
+    _emit(
+        {
+            "query": "eval.instance",
+            "run_dir": str(run_root),
+            "instance": read_eval_instance(run_root, instance_id=args.instance_id),
+        }
+    )
+
+
+def _run_eval_trace(args: argparse.Namespace) -> None:
+    from oneehr.query import read_eval_trace
+
+    run_root = _resolve_run_root(args, label="query eval trace")
+    _emit(
+        {
+            "query": "eval.trace",
+            "run_dir": str(run_root),
+            "trace": read_eval_trace(
+                run_root,
+                system_name=args.system,
+                limit=args.limit,
+                offset=args.offset,
+                stage=args.stage,
+                role=args.role,
+                round_index=args.round_index,
+            ),
+        }
+    )
 
 
 def _run_cases_index(args: argparse.Namespace) -> None:
