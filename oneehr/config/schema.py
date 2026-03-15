@@ -260,6 +260,67 @@ class AgentConfig:
 
 
 @dataclass(frozen=True)
+class EvalBackendConfig:
+    name: str
+    provider: str = "openai_compatible"
+    base_url: str = "https://api.openai.com/v1"
+    model: str = ""
+    api_key_env: str = "OPENAI_API_KEY"
+    system_prompt: str | None = None
+    supports_json_schema: bool = True
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EvalSystemConfig:
+    name: str
+    kind: str = "framework"  # framework | trained_model
+    framework_type: str | None = None
+    enabled: bool = True
+    sample_unit: str = "patient"  # patient | time
+    source_model: str | None = None
+    backend_refs: list[str] = field(default_factory=list)
+    prompt_template: str = "summary_v1"
+    max_samples: int | None = None
+    max_rounds: int = 1
+    concurrency: int = 1
+    max_retries: int = 2
+    timeout_seconds: float = 60.0
+    temperature: float = 0.0
+    top_p: float = 1.0
+    seed: int | None = None
+    framework_params: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EvalSuiteConfig:
+    name: str
+    splits: list[str] = field(default_factory=list)
+    include_systems: list[str] = field(default_factory=list)
+    primary_metric: str | None = None
+    secondary_metrics: list[str] = field(default_factory=list)
+    slice_by: list[str] = field(default_factory=list)
+    min_coverage: float = 0.0
+    compare_pairs: list[tuple[str, str]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class EvalConfig:
+    instance_unit: str = "patient"  # patient | time
+    max_instances: int | None = None
+    seed: int = 42
+    slice_by: list[str] = field(default_factory=list)
+    primary_metric: str | None = None
+    bootstrap_samples: int = 200
+    save_evidence: bool = True
+    save_traces: bool = True
+    text_render_template: str = "summary_v1"
+    backends: list[EvalBackendConfig] = field(default_factory=list)
+    systems: list[EvalSystemConfig] = field(default_factory=list)
+    suites: list[EvalSuiteConfig] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class AnalysisConfig:
     default_modules: list[str] = field(
         default_factory=lambda: [
@@ -460,6 +521,7 @@ class ExperimentConfig:
     hpo: HPOConfig = field(default_factory=HPOConfig)
     hpo_by_model: dict[str, HPOConfig] = field(default_factory=dict)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
+    eval: EvalConfig = field(default_factory=EvalConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     cases: CasesConfig = field(default_factory=CasesConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)

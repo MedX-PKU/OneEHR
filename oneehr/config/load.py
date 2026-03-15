@@ -19,6 +19,10 @@ from oneehr.config.schema import (
     DynamicTableConfig,
     DatasetConfig,
     DatasetsConfig,
+    EvalBackendConfig,
+    EvalConfig,
+    EvalSuiteConfig,
+    EvalSystemConfig,
     ExperimentConfig,
     HPOConfig,
     LabelTableConfig,
@@ -71,6 +75,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     model_raw = raw.get("model")
     models_raw = raw.get("models", [])
     output_raw = raw.get("output", {})
+    eval_raw = raw.get("eval", {})
     analysis_raw = raw.get("analysis", {})
     cases_raw = raw.get("cases", {})
     agent_raw = raw.get("agent", {})
@@ -79,6 +84,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     hpo_raw = raw.get("hpo", {})
     hpo_models_raw = raw.get("hpo_models", {})
     calibration_raw = raw.get("calibration", {})
+    if not isinstance(eval_raw, dict):
+        raise ValueError("eval must be a table")
     if not isinstance(cases_raw, dict):
         raise ValueError("cases must be a table")
     if not isinstance(agent_raw, dict):
@@ -270,6 +277,146 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         save_preds=bool(output_raw.get("save_preds", True)),
     )
 
+    def _load_backend_entry(braw: dict[str, Any], *, path_name: str) -> dict[str, Any]:
+        headers = braw.get("headers", {}) or {}
+        if not isinstance(headers, dict):
+            raise ValueError(f"{path_name}.<entry>.headers must be a table")
+        return {
+            "name": _require(braw, "name"),
+            "provider": str(braw.get("provider", "openai_compatible")),
+            "base_url": str(braw.get("base_url", "https://api.openai.com/v1")),
+            "model": str(_require(braw, "model")),
+            "api_key_env": str(braw.get("api_key_env", "OPENAI_API_KEY")),
+            "system_prompt": (
+                None
+                if braw.get("system_prompt") in {None, "", "null"}
+                else str(braw.get("system_prompt"))
+            ),
+            "supports_json_schema": bool(braw.get("supports_json_schema", True)),
+            "headers": {str(k): str(v) for k, v in headers.items()},
+        }
+
+    def _load_eval_backends(raw_backends: list[dict[str, Any]]) -> list[EvalBackendConfig]:
+        backends: list[EvalBackendConfig] = []
+        for braw in raw_backends or []:
+            if not isinstance(braw, dict):
+                raise ValueError("eval.backends entries must be tables")
+            backends.append(EvalBackendConfig(**_load_backend_entry(braw, path_name="eval.backends")))
+        return backends
+
+    def _load_agent_backends(raw_backends: list[dict[str, Any]], *, path_name: str) -> list[AgentBackendConfig]:
+        backends: list[AgentBackendConfig] = []
+        for braw in raw_backends or []:
+            if not isinstance(braw, dict):
+                raise ValueError(f"{path_name} entries must be tables")
+            backends.append(AgentBackendConfig(**_load_backend_entry(braw, path_name=path_name)))
+        return backends
+
+    eval_backends_raw = eval_raw.get("backends", []) or []
+    eval_systems_raw = eval_raw.get("systems", []) or []
+    eval_suites_raw = eval_raw.get("suites", []) or []
+    if not isinstance(eval_backends_raw, list):
+        raise ValueError("eval.backends must be an array of tables")
+    if not isinstance(eval_systems_raw, list):
+        raise ValueError("eval.systems must be an array of tables")
+    if not isinstance(eval_suites_raw, list):
+        raise ValueError("eval.suites must be an array of tables")
+
+    eval_systems: list[EvalSystemConfig] = []
+    for sraw in eval_systems_raw:
+        if not isinstance(sraw, dict):
+            raise ValueError("eval.systems entries must be tables")
+        framework_params = sraw.get("framework_params", {}) or {}
+        if not isinstance(framework_params, dict):
+            raise ValueError("eval.systems.<entry>.framework_params must be a table")
+        eval_systems.append(
+            EvalSystemConfig(
+                name=str(_require(sraw, "name")),
+                kind=str(sraw.get("kind", "framework")),
+                framework_type=(
+                    None
+                    if sraw.get("framework_type") in {None, "", "null"}
+                    else str(sraw.get("framework_type"))
+                ),
+                enabled=bool(sraw.get("enabled", True)),
+                sample_unit=str(sraw.get("sample_unit", "patient")),
+                source_model=(
+                    None
+                    if sraw.get("source_model") in {None, "", "null"}
+                    else str(sraw.get("source_model"))
+                ),
+                backend_refs=[str(v) for v in sraw.get("backend_refs", []) or []],
+                prompt_template=str(sraw.get("prompt_template", "summary_v1")),
+                max_samples=(
+                    None
+                    if sraw.get("max_samples") in {None, "", "null"}
+                    else int(sraw.get("max_samples"))
+                ),
+                max_rounds=int(sraw.get("max_rounds", 1)),
+                concurrency=int(sraw.get("concurrency", 1)),
+                max_retries=int(sraw.get("max_retries", 2)),
+                timeout_seconds=float(sraw.get("timeout_seconds", 60.0)),
+                temperature=float(sraw.get("temperature", 0.0)),
+                top_p=float(sraw.get("top_p", 1.0)),
+                seed=(
+                    None
+                    if sraw.get("seed") in {None, "", "null"}
+                    else int(sraw.get("seed"))
+                ),
+                framework_params={str(k): v for k, v in framework_params.items()},
+            )
+        )
+
+    eval_suites: list[EvalSuiteConfig] = []
+    for sraw in eval_suites_raw:
+        if not isinstance(sraw, dict):
+            raise ValueError("eval.suites entries must be tables")
+        compare_pairs_raw = sraw.get("compare_pairs", []) or []
+        compare_pairs: list[tuple[str, str]] = []
+        for item in compare_pairs_raw:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                raise ValueError("eval.suites.<entry>.compare_pairs items must be [left, right]")
+            compare_pairs.append((str(item[0]), str(item[1])))
+        eval_suites.append(
+            EvalSuiteConfig(
+                name=str(_require(sraw, "name")),
+                splits=[str(v) for v in sraw.get("splits", []) or []],
+                include_systems=[str(v) for v in sraw.get("include_systems", []) or []],
+                primary_metric=(
+                    None
+                    if sraw.get("primary_metric") in {None, "", "null"}
+                    else str(sraw.get("primary_metric"))
+                ),
+                secondary_metrics=[str(v) for v in sraw.get("secondary_metrics", []) or []],
+                slice_by=[str(v) for v in sraw.get("slice_by", []) or []],
+                min_coverage=float(sraw.get("min_coverage", 0.0)),
+                compare_pairs=compare_pairs,
+            )
+        )
+
+    eval_cfg = EvalConfig(
+        instance_unit=str(eval_raw.get("instance_unit", task.prediction_mode)),
+        max_instances=(
+            None
+            if eval_raw.get("max_instances") in {None, "", "null"}
+            else int(eval_raw.get("max_instances"))
+        ),
+        seed=int(eval_raw.get("seed", 42)),
+        slice_by=[str(v) for v in eval_raw.get("slice_by", []) or []],
+        primary_metric=(
+            None
+            if eval_raw.get("primary_metric") in {None, "", "null"}
+            else str(eval_raw.get("primary_metric"))
+        ),
+        bootstrap_samples=int(eval_raw.get("bootstrap_samples", 200)),
+        save_evidence=bool(eval_raw.get("save_evidence", True)),
+        save_traces=bool(eval_raw.get("save_traces", True)),
+        text_render_template=str(eval_raw.get("text_render_template", "summary_v1")),
+        backends=_load_eval_backends(eval_backends_raw),
+        systems=eval_systems,
+        suites=eval_suites,
+    )
+
     if not isinstance(analysis_raw, dict):
         raise ValueError("analysis must be a table")
     analysis = AnalysisConfig(
@@ -350,32 +497,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         threshold_strategy=str(calibration_raw.get("threshold_strategy", "f1")),
         use_calibrated=bool(calibration_raw.get("use_calibrated", True)),
     )
-
-    def _load_agent_backends(raw_backends: list[dict[str, Any]], *, path_name: str) -> list[AgentBackendConfig]:
-        backends: list[AgentBackendConfig] = []
-        for braw in raw_backends or []:
-            if not isinstance(braw, dict):
-                raise ValueError(f"{path_name} entries must be tables")
-            headers = braw.get("headers", {}) or {}
-            if not isinstance(headers, dict):
-                raise ValueError(f"{path_name}.<entry>.headers must be a table")
-            backends.append(
-                AgentBackendConfig(
-                    name=_require(braw, "name"),
-                    provider=str(braw.get("provider", "openai_compatible")),
-                    base_url=str(braw.get("base_url", "https://api.openai.com/v1")),
-                    model=str(_require(braw, "model")),
-                    api_key_env=str(braw.get("api_key_env", "OPENAI_API_KEY")),
-                    system_prompt=(
-                        None
-                        if braw.get("system_prompt") in {None, "", "null"}
-                        else str(braw.get("system_prompt"))
-                    ),
-                    supports_json_schema=bool(braw.get("supports_json_schema", True)),
-                    headers={str(k): str(v) for k, v in headers.items()},
-                )
-            )
-        return backends
 
     agent_predict_prompt_raw = agent_predict_raw.get("prompt", {}) or {}
     agent_predict_output_raw = agent_predict_raw.get("output", {}) or {}
@@ -511,6 +632,69 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError("agent.review.prompt.max_events must be >= 1")
     if agent.review.max_cases is not None and agent.review.max_cases <= 0:
         raise ValueError("agent.review.max_cases must be >= 1 when provided")
+    if eval_cfg.instance_unit not in {"patient", "time"}:
+        raise ValueError("eval.instance_unit must be 'patient' or 'time'")
+    if eval_cfg.max_instances is not None and eval_cfg.max_instances <= 0:
+        raise ValueError("eval.max_instances must be >= 1 when provided")
+    if eval_cfg.bootstrap_samples <= 0:
+        raise ValueError("eval.bootstrap_samples must be >= 1")
+    backend_names = [backend.name for backend in eval_cfg.backends]
+    if len(set(backend_names)) != len(backend_names):
+        raise ValueError("eval.backends names must be unique")
+    for backend_cfg in eval_cfg.backends:
+        if backend_cfg.provider != "openai_compatible":
+            raise ValueError("eval.backends.provider must be 'openai_compatible' in v1")
+    allowed_frameworks = {
+        "single_llm",
+        "healthcareagent",
+        "reconcile",
+        "mac",
+        "medagent",
+        "colacare",
+        "mdagents",
+    }
+    system_names: list[str] = []
+    for system_cfg in eval_cfg.systems:
+        system_names.append(system_cfg.name)
+        if system_cfg.kind not in {"framework", "trained_model"}:
+            raise ValueError("eval.systems.kind must be 'framework' or 'trained_model'")
+        if system_cfg.sample_unit not in {"patient", "time"}:
+            raise ValueError("eval.systems.sample_unit must be 'patient' or 'time'")
+        if system_cfg.max_samples is not None and system_cfg.max_samples <= 0:
+            raise ValueError("eval.systems.max_samples must be >= 1 when provided")
+        if system_cfg.max_rounds <= 0:
+            raise ValueError("eval.systems.max_rounds must be >= 1")
+        if system_cfg.concurrency <= 0:
+            raise ValueError("eval.systems.concurrency must be >= 1")
+        if system_cfg.kind == "trained_model":
+            if system_cfg.source_model in {None, ""}:
+                raise ValueError("trained_model systems require source_model")
+            if system_cfg.framework_type not in {None, "", "null"}:
+                raise ValueError("trained_model systems must not set framework_type")
+            if system_cfg.backend_refs:
+                raise ValueError("trained_model systems must not set backend_refs")
+        else:
+            if system_cfg.framework_type not in allowed_frameworks:
+                raise ValueError(
+                    "framework systems require framework_type in "
+                    f"{sorted(allowed_frameworks)!r}"
+                )
+            unknown_refs = [name for name in system_cfg.backend_refs if name not in set(backend_names)]
+            if unknown_refs:
+                raise ValueError(f"Unknown eval backend refs: {unknown_refs}")
+    if len(set(system_names)) != len(system_names):
+        raise ValueError("eval.systems names must be unique")
+    for suite_cfg in eval_cfg.suites:
+        if suite_cfg.min_coverage < 0.0 or suite_cfg.min_coverage > 1.0:
+            raise ValueError("eval.suites.min_coverage must be in [0, 1]")
+        unknown_systems = [name for name in suite_cfg.include_systems if name not in set(system_names)]
+        if unknown_systems:
+            raise ValueError(f"Unknown eval systems in suite {suite_cfg.name!r}: {unknown_systems}")
+        for left_name, right_name in suite_cfg.compare_pairs:
+            if left_name not in set(system_names) or right_name not in set(system_names):
+                raise ValueError(
+                    f"Unknown compare_pairs system names in suite {suite_cfg.name!r}: {(left_name, right_name)!r}"
+                )
 
     return ExperimentConfig(
         dataset=dataset,
@@ -525,6 +709,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         hpo=hpo,
         hpo_by_model=hpo_by_model,
         calibration=calibration,
+        eval=eval_cfg,
         analysis=analysis,
         cases=cases,
         agent=agent,

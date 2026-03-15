@@ -3,8 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from oneehr.cli.agent import register_agent_parser
-from oneehr.cli.cases import register_cases_parser
+from oneehr.cli.eval import register_eval_parser
 from oneehr.cli.query import register_query_parser
 from oneehr.cli.webui import register_webui_parser
 
@@ -49,8 +48,7 @@ def _build_parser() -> argparse.ArgumentParser:
     an.add_argument("--case-limit", type=int, default=None, help="Maximum number of case-level rows to save per analysis slice")
     an.add_argument("--method", default=None, choices=["xgboost", "shap", "attention"])
 
-    register_cases_parser(sub)
-    register_agent_parser(sub)
+    register_eval_parser(sub)
     register_query_parser(sub)
     register_webui_parser(sub)
 
