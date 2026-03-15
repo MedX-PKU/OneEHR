@@ -45,43 +45,6 @@ rm -f "$SCREEN_DIR"/*.png "$SCREEN_DIR"/manifest.json
 
 export LOG_ROOT RUN_NAME SCREEN_DIR BASELINE_RUN SCREEN_WIDTH SCREEN_HEIGHT
 
-CASE_INFO_JSON="$(python - <<'PY'
-import json
-import os
-from pathlib import Path
-from urllib.parse import quote
-
-root = Path(os.environ["LOG_ROOT"])
-run_name = os.environ["RUN_NAME"]
-cases_index = root / run_name / "cases" / "index.json"
-case_id = ""
-case_route = ""
-if cases_index.exists():
-    payload = json.loads(cases_index.read_text(encoding="utf-8"))
-    records = payload.get("records") or []
-    if records:
-        case_id = str(records[0]["case_id"])
-        case_route = quote(case_id, safe="")
-print(json.dumps({"case_id": case_id, "case_route": case_route}))
-PY
-)"
-export CASE_INFO_JSON
-CASE_ROUTE="$(python - <<'PY'
-import json
-import os
-
-print(json.loads(os.environ["CASE_INFO_JSON"])["case_route"])
-PY
-)"
-CASE_ID="$(python - <<'PY'
-import json
-import os
-
-print(json.loads(os.environ["CASE_INFO_JSON"])["case_id"])
-PY
-)"
-export CASE_ID
-
 cleanup() {
   if [[ -n "${SERVER_PID:-}" ]]; then
     kill "$SERVER_PID" >/dev/null 2>&1 || true
@@ -124,10 +87,6 @@ shot "http://127.0.0.1:${PORT}/runs/${RUN_NAME}" "$SCREEN_DIR/02-overview.png"
 shot "http://127.0.0.1:${PORT}/runs/${RUN_NAME}/analysis/test_audit" "$SCREEN_DIR/03-test-audit.png"
 shot "http://127.0.0.1:${PORT}/runs/${RUN_NAME}/analysis/prediction_audit" "$SCREEN_DIR/04-prediction-audit.png"
 shot "http://127.0.0.1:${PORT}/runs/${RUN_NAME}/comparison" "$SCREEN_DIR/05-comparison.png"
-if [[ -n "$CASE_ROUTE" ]]; then
-  shot "http://127.0.0.1:${PORT}/runs/${RUN_NAME}/cases/${CASE_ROUTE}" "$SCREEN_DIR/06-case-detail.png"
-fi
-shot "http://127.0.0.1:${PORT}/runs/${RUN_NAME}/agents" "$SCREEN_DIR/07-agents.png"
 
 python - <<'PY'
 import json
@@ -138,7 +97,6 @@ screen_dir = Path(os.environ["SCREEN_DIR"])
 payload = {
     "run_name": os.environ["RUN_NAME"],
     "baseline_run": os.environ["BASELINE_RUN"],
-    "case_id": os.environ["CASE_ID"],
     "viewport": {"width": int(os.environ.get("SCREEN_WIDTH", "2560")), "height": int(os.environ.get("SCREEN_HEIGHT", "1600"))},
     "screenshots": [
         {"name": path.name, "path": str(path)}

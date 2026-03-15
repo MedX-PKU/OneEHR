@@ -2,7 +2,7 @@
 
 OneEHR writes all experiment outputs to a structured run directory under `{output.root}/{output.run_name}/`.
 
-This page documents the current public artifact surface for the eval-first workflow. The core contract is the structured tree consumed by `train`, `test`, `analyze`, `eval`, `query`, and `webui`.
+The public contract is the structured artifact tree consumed by `train`, `test`, `analyze`, `eval`, `query`, and `webui`.
 
 Typical writers:
 
@@ -14,7 +14,7 @@ Typical writers:
 
 ---
 
-## Run directory layout
+## Run Directory Layout
 
 ```text
 {output.root}/{output.run_name}/
@@ -86,17 +86,17 @@ Typical writers:
 
 ---
 
-## Core preprocess artifacts
+## Core Preprocess Artifacts
 
 Written by `oneehr preprocess` and read by all downstream commands.
 
-### `run_manifest.json`
+### `run_manifest.json` { #run-manifest }
 
 The single source of truth for the run.
 
 Schema version: **5**
 
-Key public fields:
+Stable fields consumers should rely on:
 
 | Field | Description |
 |-------|-------------|
@@ -105,6 +105,7 @@ Key public fields:
 | `task` | Task config snapshot |
 | `split` | Split config snapshot |
 | `preprocess` | Preprocess config snapshot |
+| `static` | Static postprocess pipeline snapshot |
 | `features.dynamic.feature_columns` | Dynamic feature column names |
 | `features.static.feature_columns` | Static feature column names |
 | `artifacts.binned_parquet_path` | Relative path to `binned.parquet` |
@@ -137,11 +138,11 @@ Encoded static feature matrix keyed by `patient_id`.
 
 ---
 
-## Split artifacts
+## Split Artifacts
 
 ### `splits/{split_name}.json`
 
-Patient-level split definition used by training, testing, and eval instance construction.
+Patient-level split definition used by training, testing, analysis, and evaluation.
 
 Fields:
 
@@ -152,7 +153,7 @@ Fields:
 
 ---
 
-## Train artifacts
+## Train Artifacts
 
 Written by `oneehr train`.
 
@@ -200,20 +201,7 @@ Flat CSV of best HPO settings across models.
 
 ---
 
-## Test artifacts
-
-Written by `oneehr test` under `test_runs/`.
-
-| File | Description |
-|------|-------------|
-| `test_runs/metrics_{model}_{split}.json` | Per-split test metrics |
-| `test_runs/preds_{model}_{split}.parquet` | Per-split test predictions |
-| `test_runs/test_summary.json` | Aggregated test summary |
-| `test_runs/test_summary.csv` | Optional flat CSV export when evaluable rows exist |
-
----
-
-## Analysis artifacts
+## Analysis Artifacts
 
 Written by `oneehr analyze`.
 
@@ -233,7 +221,7 @@ Key fields:
 
 ### `analysis/{module}/summary.json`
 
-Module-level summary for one analysis module such as:
+Module-level summary for one of:
 
 - `dataset_profile`
 - `cohort_analysis`
@@ -258,7 +246,11 @@ Serialized plot specs written when `[analysis].save_plot_specs = true`.
 
 ### `analysis/{module}/cases/*.parquet`
 
-Case-level audit exports used for module drill-down. A common example is highest-error rows saved by `prediction_audit`.
+Case-level audit exports used for drill-down from analysis modules.
+
+Current uses:
+
+- `prediction_audit`: highest-error prediction rows per model and split
 
 ### `analysis/comparison/summary.json`
 
@@ -266,11 +258,11 @@ Summary of compare-run outputs when `--compare-run` is provided.
 
 ### `analysis/comparison/train_metrics.csv`
 
-Metric deltas between two runs' top-level `summary.json` files.
+Metric deltas between two runs' training summaries.
 
 ### `analysis/comparison/test_metrics.csv`
 
-Metric deltas between two runs' `test_runs/test_summary.json` files when both exist.
+Metric deltas between two runs' `test_runs/test_summary.json` outputs.
 
 ### `analysis/feature_importance_{model}_{split}_{method}.json`
 
@@ -287,25 +279,24 @@ Fields:
 
 ---
 
-## Eval artifacts
+## Eval Artifacts
 
 Written by `oneehr eval build`, `oneehr eval run`, and `oneehr eval report`.
 
 ### `eval/index.json`
 
-Run-level eval index describing the frozen comparison set.
+Run-level eval index.
 
 Key fields:
 
 - `schema_version`
 - `run_dir`
 - `task`
-- `eval.instance_unit`
-- `eval.instance_path`
+- `eval`
 - `instance_count`
 - `records[]`
 
-Each `records[]` item can include:
+Each `records[]` item includes:
 
 - `instance_id`
 - `patient_id`
@@ -320,7 +311,7 @@ Each `records[]` item can include:
 
 ### `eval/instances/instances.parquet`
 
-Frozen instance table used by every scored system.
+Frozen instance table created by `eval build`.
 
 Common columns:
 
@@ -331,32 +322,28 @@ Common columns:
 - `prediction_mode`
 - `task_kind`
 - `ground_truth`
-- `event_count`
-- `first_event_time`
-- `last_event_time`
-- `has_static`
 
 Time-level runs also include `bin_time`.
 
 ### `eval/evidence/{instance_dir}/evidence.json`
 
-Instance-level metadata plus artifact pointers for the frozen evidence bundle.
+Metadata for one frozen instance and pointers to its saved evidence artifacts.
 
 ### `eval/evidence/{instance_dir}/events.csv`
 
-Leakage-safe event timeline aligned to the frozen instance.
+The rendered event timeline for one instance.
 
 ### `eval/evidence/{instance_dir}/static.json`
 
-Static features for the instance. When `[eval].include_static = false`, `features` may be empty.
+Static features for one instance. When `eval.include_static = false`, `features` is empty.
 
 ### `eval/evidence/{instance_dir}/analysis_refs.json`
 
-Optional analysis references attached when `[eval].include_analysis_context = true`.
+Analysis references for one instance. When `eval.include_analysis_context = false`, the file still exists with empty lists.
 
 ### `eval/predictions/{system_name}/predictions.parquet`
 
-Per-system prediction rows written by `eval run`.
+Normalized outputs for one evaluated system.
 
 Common columns:
 
@@ -390,42 +377,28 @@ Common columns:
 
 ### `eval/traces/{system_name}/trace.parquet`
 
-Structured stage-level execution trace for framework systems.
+Structured trace rows for one framework system when `eval.save_traces = true`.
 
-Common columns:
+Typical columns include:
 
 - `instance_id`
-- `patient_id`
-- `split`
-- `bin_time`
 - `system_name`
 - `framework_type`
-- `backend_name`
-- `provider_model`
 - `round`
 - `stage`
 - `role`
-- `actor_name`
-- `parsed_ok`
 - `prompt`
-- `raw_response`
-- `prompt_sha256`
-- `response_sha256`
-- `stage_output_json`
+- `output_json`
+- `parsed_ok`
 - `latency_ms`
-- `token_usage_prompt`
-- `token_usage_completion`
 - `token_usage_total`
 - `cost_usd`
-- `error_code`
-- `error_message`
-- `config_sha256`
 
 ### `eval/summary.json`
 
-Run-level summary for every enabled system.
+Run-level execution summary across systems.
 
-Each record can include:
+Each record includes:
 
 - `system_name`
 - `system_kind`
@@ -441,7 +414,20 @@ Each record can include:
 
 ### `eval/reports/leaderboard.csv`
 
-One row per system with the primary ranking metric plus coverage and cost/latency fields.
+Aggregate system metrics sorted by the primary metric.
+
+Typical columns include:
+
+- `system_name`
+- `system_kind`
+- `framework_type`
+- `row_count`
+- `coverage`
+- `scored_rows`
+- primary task metrics such as `accuracy`, `auroc`, `auprc`, `rmse`, or `mae`
+- `mean_latency_ms`
+- `total_tokens`
+- `total_cost_usd`
 
 ### `eval/reports/split_metrics.csv`
 
@@ -449,22 +435,36 @@ Per-system, per-split metric table.
 
 ### `eval/reports/pairwise.csv`
 
-Paired deltas and bootstrap summaries for configured system comparisons.
+Paired comparisons across systems defined by `eval.suites.compare_pairs` or the default report logic.
 
 ### `eval/reports/summary.json`
 
-High-level report metadata such as:
+Summary metadata for the report bundle.
 
+Key fields:
+
+- `schema_version`
 - `primary_metric`
 - `leaderboard_rows`
 - `pairwise_rows`
-- `artifacts.leaderboard_csv`
-- `artifacts.split_metrics_csv`
-- `artifacts.pairwise_csv`
+- `artifacts`
 
 ---
 
-## Final evaluation artifacts
+## Test Artifacts
+
+Written by `oneehr test` under `test_runs/`.
+
+| File | Description |
+|------|-------------|
+| `test_runs/metrics_{model}_{split}.json` | Per-split test metrics |
+| `test_runs/preds_{model}_{split}.parquet` | Per-split test predictions |
+| `test_runs/test_summary.json` | Aggregated test summary |
+| `test_runs/test_summary.csv` | Optional flat CSV export when evaluable rows exist |
+
+---
+
+## Final Evaluation Artifacts
 
 Written for time-split prospective evaluation under `final/`.
 

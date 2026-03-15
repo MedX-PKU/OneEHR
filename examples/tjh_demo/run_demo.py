@@ -32,7 +32,6 @@ SHOWCASE_MODULES = [
     "temporal_analysis",
     "interpretability",
 ]
-SHOWCASE_FINAL_MODULES = [*SHOWCASE_MODULES, "agent_audit"]
 
 
 def main() -> None:
@@ -53,7 +52,7 @@ def main() -> None:
     )
     parser.add_argument("--logs-root", type=Path, default=Path("logs"), help="Root directory for OneEHR run outputs.")
     parser.add_argument("--skip-prepare", action="store_true", help="Skip Excel-to-CSV conversion if cache already exists.")
-    parser.add_argument("--force", action="store_true", help="Overwrite existing training/test/agent/case outputs where supported.")
+    parser.add_argument("--force", action="store_true", help="Overwrite existing training, test, analysis, and eval outputs where supported.")
     parser.add_argument(
         "--base-url",
         default=DEFAULT_BASE_URL,
@@ -229,15 +228,15 @@ def _run_preset(
         "--method",
         "xgboost",
     )
-    _run_cli(repo_root, "agent", "predict", "--config", str(config_path), *(_force_flag(force)))
-    _run_cli(repo_root, "cases", "build", "--config", str(config_path), *(_force_flag(force)))
-    _run_cli(repo_root, "agent", "review", "--config", str(config_path), *(_force_flag(force)))
+    _run_cli(repo_root, "eval", "build", "--config", str(config_path), *(_force_flag(force)))
+    _run_cli(repo_root, "eval", "run", "--config", str(config_path), *(_force_flag(force)))
+    _run_cli(repo_root, "eval", "report", "--config", str(config_path), *(_force_flag(force)))
     _run_cli(
         repo_root,
         "analyze",
         "--config",
         str(config_path),
-        *sum((["--module", name] for name in SHOWCASE_FINAL_MODULES), []),
+        *sum((["--module", name] for name in SHOWCASE_MODULES), []),
         "--compare-run",
         str(logs_root / "tjh_tutorial_fast"),
         "--method",
@@ -440,82 +439,92 @@ def _build_showcase_config(
         use_calibrated = true
 
         [analysis]
-        default_modules = ["dataset_profile", "cohort_analysis", "prediction_audit", "test_audit", "temporal_analysis", "interpretability", "agent_audit"]
+        default_modules = ["dataset_profile", "cohort_analysis", "prediction_audit", "test_audit", "temporal_analysis", "interpretability"]
         top_k = 20
         stratify_by = ["Sex"]
         case_limit = 18
         save_plot_specs = true
         shap_max_samples = 128
 
-        [cases]
+        [eval]
+        instance_unit = "patient"
+        max_instances = 18
+        seed = 42
         include_static = true
-        include_analysis_refs = true
+        include_analysis_context = true
         max_events = 120
         time_order = "desc"
-        case_limit = 18
+        primary_metric = "accuracy"
+        bootstrap_samples = 32
+        save_evidence = true
+        save_traces = true
+        text_render_template = "summary_v1"
 
-        [agent.predict]
-        enabled = true
+        [[eval.backends]]
+        name = "zenmux"
+        provider = "openai_compatible"
+        base_url = "{base_url}"
+        model = "{resolved_model}"
+        api_key_env = "ZENMUX_API_KEY"
+        supports_json_schema = false
+
+        [[eval.systems]]
+        name = "xgboost_ref"
+        kind = "trained_model"
         sample_unit = "patient"
-        prompt_template = "summary_v1"
-        json_schema_version = 1
+        source_model = "xgboost"
+
+        [[eval.systems]]
+        name = "single_llm_eval"
+        kind = "framework"
+        framework_type = "single_llm"
+        sample_unit = "patient"
+        backend_refs = ["zenmux"]
         max_samples = 18
-        save_prompts = true
-        save_responses = true
-        save_parsed = true
         concurrency = 1
         max_retries = 2
         timeout_seconds = 90.0
         temperature = 0.0
         top_p = 1.0
 
-        [agent.predict.prompt]
-        include_static = true
-        include_labels_context = false
-        max_events = 80
-        time_order = "desc"
-
-        [agent.predict.output]
-        include_explanation = true
-        include_confidence = true
-
-        [[agent.predict.backends]]
-        name = "zenmux-predict"
-        provider = "openai_compatible"
-        base_url = "{base_url}"
-        model = "{resolved_model}"
-        api_key_env = "ZENMUX_API_KEY"
-        supports_json_schema = false
-
-        [agent.review]
-        enabled = true
-        prompt_template = "evidence_review_v1"
-        json_schema_version = 1
-        prediction_origins = ["model", "agent"]
-        max_cases = 18
-        save_prompts = true
-        save_responses = true
-        save_parsed = true
+        [[eval.systems]]
+        name = "reconcile_eval"
+        kind = "framework"
+        framework_type = "reconcile"
+        sample_unit = "patient"
+        backend_refs = ["zenmux"]
+        max_samples = 18
+        max_rounds = 2
         concurrency = 1
         max_retries = 2
         timeout_seconds = 90.0
         temperature = 0.0
         top_p = 1.0
 
-        [agent.review.prompt]
-        include_static = true
-        include_ground_truth = true
-        include_analysis_context = true
-        max_events = 80
-        time_order = "desc"
+        [[eval.systems]]
+        name = "mdagents_eval"
+        kind = "framework"
+        framework_type = "mdagents"
+        sample_unit = "patient"
+        backend_refs = ["zenmux"]
+        max_samples = 18
+        max_rounds = 2
+        concurrency = 1
+        max_retries = 2
+        timeout_seconds = 90.0
+        temperature = 0.0
+        top_p = 1.0
+        framework_params = {{ num_teams_advanced = 2, num_agents_per_team_advanced = 2 }}
 
-        [[agent.review.backends]]
-        name = "zenmux-review"
-        provider = "openai_compatible"
-        base_url = "{base_url}"
-        model = "{resolved_model}"
-        api_key_env = "ZENMUX_API_KEY"
-        supports_json_schema = false
+        [[eval.suites]]
+        name = "tutorial_core"
+        primary_metric = "accuracy"
+        include_systems = ["xgboost_ref", "single_llm_eval", "reconcile_eval", "mdagents_eval"]
+        compare_pairs = [
+          ["xgboost_ref", "single_llm_eval"],
+          ["xgboost_ref", "reconcile_eval"],
+          ["xgboost_ref", "mdagents_eval"],
+        ]
 
         [output]
         root = "{logs_root}"

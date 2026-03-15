@@ -386,7 +386,7 @@
                 <p class="eyebrow">KDD Hands-on Tutorial</p>
                 <h1>OneEHR</h1>
                 <p class="lede">
-                  Real TJH data, end-to-end modeling, held-out testing, agent workflows, case bundles, and a polished web console in one demo.
+                  Real TJH data, end-to-end modeling, held-out testing, unified evaluation, and a polished web console in one demo.
                 </p>
               </div>
               <div class="slide-no">01</div>
@@ -397,8 +397,8 @@
                 <p class="eyebrow">What This Demo Shows</p>
                 <ul class="bullet-list">
                   <li><strong>Real dataset:</strong> TJH train cohort plus external held-out cohort.</li>
-                  <li><strong>Full chain:</strong> preprocess → train → test → analyze → agent predict → cases → agent review.</li>
-                  <li><strong>Production-style UX:</strong> one web UI for model results, test audit, comparison, and agent outputs.</li>
+                  <li><strong>Full chain:</strong> preprocess → train → test → analyze → eval build → eval run → eval report.</li>
+                  <li><strong>Production-style UX:</strong> one web UI for model results, test audit, comparison, and eval-first experiment review.</li>
                   <li><strong>LLM integration:</strong> Zenmux OpenAI-compatible backend with <code>openai/gpt-5.4</code>.</li>
                 </ul>
               </div>
@@ -447,22 +447,22 @@
               <div class="step">
                 <div class="num">Stage 4</div>
                 <h3>Analyze</h3>
-                <p>Emit dataset, cohort, prediction, test, temporal, interpretability, and agent audit modules.</p>
+                <p>Emit dataset, cohort, prediction, test, temporal, and interpretability modules.</p>
               </div>
               <div class="step">
                 <div class="num">Stage 5</div>
-                <h3>Predict</h3>
-                <p>Call Zenmux-backed LLM predictors over saved patient instances.</p>
+                <h3>Eval Build</h3>
+                <p>Freeze patient-level evaluation instances and evidence bundles from the saved run.</p>
               </div>
               <div class="step">
                 <div class="num">Stage 6</div>
-                <h3>Cases</h3>
-                <p>Materialize case bundles with timeline, static context, predictions, and analysis references.</p>
+                <h3>Eval Run</h3>
+                <p>Call Zenmux-backed framework systems and align them against the same frozen evidence.</p>
               </div>
               <div class="step">
                 <div class="num">Stage 7</div>
-                <h3>Review</h3>
-                <p>Run agent review and compare model, external-test, and agent deltas in one console.</p>
+                <h3>Eval Report</h3>
+                <p>Write leaderboard, paired deltas, and compare-run summaries in one reproducible artifact tree.</p>
               </div>
             </div>
 
@@ -501,7 +501,7 @@
                 <div class="meta">xgboost and rf</div>
               </article>
               <article class="metric-card">
-                <div class="label">Agent Backend</div>
+                <div class="label">Eval Backend</div>
                 <div class="value">Zenmux</div>
                 <div class="meta">Requested model: openai/gpt-5.4</div>
               </article>
@@ -512,8 +512,8 @@
                 <p class="eyebrow">Run Products</p>
                 <ul class="bullet-list">
                   <li><strong>Fast baseline:</strong> `tjh_tutorial_fast` for compare-run reference.</li>
-                  <li><strong>Showcase run:</strong> `tjh_tutorial_showcase` with agents, cases, and comparison artifacts.</li>
-                  <li><strong>UI modules:</strong> dataset profile, cohort analysis, prediction audit, test audit, temporal analysis, interpretability, agent audit.</li>
+                  <li><strong>Showcase run:</strong> `tjh_tutorial_showcase` with frozen eval artifacts, framework outputs, and comparison tables.</li>
+                  <li><strong>UI modules:</strong> dataset profile, cohort analysis, prediction audit, test audit, temporal analysis, and interpretability.</li>
                 </ul>
               </div>
 
@@ -544,24 +544,24 @@
 
             <div class="metric-grid">
               <article class="metric-card">
-                <div class="label">Best Held-out AUROC</div>
-                <div class="value accent">0.5722</div>
-                <div class="meta">xgboost on external test</div>
+                <div class="label">Frozen Eval Instances</div>
+                <div class="value accent">18</div>
+                <div class="meta">patient-level evidence bundles</div>
               </article>
               <article class="metric-card">
-                <div class="label">Test Models</div>
-                <div class="value">2</div>
-                <div class="meta">rf, xgboost</div>
-              </article>
-              <article class="metric-card">
-                <div class="label">Case Bundles</div>
-                <div class="value">18</div>
-                <div class="meta">timeline + static + prediction evidence</div>
-              </article>
-              <article class="metric-card">
-                <div class="label">Agent Outputs</div>
+                <div class="label">Scored Systems</div>
                 <div class="value">4</div>
-                <div class="meta">1 predict record, 3 review groups</div>
+                <div class="meta">baseline + framework variants</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">Held-out Models</div>
+                <div class="value">2</div>
+                <div class="meta">rf and xgboost</div>
+              </article>
+              <article class="metric-card">
+                <div class="label">Compare-run Tables</div>
+                <div class="value">2</div>
+                <div class="meta">training and external-test deltas</div>
               </article>
             </div>
 
@@ -570,16 +570,16 @@
                 <p class="eyebrow">Why This Matters</p>
                 <ul class="bullet-list">
                   <li><strong>Held-out testing</strong> is explicit, not buried inside a notebook cell.</li>
-                  <li><strong>Comparison artifacts</strong> make baseline-vs-showcase deltas demoable.</li>
-                  <li><strong>Case bundles</strong> let the audience inspect a patient without leaving the system.</li>
-                  <li><strong>Agent review</strong> makes the LLM path reviewable instead of opaque.</li>
+                  <li><strong>Frozen eval instances</strong> force every framework to see the same saved evidence.</li>
+                  <li><strong>Leaderboard artifacts</strong> make model-vs-framework comparisons reproducible.</li>
+                  <li><strong>Compare-run summaries</strong> make baseline-vs-showcase deltas demoable.</li>
                 </ul>
               </div>
 
               <div class="quote-card">
                 <p class="eyebrow">Demo Message</p>
-                <div class="quote">OneEHR is not only about training models. It is about preserving experiment state in a way humans can actually inspect.</div>
-                <div class="source">This is the bridge from research pipeline to hands-on tutorial experience.</div>
+                <div class="quote">OneEHR is not only about training models. It is about scoring every system on a shared contract that humans can inspect.</div>
+                <div class="source">This is the bridge from research pipeline to defensible, agent-era evaluation.</div>
               </div>
             </div>
 
@@ -612,7 +612,7 @@
               <article class="image-card">
                 <div class="caption">
                   <h3>Run Overview</h3>
-                  <p>Summarizes models, held-out results, cases, and connected modules from a single page.</p>
+                  <p>Summarizes models, held-out results, evaluation readiness, and connected modules from a single page.</p>
                 </div>
                 <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/02-overview.png" alt="Run overview screenshot" />
               </article>
@@ -628,9 +628,9 @@
             <div class="slide-header">
               <div>
                 <p class="eyebrow">Deep Dives</p>
-                <h2>Audit, Comparison, and Agents</h2>
+                <h2>Audit, Comparison, and Eval Review</h2>
                 <p class="lede">
-                  After the audience sees the run overview, the demo can move into focused analysis and agent operations without changing tools.
+                  After the audience sees the run overview, the demo can move into focused analysis and saved comparison artifacts without changing tools.
                 </p>
               </div>
               <div class="slide-no">06</div>
@@ -654,7 +654,7 @@
             </div>
 
             <div class="footer">
-              <span class="muted">The same run also exposes case detail and an agent operations console.</span>
+              <span class="muted">The same run also exposes saved eval artifacts through the CLI and API layer.</span>
               <div class="dots" data-dots></div>
             </div>
           </section>
@@ -676,19 +676,19 @@
                 <p class="eyebrow">Step-by-Step</p>
                 <ul class="bullet-list">
                   <li><strong>1.</strong> Open the runs landing page and explain the result-rich spotlight.</li>
-                  <li><strong>2.</strong> Enter `tjh_tutorial_showcase` and call out models, cases, and held-out test cards.</li>
+                  <li><strong>2.</strong> Enter `tjh_tutorial_showcase` and call out models, evaluation readiness, and held-out test cards.</li>
                   <li><strong>3.</strong> Open <span class="accent">Test Audit</span> to discuss external validation across models.</li>
                   <li><strong>4.</strong> Jump to <span class="accent">Prediction Audit</span> and <span class="accent">Comparison</span> to show richer diagnostics.</li>
-                  <li><strong>5.</strong> Open one case bundle and finish in <span class="accent">Agents</span> to show LLM outputs and review artifacts.</li>
+                  <li><strong>5.</strong> Close with the compare-run view and mention the saved eval leaderboard/traces available from the CLI and API.</li>
                 </ul>
               </div>
 
               <div class="image-card">
                 <div class="caption">
-                  <h3>Agent Console</h3>
-                  <p>Close with saved LLM outputs so the audience sees the end-to-end path, not just model metrics.</p>
+                  <h3>Comparison Console</h3>
+                  <p>Close with saved delta artifacts so the audience sees reproducible evaluation, not just raw model metrics.</p>
                 </div>
-                <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/07-agents.png" alt="Agents screenshot" />
+                <img src="../../../.cache/tjh_demo/screenshots/tjh_tutorial_showcase/05-comparison.png" alt="Comparison screenshot" />
               </div>
             </div>
 

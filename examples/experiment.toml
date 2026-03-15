@@ -123,9 +123,9 @@ use_calibrated = true
 #   "dataset_profile",
 #   "cohort_analysis",
 #   "prediction_audit",
+#   "test_audit",
 #   "temporal_analysis",
 #   "interpretability",
-#   "agent_audit",
 # ]
 # top_k = 20
 # stratify_by = []
@@ -138,114 +138,83 @@ use_calibrated = true
 # uv run oneehr analyze --config examples/experiment.toml --module prediction_audit --module interpretability
 # uv run oneehr analyze --config examples/experiment.toml --compare-run logs/baseline_run
 
-# Optional durable case bundles for downstream analysis, notebooks, and agents.
-#
-# [cases]
-# include_static = true
-# include_analysis_refs = true
-# history_window = "30d"  # optional
-# max_events = 200
-# time_order = "asc"      # asc | desc
-# case_limit = 100        # optional
-#
-# Cases command:
-# uv run oneehr cases build --config examples/experiment.toml
+# Unified evaluation workflow. The active block below gives you a reproducible
+# trained-model baseline that runs without any external API keys.
+[eval]
+instance_unit = "patient"
+max_instances = 100
+seed = 42
+include_static = true
+include_analysis_context = false
+max_events = 200
+time_order = "asc"
+primary_metric = "auroc"
+bootstrap_samples = 200
+save_evidence = true
+save_traces = true
+text_render_template = "summary_v1"
 
-# Optional agent prediction workflow.
+[[eval.systems]]
+name = "xgboost_ref"
+kind = "trained_model"
+sample_unit = "patient"
+source_model = "xgboost"
+
+# Optional OpenAI-compatible backend for framework systems.
 #
-# [agent.predict]
-# enabled = true
-# sample_unit = "patient"      # patient | time; must match [task].prediction_mode
-# prompt_template = "summary_v1"
-# json_schema_version = 1
-# max_samples = 500            # optional
-# save_prompts = true
-# save_responses = true
-# save_parsed = true
-# concurrency = 1
-# max_retries = 2
-# timeout_seconds = 60.0
-# temperature = 0.0
-# top_p = 1.0
-#
-# [agent.predict.prompt]
-# include_static = true
-# include_labels_context = false # keep false in v1 to avoid leakage
-# history_window = "30d"         # optional
-# max_events = 200
-# time_order = "asc"
-# sections = ["patient_profile", "event_timeline", "code_summary", "prediction_task", "output_schema"]
-#
-# [agent.predict.output]
-# include_explanation = true
-# include_confidence = false
-#
-# [[agent.predict.backends]]
+# [[eval.backends]]
 # name = "gpt4o-mini"
 # provider = "openai_compatible"
 # base_url = "https://api.openai.com/v1"
 # model = "gpt-4o-mini"
 # api_key_env = "OPENAI_API_KEY"
 # supports_json_schema = true
-# headers = { }
+# prompt_token_cost_per_1k = 0.002
+# completion_token_cost_per_1k = 0.004
+# headers = {}
 #
-# Agent prediction commands:
-# uv run oneehr agent predict --config examples/experiment.toml
-# uv run oneehr query agent predict-summary --run-dir logs/example
-# uv run oneehr query agent predict-records --run-dir logs/example --actor gpt4o-mini --parsed-ok true --limit 10
-# uv run oneehr query agent predict-failures --run-dir logs/example --actor gpt4o-mini
-
-# Optional agent review workflow over case bundles.
-# Cases must exist first, and review targets are selected by prediction origin:
-# - "model" -> trained model outputs from preds/
-# - "agent" -> agent outputs from agent/predict/preds/
+# Optional framework systems. Supported framework_type values:
+# - single_llm
+# - healthcareagent
+# - reconcile
+# - mac
+# - medagent
+# - colacare
+# - mdagents
 #
-# [agent.review]
-# enabled = true
-# prompt_template = "evidence_review_v1"
-# json_schema_version = 1
-# prediction_origins = ["model", "agent"] # any subset of model / agent
-# max_cases = 100                         # optional
-# save_prompts = true
-# save_responses = true
-# save_parsed = true
-# concurrency = 1
+# [[eval.systems]]
+# name = "single_llm_eval"
+# kind = "framework"
+# framework_type = "single_llm"
+# sample_unit = "patient"
+# backend_refs = ["gpt4o-mini"]
 # max_retries = 2
 # timeout_seconds = 60.0
-# temperature = 0.0
-# top_p = 1.0
 #
-# [agent.review.prompt]
-# include_static = true
-# include_ground_truth = true
-# include_analysis_context = true
-# max_events = 100
-# time_order = "asc"
-# sections = [
-#   "case_profile",
-#   "observed_evidence",
-#   "target_prediction",
-#   "ground_truth",
-#   "analysis_context",
-#   "review_rubric",
-#   "output_schema",
+# [[eval.systems]]
+# name = "mdagents_eval"
+# kind = "framework"
+# framework_type = "mdagents"
+# sample_unit = "patient"
+# backend_refs = ["gpt4o-mini"]
+# max_rounds = 2
+# framework_params = { num_teams_advanced = 2, num_agents_per_team_advanced = 2 }
+#
+# [[eval.suites]]
+# name = "core"
+# primary_metric = "auroc"
+# include_systems = ["xgboost_ref", "single_llm_eval", "mdagents_eval"]
+# compare_pairs = [
+#   ["xgboost_ref", "single_llm_eval"],
+#   ["xgboost_ref", "mdagents_eval"],
 # ]
 #
-# [[agent.review.backends]]
-# name = "gpt4o-mini-review"
-# provider = "openai_compatible"
-# base_url = "https://api.openai.com/v1"
-# model = "gpt-4o-mini"
-# api_key_env = "OPENAI_API_KEY"
-# supports_json_schema = true
-# headers = { }
-#
-# Agent review commands:
-# uv run oneehr cases build --config examples/experiment.toml
-# uv run oneehr agent review --config examples/experiment.toml
-# uv run oneehr query agent review-summary --run-dir logs/example
-# uv run oneehr query agent review-records --run-dir logs/example --actor gpt4o-mini-review --parsed-ok true --limit 10
-# uv run oneehr query agent review-failures --run-dir logs/example --actor gpt4o-mini-review
+# Eval commands:
+# uv run oneehr eval build --config examples/experiment.toml
+# uv run oneehr eval run --config examples/experiment.toml
+# uv run oneehr eval report --config examples/experiment.toml
+# uv run oneehr query eval report --run-dir logs/example
+# uv run oneehr query eval table --run-dir logs/example --table leaderboard --limit 10
 
 [output]
 root = "logs"

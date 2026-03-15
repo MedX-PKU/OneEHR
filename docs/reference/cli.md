@@ -20,6 +20,8 @@ View the live interface with:
 
 ```bash
 uv run oneehr --help
+uv run oneehr eval --help
+uv run oneehr query --help
 ```
 
 ## `oneehr preprocess`
@@ -54,7 +56,7 @@ uv run oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--compare
 
 Writes structured analysis outputs under `analysis/`.
 
-Common module names:
+Supported modules in the current implementation:
 
 - `dataset_profile`
 - `cohort_analysis`
@@ -64,6 +66,8 @@ Common module names:
 - `interpretability`
 
 ## `oneehr eval`
+
+`eval` is the public evaluation surface for freezing comparable instances, executing configured systems, and building reproducible reports.
 
 Build frozen instances:
 
@@ -83,13 +87,13 @@ Build leaderboard and pairwise reports:
 uv run oneehr eval report --config <toml> [--run-dir DIR] [--force]
 ```
 
-Inspect one system trace:
+Inspect saved trace rows for one system:
 
 ```bash
 uv run oneehr eval trace --config <toml> [--run-dir DIR] --system NAME [--limit N] [--offset N] [--stage NAME] [--role NAME] [--round N]
 ```
 
-Inspect one frozen instance with aligned outputs:
+Inspect one eval instance with aligned outputs:
 
 ```bash
 uv run oneehr eval instance --config <toml> [--run-dir DIR] --instance-id ID
@@ -98,11 +102,6 @@ uv run oneehr eval instance --config <toml> [--run-dir DIR] --instance-id ID
 ## `oneehr query`
 
 `query` is the structured read layer over existing artifacts. It returns JSON to stdout.
-
-Run-scoped commands accept either:
-
-- `--config <toml>` to resolve the run directory from the experiment config
-- `--run-dir DIR` to point at an existing run directly
 
 ### Runs
 
@@ -114,7 +113,7 @@ uv run oneehr query runs describe [--config <toml> | --run-dir DIR]
 ### Prompts
 
 ```bash
-uv run oneehr query prompts list [--family NAME]
+uv run oneehr query prompts list [--family FAMILY]
 uv run oneehr query prompts describe --template NAME
 ```
 
@@ -160,7 +159,9 @@ Typical workflow:
 
 ```bash
 uv pip install -e ".[webui]"
-cd webui && npm install && npm run build
+cd webui
+npm install
+npm run build
 cd ..
 uv run oneehr webui serve --root logs
 ```

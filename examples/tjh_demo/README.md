@@ -1,6 +1,6 @@
 # TJH Tutorial Demo
 
-This folder contains a reproducible, real-data demo flow for the KDD hands-on tutorial.
+This folder contains a reproducible, real-data demo flow for the KDD hands-on tutorial. The showcase path is eval-first: it trains baseline models, freezes a shared EHR evaluation set, runs configured framework systems, and saves comparison artifacts alongside the standard analysis outputs.
 
 ## Inputs
 
@@ -21,13 +21,15 @@ Requires `ZENMUX_API_KEY`:
 uv run python examples/tjh_demo/run_demo.py --preset showcase --force
 ```
 
+The showcase preset builds a fast baseline run plus a richer run with held-out testing, structured analysis, unified eval artifacts, and compare-run summaries.
+
 ## Screenshot export
 
 ```bash
 examples/tjh_demo/capture_screenshots.sh --run-name tjh_tutorial_showcase --baseline-run tjh_tutorial_fast
 ```
 
-The screenshot exporter targets a `2560x1600` viewport by default so the assets match a laptop presentation flow.
+The screenshot exporter targets a `2560x1600` viewport by default so the assets match a laptop presentation flow. It captures the runs landing page, run overview, audit dashboards, and comparison view.
 
 ## Slides
 
