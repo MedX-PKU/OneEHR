@@ -5,13 +5,8 @@ from typing import Any
 
 import pandas as pd
 
-from oneehr.query.primitives import (
-    collect_case_evidence as _collect_case_evidence,
-    get_case_predictions as _get_case_predictions,
-    get_case_static as _get_case_static,
-    get_case_timeline as _get_case_timeline,
-    render_case_prompt as _render_case_prompt,
-)
+from oneehr.agent.templates import describe_prompt_template as _describe_prompt_template
+from oneehr.agent.templates import list_prompt_templates as _list_prompt_templates
 from oneehr.eval.query import (
     read_eval_index as _read_eval_index,
     read_eval_report_summary as _read_eval_report_summary,
@@ -20,8 +15,6 @@ from oneehr.eval.query import (
     read_instance_payload as _read_eval_instance_payload,
     read_trace_rows as _read_eval_trace_rows,
 )
-from oneehr.agent.templates import describe_prompt_template as _describe_prompt_template
-from oneehr.agent.templates import list_prompt_templates as _list_prompt_templates
 from oneehr.runview import RunCatalog, open_run_view
 
 
@@ -81,164 +74,6 @@ def read_eval_trace(
         stage=stage,
         role=role,
         round_index=round_index,
-    )
-
-
-def read_agent_predict_summary(run_root: str | Path) -> dict[str, Any]:
-    return open_run_view(run_root).agent_predict_summary()
-
-
-def read_agent_review_summary(run_root: str | Path) -> dict[str, Any]:
-    return open_run_view(run_root).agent_review_summary()
-
-
-def read_agent_predict_records(
-    run_root: str | Path,
-    *,
-    actor: str | None = None,
-    split: str | None = None,
-    parsed_ok: bool | None = None,
-    search: str | None = None,
-    limit: int | None = None,
-    offset: int = 0,
-) -> dict[str, Any]:
-    return _read_agent_rows(
-        run_root,
-        task_name="predict",
-        kind="records",
-        actor=actor,
-        split=split,
-        parsed_ok=parsed_ok,
-        search=search,
-        limit=limit,
-        offset=offset,
-    )
-
-
-def read_agent_review_records(
-    run_root: str | Path,
-    *,
-    actor: str | None = None,
-    split: str | None = None,
-    parsed_ok: bool | None = None,
-    search: str | None = None,
-    limit: int | None = None,
-    offset: int = 0,
-) -> dict[str, Any]:
-    return _read_agent_rows(
-        run_root,
-        task_name="review",
-        kind="records",
-        actor=actor,
-        split=split,
-        parsed_ok=parsed_ok,
-        search=search,
-        limit=limit,
-        offset=offset,
-    )
-
-
-def read_agent_predict_failures(
-    run_root: str | Path,
-    *,
-    actor: str | None = None,
-    split: str | None = None,
-    search: str | None = None,
-    limit: int | None = None,
-    offset: int = 0,
-) -> dict[str, Any]:
-    return _read_agent_rows(
-        run_root,
-        task_name="predict",
-        kind="failures",
-        actor=actor,
-        split=split,
-        parsed_ok=None,
-        search=search,
-        limit=limit,
-        offset=offset,
-    )
-
-
-def read_agent_review_failures(
-    run_root: str | Path,
-    *,
-    actor: str | None = None,
-    split: str | None = None,
-    search: str | None = None,
-    limit: int | None = None,
-    offset: int = 0,
-) -> dict[str, Any]:
-    return _read_agent_rows(
-        run_root,
-        task_name="review",
-        kind="failures",
-        actor=actor,
-        split=split,
-        parsed_ok=None,
-        search=search,
-        limit=limit,
-        offset=offset,
-    )
-
-
-def read_cases_index(run_root: str | Path) -> dict[str, Any]:
-    return open_run_view(run_root).cases_index()
-
-
-def list_cases(run_root: str | Path, *, limit: int | None = None) -> list[dict[str, Any]]:
-    return open_run_view(run_root).case_records(limit=limit)
-
-
-def read_case(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    return open_run_view(run_root).read_case(case_id, limit=limit)
-
-
-def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    return _get_case_timeline(run_root, case_id, limit=limit)
-
-
-def get_case_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
-    return _get_case_static(run_root, case_id)
-
-
-def get_case_predictions(
-    run_root: str | Path,
-    case_id: str,
-    *,
-    origin: str | None = None,
-    predictor_name: str | None = None,
-    limit: int | None = None,
-) -> dict[str, Any]:
-    return _get_case_predictions(
-        run_root,
-        case_id,
-        origin=origin,
-        predictor_name=predictor_name,
-        limit=limit,
-    )
-
-
-def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
-    return _collect_case_evidence(run_root, case_id, limit=limit)
-
-
-def render_case_prompt(
-    *,
-    cfg,
-    run_root: str | Path,
-    case_id: str,
-    template_name: str | None = None,
-    origin: str | None = None,
-    predictor_name: str | None = None,
-) -> dict[str, Any]:
-    return _render_case_prompt(
-        cfg=cfg,
-        run_root=run_root,
-        case_id=case_id,
-        template_name=template_name,
-        origin=origin,
-        predictor_name=predictor_name,
     )
 
 
@@ -323,7 +158,17 @@ def compare_cohorts(
     left = _select_cohort_row(split_roles, split_name, left_role)
     right = _select_cohort_row(split_roles, split_name, right_role)
 
-    common_numeric = [col for col in ("n_patients", "n_samples", "n_labeled_samples", "label_rate", "mean_events_per_patient") if col in left.index and col in right.index]
+    common_numeric = [
+        col
+        for col in (
+            "n_patients",
+            "n_samples",
+            "n_labeled_samples",
+            "label_rate",
+            "mean_events_per_patient",
+        )
+        if col in left.index and col in right.index
+    ]
     deltas = {}
     for col in common_numeric:
         left_val = pd.to_numeric(pd.Series([left[col]]), errors="coerce").iloc[0]
@@ -361,84 +206,9 @@ def _resolve_split_name(split_roles: pd.DataFrame, split: str | None) -> str:
 
 
 def _select_cohort_row(split_roles: pd.DataFrame, split_name: str, role: str) -> pd.Series:
-    block = split_roles[(split_roles["split"].astype(str) == split_name) & (split_roles["role"].astype(str) == str(role))].copy()
+    block = split_roles[
+        (split_roles["split"].astype(str) == split_name) & (split_roles["role"].astype(str) == str(role))
+    ].copy()
     if block.empty:
         raise ValueError(f"No cohort row for split={split_name!r} role={role!r}")
     return block.iloc[0]
-
-
-def _read_agent_rows(
-    run_root: str | Path,
-    *,
-    task_name: str,
-    kind: str,
-    actor: str | None,
-    split: str | None,
-    parsed_ok: bool | None,
-    search: str | None,
-    limit: int | None,
-    offset: int,
-) -> dict[str, Any]:
-    run_view = open_run_view(run_root)
-    summary = run_view.agent_task_summary_optional(task_name)
-    if not summary:
-        return {
-            "task_name": str(task_name),
-            "kind": str(kind),
-            "status": "missing",
-            "actors": [],
-            "splits": [],
-            "offset": int(offset),
-            "limit": None if limit is None else int(limit),
-            "row_count": 0,
-            "total_rows": 0,
-            "columns": [],
-            "records": [],
-        }
-
-    if kind == "records":
-        detail_artifacts = run_view.agent_task_detail_artifacts(task_name)
-        if not detail_artifacts:
-            return {
-                "task_name": str(task_name),
-                "kind": str(kind),
-                "status": "unavailable",
-                "actors": run_view.agent_task_actors(task_name),
-                "splits": run_view.agent_task_splits(task_name),
-                "offset": int(offset),
-                "limit": None if limit is None else int(limit),
-                "row_count": 0,
-                "total_rows": 0,
-                "columns": [],
-                "records": [],
-            }
-        df = run_view.agent_task_detail_rows(
-            task_name,
-            actor=actor,
-            split=split,
-            parsed_ok=parsed_ok,
-            search=search,
-        )
-    else:
-        df = run_view.agent_task_failure_rows(
-            task_name,
-            actor=actor,
-            split=split,
-            search=search,
-        )
-
-    total_rows = int(len(df))
-    page = df.iloc[offset : (offset + limit) if limit is not None else None].reset_index(drop=True)
-    return {
-        "task_name": str(task_name),
-        "kind": str(kind),
-        "status": "ok",
-        "actors": run_view.agent_task_actors(task_name),
-        "splits": run_view.agent_task_splits(task_name),
-        "offset": int(offset),
-        "limit": None if limit is None else int(limit),
-        "row_count": int(len(page)),
-        "total_rows": total_rows,
-        "columns": [str(column) for column in page.columns],
-        "records": page.to_dict(orient="records"),
-    }

@@ -1,19 +1,12 @@
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from oneehr.web.service import WebUIService
-from support_runs import (
-    build_analyzed_run,
-    build_cases_run,
-    build_review_run,
-    build_trained_run,
-    mock_review_server,
-)
+from support_runs import build_analyzed_run, build_eval_run, build_trained_run
 
 
 def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
@@ -29,7 +22,8 @@ def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
     assert desc["hero"]["analysis_module_count"] >= 3
     assert desc["run"]["training"]["models"] == ["xgboost"]
     assert "navigation" in desc
-    assert "workspace" not in desc
+    assert "cases_route" not in desc["navigation"]
+    assert "agents_route" not in desc["navigation"]
 
     dashboard = service.analysis_dashboard_payload(run_name="webui_run", module_name="prediction_audit")
     assert dashboard["module"]["name"] == "prediction_audit"
@@ -39,39 +33,48 @@ def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
     assert dashboard["drilldowns"]["patient_case_supported"] is True
     assert len(dashboard["drilldowns"]["case_artifacts"]) > 0
 
-    table = service.analysis_table_payload(
-        run_name="webui_run",
-        module_name="prediction_audit",
-        table_name="slices",
-        limit=1,
+
+def test_webui_service_eval_payload(tmp_path: Path) -> None:
+    run_root, _ = build_eval_run(tmp_path=tmp_path, run_name="webui_eval", seed=19)
+    service = WebUIService(root_dir=run_root.parent)
+
+    runs = service.list_runs_payload()
+    assert runs["runs"][0]["eval_status"] == "ready"
+
+    desc = service.describe_run_payload(run_name="webui_eval")
+    assert desc["hero"]["eval_instance_count"] == 4
+    assert desc["hero"]["eval_system_count"] == 8
+    assert desc["navigation"]["eval_route"] == f"/runs/{run_root.name}/eval"
+
+    payload = service.eval_payload(run_name="webui_eval")
+    assert payload["status"] == "ok"
+    assert payload["index"]["instance_count"] == 4
+    assert payload["report"]["primary_metric"] == "accuracy"
+    assert any(table["name"] == "leaderboard" for table in payload["tables"])
+
+    table = service.eval_table_payload(
+        run_name="webui_eval",
+        table_name="leaderboard",
+        limit=2,
         offset=0,
-        sort_by="error_rate",
+        sort_by="accuracy",
         sort_dir="desc",
     )
-    assert table["row_count"] == 1
-    assert table["total_rows"] >= 1
+    assert table["table"] == "leaderboard"
+    assert table["row_count"] == 2
 
-    case_name = dashboard["drilldowns"]["case_artifacts"][0]["name"]
-    case_rows = service.analysis_case_rows_payload(
-        run_name="webui_run",
-        module_name="prediction_audit",
-        case_name=case_name,
+    instance_id = str(payload["index"]["records"][0]["instance_id"])
+    instance = service.eval_instance_payload(run_name="webui_eval", instance_id=instance_id)
+    assert instance["instance"]["instance_id"] == instance_id
+
+    trace = service.eval_trace_payload(
+        run_name="webui_eval",
+        system_name="healthcareagent_eval",
+        stage="plan",
         limit=5,
-        offset=0,
-        filter_col="patient_id",
-        filter_value="p0",
     )
-    assert case_rows["row_count"] >= 1
-
-    patient_id = str(case_rows["records"][0]["patient_id"])
-    patient = service.analysis_patient_case_payload(
-        run_name="webui_run",
-        module_name="prediction_audit",
-        patient_id=patient_id,
-        limit=1,
-    )
-    assert patient["patient"]["patient_id"] == patient_id
-    assert patient["patient"]["n_matches"] >= 1
+    assert trace["table"] == "trace_rows"
+    assert trace["row_count"] >= 1
 
 
 def test_webui_service_testing_payloads(tmp_path: Path) -> None:
@@ -133,32 +136,6 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
     assert table["total_rows"] >= 1
     assert table["table"] == "train_metrics"
 
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from oneehr.web import create_app
-
-    client = TestClient(create_app(root_dir=run_root_a.parent))
-    route = client.get(
-        f"/api/v1/runs/{run_root_a.name}/comparison/tables/train_metrics",
-        params={"limit": 1, "sort_by": "delta_mean", "sort_dir": "desc"},
-    )
-    assert route.status_code == 200
-    assert route.json()["row_count"] == 1
-    assert route.json()["table"] == "train_metrics"
-
-    test_route = client.get(
-        f"/api/v1/runs/{run_root_a.name}/comparison/tables/test_metrics",
-        params={"limit": 1, "sort_by": "delta_mean", "sort_dir": "desc"},
-    )
-    assert test_route.status_code == 200
-    assert test_route.json()["row_count"] == 1
-    assert test_route.json()["table"] == "test_metrics"
-
-    dashboard_route = client.get(f"/api/v1/runs/{run_root_a.name}/analysis/prediction_audit/dashboard")
-    assert dashboard_route.status_code == 200
-    assert dashboard_route.json()["comparison_available"] is True
-
 
 def test_webui_service_cohort_compare_payload(tmp_path: Path) -> None:
     run_root, _ = build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_compare", seed=23)
@@ -178,181 +155,45 @@ def test_webui_service_cohort_compare_payload(tmp_path: Path) -> None:
     assert len(payload["comparison"]["top_feature_drift"]) <= 4
 
 
-def test_webui_service_cases_payloads(tmp_path: Path) -> None:
-    run_root, _ = build_cases_run(tmp_path=tmp_path, run_name="webui_cases", seed=19)
-    service = WebUIService(root_dir=run_root.parent)
-
-    cases = service.cases_payload(run_name="webui_cases", limit=10)
-    assert cases["status"] == "ok"
-    assert cases["case_count"] >= 1
-    assert cases["row_count"] >= 1
-
-    case_id = str(cases["records"][0]["case_id"])
-    detail = service.case_detail_payload(run_name="webui_cases", case_id=case_id, limit=3)
-    assert detail["case"]["case_id"] == case_id
-    assert detail["timeline"]["row_count"] >= 1
-    assert detail["predictions"]["row_count"] >= 1
-    assert detail["static"]["feature_count"] >= 1
-
-    split_name = str(cases["records"][0]["split"])
-    filtered = service.cases_payload(run_name="webui_cases", split=split_name, limit=10)
-    assert filtered["row_count"] >= 1
-    assert split_name in filtered["splits"]
-    assert all(str(record["split"]) == split_name for record in filtered["records"])
-
-
-def test_webui_service_agents_payload(tmp_path: Path) -> None:
-    with mock_review_server() as (_, base_url):
-        run_root, cfg_path = build_review_run(
-            tmp_path=tmp_path,
-            run_name="webui_agents",
-            seed=41,
-            base_url=base_url,
-        )
-        env = os.environ.copy()
-        env["TEST_OPENAI_API_KEY"] = "dummy"
-        subprocess.check_call(["oneehr", "agent", "review", "--config", str(cfg_path)], env=env)
-
-    service = WebUIService(root_dir=run_root.parent)
-    payload = service.agents_payload(run_name="webui_agents")
-    assert payload["predict"]["status"] == "missing"
-    assert payload["review"]["status"] == "ok"
-    assert payload["review"]["table"]["row_count"] >= 1
-    assert payload["review"]["detail_available"] is True
-
-    records = service.agent_records_payload(run_name="webui_agents", task_name="review", actor="mock-review", limit=5)
-    assert records["status"] == "ok"
-    assert records["row_count"] >= 1
-    assert any(column["name"] == "review_summary" for column in records["columns"])
-
-    paged_records = service.agent_records_payload(
-        run_name="webui_agents",
-        task_name="review",
-        actor="mock-review",
-        limit=1,
-        offset=1,
-    )
-    assert paged_records["status"] == "ok"
-    assert paged_records["limit"] == 1
-    assert paged_records["offset"] == 1
-    assert paged_records["row_count"] <= 1
-
-    failures = service.agent_failures_payload(run_name="webui_agents", task_name="review", actor="mock-review")
-    assert failures["status"] == "ok"
-    assert failures["row_count"] == 0
-
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from oneehr.web import create_app
-
-    client = TestClient(create_app(root_dir=run_root.parent))
-    route = client.get(
-        f"/api/v1/runs/{run_root.name}/agents/review/records",
-        params={"actor": "mock-review", "limit": 5},
-    )
-    assert route.status_code == 200
-    assert route.json()["row_count"] >= 1
-
-    paged_route = client.get(
-        f"/api/v1/runs/{run_root.name}/agents/review/records",
-        params={"actor": "mock-review", "limit": 1, "offset": 1},
-    )
-    assert paged_route.status_code == 200
-    assert paged_route.json()["limit"] == 1
-    assert paged_route.json()["offset"] == 1
-    assert paged_route.json()["row_count"] <= 1
-
-    failure_route = client.get(
-        f"/api/v1/runs/{run_root.name}/agents/review/failures",
-        params={"actor": "mock-review", "limit": 1, "offset": 0},
-    )
-    assert failure_route.status_code == 200
-    assert failure_route.json()["limit"] == 1
-    assert failure_route.json()["offset"] == 0
-    assert failure_route.json()["row_count"] == 0
-
-
 def test_webui_fastapi_routes(tmp_path: Path) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
     from oneehr.web import create_app
 
-    run_root, _ = build_cases_run(tmp_path=tmp_path, run_name="webui_api", seed=17)
+    run_root, _ = build_eval_run(tmp_path=tmp_path, run_name="webui_api", seed=17)
     client = TestClient(create_app(root_dir=run_root.parent))
 
     runs = client.get("/api/v1/runs")
     assert runs.status_code == 200
     assert runs.json()["runs"][0]["run_name"] == "webui_api"
 
-    dashboard = client.get(f"/api/v1/runs/{run_root.name}/analysis/prediction_audit/dashboard")
-    assert dashboard.status_code == 200
-    assert dashboard.json()["module"]["name"] == "prediction_audit"
+    eval_payload = client.get(f"/api/v1/runs/{run_root.name}/eval")
+    assert eval_payload.status_code == 200
+    assert eval_payload.json()["status"] == "ok"
 
     table = client.get(
-        f"/api/v1/runs/{run_root.name}/analysis/prediction_audit/tables/slices",
-        params={"limit": 1, "sort_by": "error_rate", "sort_dir": "desc"},
+        f"/api/v1/runs/{run_root.name}/eval/tables/leaderboard",
+        params={"limit": 1, "sort_by": "accuracy", "sort_dir": "desc"},
     )
     assert table.status_code == 200
     assert table.json()["row_count"] == 1
-    assert table.json()["total_rows"] >= 1
+    assert table.json()["table"] == "leaderboard"
 
-    cases = client.get(f"/api/v1/runs/{run_root.name}/analysis/prediction_audit/cases")
-    assert cases.status_code == 200
-    assert len(cases.json()["case_artifacts"]) > 0
+    instance_id = str(eval_payload.json()["index"]["records"][0]["instance_id"])
+    instance = client.get(f"/api/v1/runs/{run_root.name}/eval/instances/{instance_id}")
+    assert instance.status_code == 200
+    assert instance.json()["instance"]["instance_id"] == instance_id
 
-    case_name = cases.json()["case_artifacts"][0]["name"]
-    case_rows = client.get(
-        f"/api/v1/runs/{run_root.name}/analysis/prediction_audit/cases/{case_name}",
-        params={"limit": 1, "filter_col": "patient_id", "filter_value": "p0"},
+    trace = client.get(
+        f"/api/v1/runs/{run_root.name}/eval/traces/healthcareagent_eval",
+        params={"stage": "plan", "limit": 5},
     )
-    assert case_rows.status_code == 200
-    assert case_rows.json()["row_count"] == 1
-    assert case_rows.json()["total_rows"] >= 1
+    assert trace.status_code == 200
+    assert trace.json()["row_count"] >= 1
 
-    cases_response = client.get(f"/api/v1/runs/{run_root.name}/cases")
-    assert cases_response.status_code == 200
-    assert cases_response.json()["case_count"] >= 1
+    legacy_cases = client.get(f"/api/v1/runs/{run_root.name}/cases")
+    assert legacy_cases.status_code == 404
 
-    split_name = str(cases_response.json()["records"][0]["split"])
-    filtered_cases = client.get(
-        f"/api/v1/runs/{run_root.name}/cases",
-        params={"split": split_name, "limit": 1},
-    )
-    assert filtered_cases.status_code == 200
-    assert filtered_cases.json()["row_count"] == 1
-    assert split_name in filtered_cases.json()["splits"]
-
-    case_id = cases_response.json()["records"][0]["case_id"]
-    case_detail = client.get(f"/api/v1/runs/{run_root.name}/cases/{case_id}")
-    assert case_detail.status_code == 200
-    assert case_detail.json()["case"]["case_id"] == case_id
-
-    agents = client.get(f"/api/v1/runs/{run_root.name}/agents")
-    assert agents.status_code == 200
-    assert agents.json()["predict"]["status"] == "missing"
-
-
-def test_webui_fastapi_cohort_compare_route(tmp_path: Path) -> None:
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from oneehr.web import create_app
-
-    run_root, _ = build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_api", seed=27)
-    client = TestClient(create_app(root_dir=run_root.parent))
-
-    response = client.get(
-        f"/api/v1/runs/{run_root.name}/cohorts/compare",
-        params={"split": "fold0", "left_role": "train", "right_role": "test", "top_k": 3},
-    )
-    assert response.status_code == 200
-    assert response.json()["comparison"]["split"] == "fold0"
-    assert response.json()["comparison"]["feature_drift_available"] is True
-    assert len(response.json()["comparison"]["top_feature_drift"]) <= 3
-
-
-def test_cli_webui_help() -> None:
-    out = subprocess.check_output(["oneehr", "webui", "serve", "--help"], text=True)
-    assert "--frontend-dist" in out
+    legacy_agents = client.get(f"/api/v1/runs/{run_root.name}/agents")
+    assert legacy_agents.status_code == 404

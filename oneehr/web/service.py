@@ -11,10 +11,6 @@ from oneehr.query import (
     compare_cohorts,
     read_eval_instance,
     read_eval_trace,
-    read_agent_predict_failures,
-    read_agent_predict_records,
-    read_agent_review_failures,
-    read_agent_review_records,
 )
 from oneehr.utils.io import as_jsonable
 from oneehr.runview import RunCatalog, RunView
@@ -147,10 +143,7 @@ class WebUIService:
             "analysis_module_count": int(len(analysis.get("modules", []))),
             "eval_instance_count": int(((run.get("eval") or {}).get("instance_count")) or 0),
             "eval_system_count": int(((run.get("eval") or {}).get("system_count")) or 0),
-            "case_count": int(((run.get("cases") or {}).get("case_count")) or 0),
             "test_record_count": int(((run.get("testing") or {}).get("record_count")) or 0),
-            "agent_predict_record_count": int(((run.get("agent_predict") or {}).get("record_count")) or 0),
-            "agent_review_record_count": int(((run.get("agent_review") or {}).get("record_count")) or 0),
         }
         return {
             "run": run,
@@ -159,8 +152,6 @@ class WebUIService:
             "navigation": {
                 "overview_route": f"/runs/{run_name}",
                 "eval_route": f"/runs/{run_name}/eval",
-                "cases_route": f"/runs/{run_name}/cases",
-                "agents_route": f"/runs/{run_name}/agents",
                 "comparison_route": f"/runs/{run_name}/comparison",
             },
         }
@@ -315,126 +306,6 @@ class WebUIService:
             "patient": payload,
         }
 
-    def cases_payload(
-        self,
-        *,
-        run_name: str,
-        limit: int = 25,
-        offset: int = 0,
-        split: str | None = None,
-        search: str | None = None,
-    ) -> dict[str, Any]:
-        run_view = self._resolve_run_view(run_name)
-        index = run_view.cases_index_optional()
-        if not index:
-            return {
-                "run_name": str(run_name),
-                "status": "missing",
-                "case_count": 0,
-                "offset": int(offset),
-                "limit": int(limit),
-                "row_count": 0,
-                "total_rows": 0,
-                "splits": [],
-                "columns": [],
-                "records": [],
-            }
-
-        df = pd.DataFrame(run_view.case_records())
-        splits = sorted(df["split"].astype(str).unique().tolist()) if "split" in df.columns else []
-        if split is not None and not df.empty and "split" in df.columns:
-            df = df[df["split"].astype(str) == str(split)].reset_index(drop=True)
-        if search is not None and search.strip() and not df.empty:
-            query = search.strip().lower()
-            mask = (
-                df.get("case_id", pd.Series(dtype="object")).astype(str).str.lower().str.contains(query, na=False)
-                | df.get("patient_id", pd.Series(dtype="object")).astype(str).str.lower().str.contains(query, na=False)
-            )
-            df = df.loc[mask].reset_index(drop=True)
-
-        total_rows = int(len(df))
-        page = df.iloc[offset : offset + limit].reset_index(drop=True)
-        return {
-            "run_name": str(run_name),
-            "status": "ok",
-            "case_count": int(index.get("case_count", 0) or 0),
-            "offset": int(offset),
-            "limit": int(limit),
-            "row_count": int(len(page)),
-            "total_rows": total_rows,
-            "splits": splits,
-            "columns": self._column_specs(page if not page.empty else df),
-            "records": as_jsonable(page.to_dict(orient="records")),
-        }
-
-    def case_detail_payload(self, *, run_name: str, case_id: str, limit: int = 100) -> dict[str, Any]:
-        run_view = self._resolve_run_view(run_name)
-        case = run_view.read_case(case_id, limit=limit)
-        static_payload = case.get("static", {})
-        static_features = {}
-        if isinstance(static_payload, dict):
-            maybe = static_payload.get("features", {})
-            if isinstance(maybe, dict):
-                static_features = maybe
-        static_rows = [{"feature": key, "value": value} for key, value in static_features.items()]
-
-        analysis_refs = case.get("analysis_refs", {})
-        ref_modules = analysis_refs.get("modules", []) if isinstance(analysis_refs, dict) else []
-        ref_matches = analysis_refs.get("patient_case_matches", []) if isinstance(analysis_refs, dict) else []
-
-        timeline_df = pd.DataFrame(case.get("events", []))
-        predictions_df = pd.DataFrame(case.get("predictions", []))
-        static_df = pd.DataFrame(static_rows)
-        modules_df = pd.DataFrame(ref_modules)
-        matches_df = pd.DataFrame(ref_matches)
-
-        case_meta = {
-            key: value
-            for key, value in case.items()
-            if key not in {"events", "predictions", "static", "analysis_refs"}
-        }
-        case_meta["route"] = f"/runs/{run_name}/cases/{case_id}"
-        return {
-            "run_name": str(run_name),
-            "case": as_jsonable(case_meta),
-            "timeline": self._table_payload_from_frame(name="timeline", df=timeline_df, preview_limit=None),
-            "predictions": self._table_payload_from_frame(name="predictions", df=predictions_df, preview_limit=None),
-            "static": {
-                "feature_count": int(len(static_rows)),
-                "table": self._table_payload_from_frame(name="static_features", df=static_df, preview_limit=None),
-            },
-            "analysis_refs": {
-                "module_count": int(len(ref_modules)),
-                "patient_case_match_count": int(len(ref_matches)),
-                "modules": self._table_payload_from_frame(name="analysis_modules", df=modules_df, preview_limit=None),
-                "patient_case_matches": self._table_payload_from_frame(
-                    name="patient_case_matches",
-                    df=matches_df,
-                    preview_limit=None,
-                ),
-            },
-        }
-
-    def agents_payload(self, *, run_name: str) -> dict[str, Any]:
-        run_view = self._resolve_run_view(run_name)
-        return {
-            "run_name": str(run_name),
-            "predict": self._agent_task_payload(
-                run_view=run_view,
-                task_name="predict",
-                summary=run_view.agent_predict_summary_optional(),
-                records=run_view.agent_predict_records(),
-                actor_field="predictor_name",
-            ),
-            "review": self._agent_task_payload(
-                run_view=run_view,
-                task_name="review",
-                summary=run_view.agent_review_summary_optional(),
-                records=run_view.agent_review_records(),
-                actor_field="reviewer_name",
-            ),
-        }
-
     def eval_payload(self, *, run_name: str) -> dict[str, Any]:
         run_view = self._resolve_run_view(run_name)
         index = run_view.eval_index_optional()
@@ -571,76 +442,6 @@ class WebUIService:
             "records": as_jsonable(payload.get("records", [])),
         }
 
-    def agent_records_payload(
-        self,
-        *,
-        run_name: str,
-        task_name: str,
-        actor: str | None = None,
-        split: str | None = None,
-        parsed_ok: bool | None = None,
-        search: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> dict[str, Any]:
-        run_view = self._resolve_run_view(run_name)
-        reader = {
-            "predict": read_agent_predict_records,
-            "review": read_agent_review_records,
-        }.get(task_name)
-        if reader is None:
-            raise ValueError(f"Unknown agent task {task_name!r}")
-        payload = reader(
-            run_view.run_root,
-            actor=actor,
-            split=split,
-            parsed_ok=parsed_ok,
-            search=search,
-            limit=limit,
-            offset=offset,
-        )
-        return self._agent_rows_payload_from_query(
-            run_name=run_name,
-            task_name=task_name,
-            kind="records",
-            payload=payload,
-            detail_available=bool(run_view.agent_task_detail_artifacts(task_name)),
-        )
-
-    def agent_failures_payload(
-        self,
-        *,
-        run_name: str,
-        task_name: str,
-        actor: str | None = None,
-        split: str | None = None,
-        search: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> dict[str, Any]:
-        run_view = self._resolve_run_view(run_name)
-        reader = {
-            "predict": read_agent_predict_failures,
-            "review": read_agent_review_failures,
-        }.get(task_name)
-        if reader is None:
-            raise ValueError(f"Unknown agent task {task_name!r}")
-        payload = reader(
-            run_view.run_root,
-            actor=actor,
-            split=split,
-            search=search,
-            limit=limit,
-            offset=offset,
-        )
-        return self._agent_rows_payload_from_query(
-            run_name=run_name,
-            task_name=task_name,
-            kind="failures",
-            payload=payload,
-            detail_available=bool(run_view.agent_task_detail_artifacts(task_name)),
-        )
-
     def comparison_payload(self, *, run_name: str) -> dict[str, Any]:
         run_view = self._resolve_run_view(run_name)
         comparison_dir = run_view.run_root / "analysis" / "comparison"
@@ -659,7 +460,6 @@ class WebUIService:
         comparison_tables = self._comparison_table_frames(run_view=run_view)
         train_df = comparison_tables.get("train_metrics", pd.DataFrame())
         test_df = comparison_tables.get("test_metrics", pd.DataFrame())
-        agent_df = comparison_tables.get("agent_predict_metrics", pd.DataFrame())
         tables = []
         charts = []
         highlights = []
@@ -711,19 +511,6 @@ class WebUIService:
                         "body": f"{row['model']} {row['metric']} delta_mean={float(row['delta_mean']):.4f}",
                     }
                 )
-        if "agent_predict_metrics" in comparison_tables:
-            tables.append(self._table_payload_from_frame(name="agent_predict_metrics", df=agent_df, preview_limit=8))
-            charts.append(
-                {
-                    "id": "agent_predict_delta_mean",
-                    "kind": "grouped_bar",
-                    "title": "Agent Predict Metric Deltas",
-                    "x_key": "model",
-                    "y_key": "delta_mean",
-                    "group_key": "metric",
-                    "data": as_jsonable(agent_df.to_dict(orient="records")),
-                }
-            )
         return {
             "run_name": str(run_name),
             "status": "ok",
@@ -780,77 +567,6 @@ class WebUIService:
 
     def _resolve_run_view(self, run_name: str) -> RunView:
         return self.catalog.open_run(run_name)
-
-    def _agent_task_payload(
-        self,
-        *,
-        run_view: RunView,
-        task_name: str,
-        summary: dict[str, Any],
-        records: list[dict[str, Any]],
-        actor_field: str,
-    ) -> dict[str, Any]:
-        if not summary:
-            return {
-                "status": "missing",
-                "summary": None,
-                "cards": [],
-                "table": None,
-                "actors": [],
-                "splits": [],
-                "detail_available": False,
-            }
-
-        df = pd.DataFrame(records)
-        cards = []
-        actors: list[str] = []
-        if actor_field in df.columns and not df.empty:
-            actors = sorted(df[actor_field].dropna().astype(str).unique().tolist())
-        cards.append(self._kpi_card(field=f"{task_name}_records", value=len(records)))
-        cards.append(self._kpi_card(field=f"{task_name}_actors", value=len(actors)))
-
-        if "parse_success_rate" in df.columns and not df.empty:
-            cards.append(
-                {
-                    "id": "parse_success_rate_mean",
-                    "label": "Mean Parse Success Rate",
-                    "value": float(pd.to_numeric(df["parse_success_rate"], errors="coerce").fillna(0.0).mean()),
-                    "format": "float",
-                }
-            )
-        if "coverage" in df.columns and not df.empty:
-            cards.append(
-                {
-                    "id": "coverage_mean",
-                    "label": "Mean Coverage",
-                    "value": float(pd.to_numeric(df["coverage"], errors="coerce").fillna(0.0).mean()),
-                    "format": "float",
-                }
-            )
-
-        agent_block = summary.get(f"agent_{task_name}", {})
-        if isinstance(agent_block, dict):
-            prompt_template = agent_block.get("prompt_template")
-            if prompt_template:
-                cards.append(
-                    {
-                        "id": "prompt_template",
-                        "label": "Prompt Template",
-                        "value": str(prompt_template),
-                        "format": "text",
-                    }
-                )
-
-        table_name = f"agent_{task_name}_records"
-        return {
-            "status": "ok",
-            "summary": as_jsonable(summary),
-            "cards": cards,
-            "table": self._table_payload_from_frame(name=table_name, df=df, preview_limit=None),
-            "actors": actors,
-            "splits": run_view.agent_task_splits(task_name),
-            "detail_available": bool(run_view.agent_task_detail_artifacts(task_name)),
-        }
 
     def _normalize_module_index_item(self, *, run_name: str, item: dict[str, Any]) -> dict[str, Any]:
         name = str(item.get("name"))
@@ -914,7 +630,7 @@ class WebUIService:
     def _comparison_table_frames(self, *, run_view: RunView) -> dict[str, pd.DataFrame]:
         comparison_dir = run_view.run_root / "analysis" / "comparison"
         frames: dict[str, pd.DataFrame] = {}
-        for table_name in ("train_metrics", "test_metrics", "agent_predict_metrics"):
+        for table_name in ("train_metrics", "test_metrics"):
             df = self._read_csv_optional(comparison_dir / f"{table_name}.csv")
             if not df.empty:
                 frames[table_name] = df
@@ -1159,36 +875,6 @@ class WebUIService:
             "row_count": int(len(page)),
             "columns": self._column_specs(page if not page.empty else df),
             "records": as_jsonable(page.to_dict(orient="records")),
-        }
-
-    def _agent_rows_payload_from_query(
-        self,
-        *,
-        run_name: str,
-        task_name: str,
-        kind: str,
-        payload: dict[str, Any],
-        detail_available: bool,
-    ) -> dict[str, Any]:
-        rows = list(payload.get("records", []))
-        columns = list(payload.get("columns", []))
-        df = pd.DataFrame(rows)
-        if df.empty and columns:
-            df = pd.DataFrame(columns=columns)
-        return {
-            "run_name": str(run_name),
-            "task_name": str(task_name),
-            "kind": str(kind),
-            "status": str(payload.get("status", "ok")),
-            "actors": list(payload.get("actors", [])),
-            "splits": list(payload.get("splits", [])),
-            "detail_available": bool(detail_available),
-            "offset": int(payload.get("offset", 0)),
-            "limit": int(payload.get("limit", 0) or 0),
-            "row_count": int(payload.get("row_count", len(rows))),
-            "total_rows": int(payload.get("total_rows", len(rows))),
-            "columns": self._column_specs(df),
-            "records": as_jsonable(rows),
         }
 
     def _find_table_preview(self, tables: list[dict[str, Any]], name: str) -> dict[str, Any] | None:

@@ -380,10 +380,7 @@ class RunView:
     def describe(self) -> dict[str, Any]:
         train_records = self.training_records()
         test_records = self.testing_records()
-        agent_predict_records = self.agent_predict_records()
-        agent_review_records = self.agent_review_records()
         analysis_index = self.analysis_index_optional()
-        cases_index = self.cases_index_optional()
         eval_index = self.eval_index_optional()
         eval_summary = self.eval_summary_optional()
         eval_report = self.eval_report_summary_optional()
@@ -410,8 +407,6 @@ class RunView:
                 "schema_version": int(self.manifest.schema_version),
                 "task": dict((self.manifest.data.get("task") or {})),
                 "split": dict((self.manifest.data.get("split") or {})),
-                "cases": dict((self.manifest.data.get("cases") or {})),
-                "agent": dict((self.manifest.data.get("agent") or {})),
             },
             "training": {
                 "record_count": int(len(train_records)),
@@ -443,45 +438,11 @@ class RunView:
                     base=self.run_root,
                 ),
             },
-            "cases": {
-                "case_count": int(cases_index.get("case_count", 0) or 0),
-                "index_path": _relative_path_or_none(self.run_root / "cases" / "index.json", base=self.run_root),
-            },
-            "agent_predict": {
-                "record_count": int(len(agent_predict_records)),
-                "predictors": sorted(
-                    {
-                        str(rec.get("predictor_name"))
-                        for rec in agent_predict_records
-                        if rec.get("predictor_name") is not None
-                    }
-                ),
-                "summary_path": _relative_path_or_none(
-                    self.run_root / "agent" / "predict" / "summary.json",
-                    base=self.run_root,
-                ),
-            },
-            "agent_review": {
-                "record_count": int(len(agent_review_records)),
-                "reviewers": sorted(
-                    {
-                        str(rec.get("reviewer_name"))
-                        for rec in agent_review_records
-                        if rec.get("reviewer_name") is not None
-                    }
-                ),
-                "summary_path": _relative_path_or_none(
-                    self.run_root / "agent" / "review" / "summary.json",
-                    base=self.run_root,
-                ),
-            },
             "artifacts": {
                 "has_models_dir": bool((self.run_root / "models").exists()),
                 "has_preds_dir": bool((self.run_root / "preds").exists()),
                 "has_splits_dir": bool((self.run_root / "splits").exists()),
                 "has_eval_dir": bool((self.run_root / "eval").exists()),
-                "has_cases_dir": bool((self.run_root / "cases").exists()),
-                "has_agent_dir": bool((self.run_root / "agent").exists()),
             },
         }
 
@@ -516,9 +477,6 @@ class RunCatalog:
                     "has_eval_index": bool((path / "eval" / "index.json").exists()),
                     "has_eval_summary": bool((path / "eval" / "summary.json").exists()),
                     "has_eval_report_summary": bool((path / "eval" / "reports" / "summary.json").exists()),
-                    "has_cases_index": bool((path / "cases" / "index.json").exists()),
-                    "has_agent_predict_summary": bool((path / "agent" / "predict" / "summary.json").exists()),
-                    "has_agent_review_summary": bool((path / "agent" / "review" / "summary.json").exists()),
                     "testing": {
                         **_testing_summary_snapshot(
                             _ensure_records(_read_top_summary(path / "test_runs" / "test_summary.json")),
