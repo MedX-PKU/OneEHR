@@ -3,7 +3,6 @@ from oneehr.agent.contracts import AgentRequestSpec, AgentResponse, ParsedPredic
 from oneehr.agent.instances import (
     MaterializedAgentInstances,
     agent_instance_path,
-    ensure_agent_predict_splits,
     materialize_agent_instances,
 )
 from oneehr.agent.predict_eval import summarize_prediction_rows
@@ -33,7 +32,6 @@ __all__ = [
     "safe_case_slug",
     "select_events",
     "agent_instance_path",
-    "ensure_agent_predict_splits",
     "materialize_agent_instances",
     "render_prompt",
     "summarize_prediction_rows",

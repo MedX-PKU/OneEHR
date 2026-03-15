@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from oneehr.config.schema import SplitConfig
+from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,23 @@ class Split:
     train_patients: np.ndarray
     val_patients: np.ndarray
     test_patients: np.ndarray
+
+
+def expand_splits_for_repeat(splits: list[Split], repeat: int) -> list[Split]:
+    if int(repeat) <= 1:
+        return list(splits)
+    expanded: list[Split] = []
+    for sp in splits:
+        for repeat_idx in range(int(repeat)):
+            expanded.append(
+                Split(
+                    name=f"{sp.name}__r{repeat_idx}",
+                    train_patients=sp.train_patients,
+                    val_patients=sp.val_patients,
+                    test_patients=sp.test_patients,
+                )
+            )
+    return expanded
 
 
 def save_splits(splits: list[Split], out_dir: Path) -> None:
@@ -52,6 +70,16 @@ def load_splits(split_dir: Path) -> list[Split]:
             )
         )
     return splits
+
+
+def require_saved_splits(split_dir: Path, *, context: str) -> list[Split]:
+    split_dir = Path(split_dir)
+    splits = load_splits(split_dir)
+    if splits:
+        return splits
+    raise SystemExit(
+        f"Missing saved splits at {split_dir}. Run `oneehr preprocess` first before {context}."
+    )
 
 
 _REPEAT_RE = re.compile(r"__r(\d+)$")
@@ -223,3 +251,21 @@ def make_splits(
         return [Split(name="time0", train_patients=train, val_patients=val, test_patients=post)]
 
     raise ValueError(f"Unsupported split.kind={split.kind!r}. Expected kfold|random|time")
+
+
+def build_splits_for_dataset(
+    *,
+    dynamic: pd.DataFrame | None,
+    static: pd.DataFrame | None,
+    split: SplitConfig,
+    repeat: int = 1,
+) -> list[Split]:
+    if dynamic is not None:
+        patient_index = make_patient_index(dynamic, "event_time", "patient_id")
+    elif static is not None:
+        patient_index = make_patient_index_from_static(static, patient_id_col="patient_id")
+    else:
+        raise SystemExit("dataset.dynamic or dataset.static is required to materialize splits.")
+
+    splits = make_splits(patient_index, split)
+    return expand_splits_for_repeat(splits, repeat)

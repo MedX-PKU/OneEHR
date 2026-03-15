@@ -295,10 +295,12 @@ def test_agent_predict_cli_e2e_patient_binary(tmp_path: Path) -> None:
 
         run_root = out_root / run_name
         instances_path = run_root / "agent" / "predict" / "instances" / "patient_instances.parquet"
+        instances_summary_path = run_root / "agent" / "predict" / "instances" / "summary.json"
         summary_path = run_root / "agent" / "predict" / "summary.json"
         preds_path = run_root / "agent" / "predict" / "preds" / "mock" / "split0.parquet"
 
         assert instances_path.exists()
+        assert not instances_summary_path.exists()
         assert preds_path.exists()
         assert summary_path.exists()
         summary = json.loads(summary_path.read_text(encoding="utf-8"))

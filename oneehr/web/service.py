@@ -7,7 +7,13 @@ from typing import Any
 
 import pandas as pd
 
-from oneehr.query import compare_cohorts
+from oneehr.query import (
+    compare_cohorts,
+    read_agent_predict_failures,
+    read_agent_predict_records,
+    read_agent_review_failures,
+    read_agent_review_records,
+)
 from oneehr.utils.io import as_jsonable
 from oneehr.runview import RunCatalog, RunView
 
@@ -432,53 +438,27 @@ class WebUIService:
         offset: int = 0,
     ) -> dict[str, Any]:
         run_view = self._resolve_run_view(run_name)
-        summary = run_view.agent_task_summary_optional(task_name)
-        if not summary:
-            return self._empty_agent_rows_payload(
-                run_name=run_name,
-                task_name=task_name,
-                kind="records",
-                status="missing",
-                actors=[],
-                splits=[],
-                detail_available=False,
-                limit=limit,
-                offset=offset,
-            )
-
-        detail_available = bool(run_view.agent_task_detail_artifacts(task_name))
-        actors = run_view.agent_task_actors(task_name)
-        splits = run_view.agent_task_splits(task_name)
-        if not detail_available:
-            return self._empty_agent_rows_payload(
-                run_name=run_name,
-                task_name=task_name,
-                kind="records",
-                status="unavailable",
-                actors=actors,
-                splits=splits,
-                detail_available=False,
-                limit=limit,
-                offset=offset,
-            )
-
-        df = run_view.agent_task_detail_rows(
-            task_name,
+        reader = {
+            "predict": read_agent_predict_records,
+            "review": read_agent_review_records,
+        }.get(task_name)
+        if reader is None:
+            raise ValueError(f"Unknown agent task {task_name!r}")
+        payload = reader(
+            run_view.run_root,
             actor=actor,
             split=split,
             parsed_ok=parsed_ok,
             search=search,
+            limit=limit,
+            offset=offset,
         )
-        return self._agent_rows_payload(
+        return self._agent_rows_payload_from_query(
             run_name=run_name,
             task_name=task_name,
             kind="records",
-            actors=actors,
-            splits=splits,
-            detail_available=True,
-            df=df,
-            limit=limit,
-            offset=offset,
+            payload=payload,
+            detail_available=bool(run_view.agent_task_detail_artifacts(task_name)),
         )
 
     def agent_failures_payload(
@@ -493,36 +473,26 @@ class WebUIService:
         offset: int = 0,
     ) -> dict[str, Any]:
         run_view = self._resolve_run_view(run_name)
-        summary = run_view.agent_task_summary_optional(task_name)
-        if not summary:
-            return self._empty_agent_rows_payload(
-                run_name=run_name,
-                task_name=task_name,
-                kind="failures",
-                status="missing",
-                actors=[],
-                splits=[],
-                detail_available=False,
-                limit=limit,
-                offset=offset,
-            )
-
-        df = run_view.agent_task_failure_rows(
-            task_name,
+        reader = {
+            "predict": read_agent_predict_failures,
+            "review": read_agent_review_failures,
+        }.get(task_name)
+        if reader is None:
+            raise ValueError(f"Unknown agent task {task_name!r}")
+        payload = reader(
+            run_view.run_root,
             actor=actor,
             split=split,
             search=search,
+            limit=limit,
+            offset=offset,
         )
-        return self._agent_rows_payload(
+        return self._agent_rows_payload_from_query(
             run_name=run_name,
             task_name=task_name,
             kind="failures",
-            actors=run_view.agent_task_actors(task_name),
-            splits=run_view.agent_task_splits(task_name),
+            payload=payload,
             detail_available=bool(run_view.agent_task_detail_artifacts(task_name)),
-            df=df,
-            limit=limit,
-            offset=offset,
         )
 
     def comparison_payload(self, *, run_name: str) -> dict[str, Any]:
@@ -1045,64 +1015,34 @@ class WebUIService:
             "records": as_jsonable(page.to_dict(orient="records")),
         }
 
-    def _agent_rows_payload(
+    def _agent_rows_payload_from_query(
         self,
         *,
         run_name: str,
         task_name: str,
         kind: str,
-        actors: list[str],
-        splits: list[str],
+        payload: dict[str, Any],
         detail_available: bool,
-        df: pd.DataFrame,
-        limit: int,
-        offset: int,
     ) -> dict[str, Any]:
-        total_rows = int(len(df))
-        page = df.iloc[offset : offset + limit].reset_index(drop=True)
+        rows = list(payload.get("records", []))
+        columns = list(payload.get("columns", []))
+        df = pd.DataFrame(rows)
+        if df.empty and columns:
+            df = pd.DataFrame(columns=columns)
         return {
             "run_name": str(run_name),
             "task_name": str(task_name),
             "kind": str(kind),
-            "status": "ok",
-            "actors": actors,
-            "splits": splits,
+            "status": str(payload.get("status", "ok")),
+            "actors": list(payload.get("actors", [])),
+            "splits": list(payload.get("splits", [])),
             "detail_available": bool(detail_available),
-            "offset": int(offset),
-            "limit": int(limit),
-            "row_count": int(len(page)),
-            "total_rows": total_rows,
-            "columns": self._column_specs(page if not page.empty else df),
-            "records": as_jsonable(page.to_dict(orient="records")),
-        }
-
-    def _empty_agent_rows_payload(
-        self,
-        *,
-        run_name: str,
-        task_name: str,
-        kind: str,
-        status: str,
-        actors: list[str],
-        splits: list[str],
-        detail_available: bool,
-        limit: int,
-        offset: int,
-    ) -> dict[str, Any]:
-        return {
-            "run_name": str(run_name),
-            "task_name": str(task_name),
-            "kind": str(kind),
-            "status": str(status),
-            "actors": actors,
-            "splits": splits,
-            "detail_available": bool(detail_available),
-            "offset": int(offset),
-            "limit": int(limit),
-            "row_count": 0,
-            "total_rows": 0,
-            "columns": [],
-            "records": [],
+            "offset": int(payload.get("offset", 0)),
+            "limit": int(payload.get("limit", 0) or 0),
+            "row_count": int(payload.get("row_count", len(rows))),
+            "total_rows": int(payload.get("total_rows", len(rows))),
+            "columns": self._column_specs(df),
+            "records": as_jsonable(rows),
         }
 
     def _find_table_preview(self, tables: list[dict[str, Any]], name: str) -> dict[str, Any] | None:

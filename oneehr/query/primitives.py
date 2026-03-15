@@ -14,24 +14,12 @@ from oneehr.runview import open_run_view
 
 def get_case_timeline(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
     case = open_run_view(run_root).read_case(case_id, limit=limit)
-    events = list(case.get("events", []))
-    return {
-        "case_id": str(case_id),
-        "patient_id": str(case.get("patient_id")),
-        "row_count": int(len(events)),
-        "records": events,
-    }
+    return _timeline_payload(case=case, case_id=case_id)
 
 
 def get_case_static(run_root: str | Path, case_id: str) -> dict[str, Any]:
     case = open_run_view(run_root).read_case(case_id)
-    features = case_static_features(case)
-    return {
-        "case_id": str(case_id),
-        "patient_id": str(case.get("patient_id")),
-        "feature_count": int(len(features)),
-        "features": features,
-    }
+    return _static_payload(case=case, case_id=case_id)
 
 
 def get_case_predictions(
@@ -43,13 +31,12 @@ def get_case_predictions(
     limit: int | None = None,
 ) -> dict[str, Any]:
     case = open_run_view(run_root).read_case(case_id, limit=limit)
-    rows = select_case_predictions(case, origin=origin, predictor_name=predictor_name)
-    return {
-        "case_id": str(case_id),
-        "patient_id": str(case.get("patient_id")),
-        "row_count": int(len(rows)),
-        "records": rows.to_dict(orient="records"),
-    }
+    return _predictions_payload(
+        case=case,
+        case_id=case_id,
+        origin=origin,
+        predictor_name=predictor_name,
+    )
 
 
 def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | None = None) -> dict[str, Any]:
@@ -61,9 +48,9 @@ def collect_case_evidence(run_root: str | Path, case_id: str, *, limit: int | No
             for key, value in case.items()
             if key not in {"events", "predictions", "static", "analysis_refs"}
         },
-        "timeline": get_case_timeline(run_root, case_id, limit=limit),
-        "static": get_case_static(run_root, case_id),
-        "predictions": get_case_predictions(run_root, case_id, limit=limit),
+        "timeline": _timeline_payload(case=case, case_id=case_id),
+        "static": _static_payload(case=case, case_id=case_id),
+        "predictions": _predictions_payload(case=case, case_id=case_id),
         "analysis_refs": case.get("analysis_refs", {}),
     }
 
@@ -125,3 +112,39 @@ def render_case_prompt(
         return {"template": template.name, "family": template.family, "prompt": prompt}
 
     raise ValueError(f"Unsupported template family {template.family!r}")
+
+
+def _timeline_payload(*, case: dict[str, Any], case_id: str) -> dict[str, Any]:
+    events = list(case.get("events", []))
+    return {
+        "case_id": str(case_id),
+        "patient_id": str(case.get("patient_id")),
+        "row_count": int(len(events)),
+        "records": events,
+    }
+
+
+def _static_payload(*, case: dict[str, Any], case_id: str) -> dict[str, Any]:
+    features = case_static_features(case)
+    return {
+        "case_id": str(case_id),
+        "patient_id": str(case.get("patient_id")),
+        "feature_count": int(len(features)),
+        "features": features,
+    }
+
+
+def _predictions_payload(
+    *,
+    case: dict[str, Any],
+    case_id: str,
+    origin: str | None = None,
+    predictor_name: str | None = None,
+) -> dict[str, Any]:
+    rows = select_case_predictions(case, origin=origin, predictor_name=predictor_name)
+    return {
+        "case_id": str(case_id),
+        "patient_id": str(case.get("patient_id")),
+        "row_count": int(len(rows)),
+        "records": rows.to_dict(orient="records"),
+    }

@@ -12,9 +12,9 @@ from oneehr.agent.templates import safe_case_slug, select_events
 from oneehr.analysis.read import describe_patient_case, read_analysis_index
 from oneehr.artifacts.run_io import RunIO
 from oneehr.config.schema import ExperimentConfig
+from oneehr.data.test_samples import build_test_sample_frame
 from oneehr.data.io import load_dynamic_table_optional, load_static_table
-from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
-from oneehr.data.splits import Split, load_splits, make_splits, save_splits
+from oneehr.data.splits import require_saved_splits
 from oneehr.utils.io import as_jsonable, ensure_dir, write_json
 
 
@@ -195,165 +195,26 @@ def _build_cases(cfg: ExperimentConfig, *, run_root: Path) -> list[dict[str, Any
     run = RunIO(run_root=run_root)
     manifest = run.require_manifest()
     labels_df = run.load_labels(manifest)
-    splits = _ensure_case_splits(cfg, run_root=run_root)
+    splits = require_saved_splits(
+        run_root / "splits",
+        context="running `oneehr cases build`",
+    )
 
     train_dataset = cfg.datasets.train if cfg.datasets is not None else cfg.dataset
     dynamic = load_dynamic_table_optional(train_dataset.dynamic)
     static = load_static_table(train_dataset.static)
-
-    if cfg.task.prediction_mode == "patient":
-        rows = _build_patient_cases(
-            splits=splits,
-            labels_df=labels_df,
-            dynamic=dynamic,
-            static=static,
-            task_kind=cfg.task.kind,
-        )
-    else:
-        rows = _build_time_cases(
-            splits=splits,
-            labels_df=labels_df,
-            dynamic=dynamic,
-            static=static,
-            task_kind=cfg.task.kind,
-        )
+    frame = build_test_sample_frame(
+        splits=splits,
+        labels_df=labels_df,
+        dynamic=dynamic,
+        static=static,
+        task_kind=cfg.task.kind,
+        prediction_mode=cfg.task.prediction_mode,
+    )
+    rows = frame.rename(columns={"sample_id": "case_id"}).to_dict(orient="records")
 
     if cfg.cases.case_limit is not None:
         rows = rows[: int(cfg.cases.case_limit)]
-    return rows
-
-
-def _ensure_case_splits(cfg: ExperimentConfig, *, run_root: Path) -> list[Split]:
-    split_dir = run_root / "splits"
-    splits = load_splits(split_dir)
-    if splits:
-        return splits
-
-    train_dataset = cfg.datasets.train if cfg.datasets is not None else cfg.dataset
-    dynamic = load_dynamic_table_optional(train_dataset.dynamic)
-    static = load_static_table(train_dataset.static)
-    if dynamic is not None:
-        patient_index = make_patient_index(dynamic, "event_time", "patient_id")
-    elif static is not None:
-        patient_index = make_patient_index_from_static(static, patient_id_col="patient_id")
-    else:
-        raise SystemExit("dataset.dynamic or dataset.static is required to materialize case splits.")
-
-    splits = make_splits(patient_index, cfg.split)
-    if cfg.trainer.repeat > 1:
-        expanded: list[Split] = []
-        for sp in splits:
-            for repeat_idx in range(cfg.trainer.repeat):
-                expanded.append(
-                    Split(
-                        name=f"{sp.name}__r{repeat_idx}",
-                        train_patients=sp.train_patients,
-                        val_patients=sp.val_patients,
-                        test_patients=sp.test_patients,
-                    )
-                )
-        splits = expanded
-    save_splits(splits, split_dir)
-    return splits
-
-
-def _build_patient_cases(
-    *,
-    splits: list[Split],
-    labels_df: pd.DataFrame | None,
-    dynamic: pd.DataFrame | None,
-    static: pd.DataFrame | None,
-    task_kind: str,
-) -> list[dict[str, Any]]:
-    label_map: dict[str, float] = {}
-    if labels_df is not None and not labels_df.empty:
-        labels = labels_df[["patient_id", "label"]].copy()
-        labels["patient_id"] = labels["patient_id"].astype(str)
-        labels = labels.drop_duplicates(subset=["patient_id"], keep="last")
-        label_map = {str(pid): float(lbl) for pid, lbl in zip(labels["patient_id"], labels["label"])}
-
-    dyn_stats: dict[str, dict[str, object]] = {}
-    if dynamic is not None and not dynamic.empty:
-        tmp = dynamic.copy()
-        tmp["patient_id"] = tmp["patient_id"].astype(str)
-        grouped = tmp.groupby("patient_id", sort=False)
-        dyn_stats = {
-            str(pid): {
-                "first_event_time": pd.to_datetime(group["event_time"]).min(),
-                "last_event_time": pd.to_datetime(group["event_time"]).max(),
-            }
-            for pid, group in grouped
-        }
-
-    static_ids = set()
-    if static is not None and not static.empty:
-        static_ids = set(static["patient_id"].astype(str).tolist())
-
-    rows: list[dict[str, Any]] = []
-    for sp in splits:
-        for patient_id in sp.test_patients.astype(str).tolist():
-            stats = dyn_stats.get(patient_id, {})
-            rows.append(
-                {
-                    "case_id": f"{sp.name}:{patient_id}",
-                    "patient_id": patient_id,
-                    "split": sp.name,
-                    "split_role": "test",
-                    "prediction_mode": "patient",
-                    "task_kind": task_kind,
-                    "ground_truth": label_map.get(patient_id),
-                    "first_event_time": stats.get("first_event_time"),
-                    "last_event_time": stats.get("last_event_time"),
-                    "has_static": patient_id in static_ids,
-                }
-            )
-    return sorted(rows, key=lambda row: (str(row["split"]), str(row["patient_id"])))
-
-
-def _build_time_cases(
-    *,
-    splits: list[Split],
-    labels_df: pd.DataFrame | None,
-    dynamic: pd.DataFrame | None,
-    static: pd.DataFrame | None,
-    task_kind: str,
-) -> list[dict[str, Any]]:
-    if dynamic is None or dynamic.empty:
-        raise SystemExit("Time-window cases require dataset.dynamic.")
-    if labels_df is None or labels_df.empty:
-        raise SystemExit("Time-window cases require labels.parquet.")
-
-    static_ids = set()
-    if static is not None and not static.empty:
-        static_ids = set(static["patient_id"].astype(str).tolist())
-
-    labels = labels_df.copy()
-    labels["patient_id"] = labels["patient_id"].astype(str)
-    labels["bin_time"] = pd.to_datetime(labels["bin_time"], errors="raise")
-    if "mask" in labels.columns:
-        labels = labels[labels["mask"].astype(int) != 0].copy()
-
-    rows: list[dict[str, Any]] = []
-    for sp in splits:
-        test_patients = set(sp.test_patients.astype(str).tolist())
-        block = labels[labels["patient_id"].isin(test_patients)].copy()
-        block = block.sort_values(["patient_id", "bin_time"], kind="stable")
-        for _, row in block.iterrows():
-            patient_id = str(row["patient_id"])
-            bin_time = pd.to_datetime(row["bin_time"], errors="raise")
-            rows.append(
-                {
-                    "case_id": f"{sp.name}:{patient_id}:{bin_time.isoformat()}",
-                    "patient_id": patient_id,
-                    "split": sp.name,
-                    "split_role": "test",
-                    "prediction_mode": "time",
-                    "task_kind": task_kind,
-                    "bin_time": bin_time,
-                    "ground_truth": float(row["label"]),
-                    "has_static": patient_id in static_ids,
-                }
-            )
     return rows
 
 

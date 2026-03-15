@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from oneehr.artifacts.materialize import materialize_preprocess_artifacts
+from oneehr.artifacts.read import read_run_manifest
 from oneehr.config.schema import (
     DatasetConfig,
     DynamicTableConfig,
@@ -73,5 +74,9 @@ def test_static_patient_id_not_encoded_as_feature(tmp_path: Path) -> None:
     out_root = tmp_path / "out"
     materialize_preprocess_artifacts(dynamic=dynamic, static=static, label=None, cfg=cfg, out_root=out_root)
 
-    cols = pd.read_json(out_root / "features" / "static" / "feature_columns.json")["feature_columns"].tolist()
+    manifest = read_run_manifest(out_root)
+    assert manifest is not None
+    cols = manifest.static_feature_columns()
     assert all("patient_id" not in c for c in cols)
+    assert not (out_root / "features" / "static" / "feature_columns.json").exists()
+    assert not (out_root / "labels_meta.json").exists()

@@ -10,7 +10,7 @@ from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 from oneehr.data.static_postprocess import fit_transform_static_features
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
-from oneehr.utils.io import ensure_dir, write_json
+from oneehr.utils.io import ensure_dir
 
 
 def materialize_preprocess_artifacts(
@@ -29,11 +29,10 @@ def materialize_preprocess_artifacts(
 
     Writes:
     - binned.parquet
-    - features/dynamic/feature_columns.json
-    - features/static/feature_columns.json + features/static/static_all.parquet (if enabled)
+    - features/static/static_all.parquet (if enabled)
     - views/patient_tabular.parquet or views/time_tabular.parquet
     - run_manifest.json
-    - labels.parquet (if labels.fn provided)
+    - labels.parquet (if labels are available)
     """
 
     out_root = ensure_dir(out_root)
@@ -55,10 +54,6 @@ def materialize_preprocess_artifacts(
         binned_df = pd.DataFrame(columns=["patient_id", "bin_time", "label"])
 
     (out_root / "binned.parquet").write_bytes(binned_df.to_parquet(index=False))
-
-    # Dynamic feature space (may be empty for static-only runs)
-    ensure_dir(out_root / "features" / "dynamic")
-    write_json(out_root / "features" / "dynamic" / "feature_columns.json", {"feature_columns": feat_cols})
 
     # Views (tabular)
     ensure_dir(out_root / "views")
@@ -126,14 +121,12 @@ def materialize_preprocess_artifacts(
         static_feat_cols = list(static_all.columns)
         static_post_pipeline = None if static_art.fitted_postprocess is None else static_art.fitted_postprocess.pipeline
         ensure_dir(out_root / "features" / "static")
-        write_json(out_root / "features" / "static" / "feature_columns.json", {"feature_columns": static_feat_cols})
         (out_root / "features" / "static" / "static_all.parquet").write_bytes(static_all.to_parquet(index=True))
 
     write_run_manifest(
         out_root=out_root,
         cfg=cfg,
         dynamic_feature_columns=feat_cols,
-        static_raw_cols=None if static_raw is None else list(static_raw.columns),
         static_feature_columns=static_feat_cols,
         static_postprocess_pipeline=static_post_pipeline,
         patient_tabular_path=pt_path,
@@ -182,7 +175,3 @@ def materialize_preprocess_artifacts(
             )
             dft = dft[["patient_id", "bin_time", "label", *feat_cols]]
             (out_root / tm_path).write_bytes(dft.to_parquet(index=False))
-    else:
-        # Labels are optional. Persist a minimal schema marker for downstream steps.
-        # Train will still require labels for supervised learning.
-        write_json(out_root / "labels_meta.json", {"present": False})

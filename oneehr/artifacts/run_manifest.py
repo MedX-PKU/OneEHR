@@ -12,7 +12,6 @@ def write_run_manifest(
     out_root: Path,
     cfg: ExperimentConfig,
     dynamic_feature_columns: list[str] | None,
-    static_raw_cols: list[str] | None,
     static_feature_columns: list[str] | None,
     static_postprocess_pipeline: list[dict[str, object]] | None,
     patient_tabular_path: str | None,
@@ -20,7 +19,7 @@ def write_run_manifest(
 ) -> None:
     """Write a run-level manifest describing data + features for reproducibility.
 
-    This is a v4 schema that captures the run contract for modeling, analysis,
+    This is a v5 schema that captures the run contract for modeling, analysis,
     cases, and agent workflows in one manifest.
     It is intended as the single source of truth for a training run.
     """
@@ -31,7 +30,7 @@ def write_run_manifest(
     st_cols = [] if not static_feature_columns else list(static_feature_columns)
 
     manifest = {
-        "schema_version": 4,
+        "schema_version": 5,
         "dataset": as_jsonable(asdict(cfg.dataset)),
         "task": as_jsonable(asdict(cfg.task)),
         "split": as_jsonable(asdict(cfg.split)),
@@ -140,11 +139,9 @@ def write_run_manifest(
         "features": {
             "dynamic": {
                 "feature_columns": dyn_cols,
-                "feature_columns_json_path": "features/dynamic/feature_columns.json",
             },
             "static": {
                 "feature_columns": st_cols,
-                "feature_columns_json_path": "features/static/feature_columns.json",
                 "matrix_parquet_path": None if not st_cols else "features/static/static_all.parquet",
             },
         },

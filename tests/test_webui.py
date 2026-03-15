@@ -7,14 +7,17 @@ from pathlib import Path
 import pytest
 
 from oneehr.web.service import WebUIService
-from test_analysis import _build_trained_run
-from test_inspect import _build_analyzed_run
-from test_review import _build_review_run, _mock_review_server
-from test_runview import _build_cases_run
+from support_runs import (
+    build_analyzed_run,
+    build_cases_run,
+    build_review_run,
+    build_trained_run,
+    mock_review_server,
+)
 
 
 def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
-    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="webui_run", seed=31)
+    run_root, _ = build_analyzed_run(tmp_path=tmp_path, run_name="webui_run", seed=31)
     service = WebUIService(root_dir=run_root.parent)
 
     runs = service.list_runs_payload()
@@ -72,7 +75,7 @@ def test_webui_service_run_dashboards_and_drilldowns(tmp_path: Path) -> None:
 
 
 def test_webui_service_testing_payloads(tmp_path: Path) -> None:
-    run_root, cfg = _build_trained_run(tmp_path=tmp_path, run_name="webui_test_audit", seed=27)
+    run_root, cfg = build_trained_run(tmp_path=tmp_path, run_name="webui_test_audit", seed=27)
     subprocess.check_call(["oneehr", "test", "--config", str(cfg), "--force"])
     subprocess.check_call(["oneehr", "analyze", "--config", str(cfg), "--module", "test_audit"])
 
@@ -89,8 +92,8 @@ def test_webui_service_testing_payloads(tmp_path: Path) -> None:
 
 
 def test_webui_service_comparison_payload(tmp_path: Path) -> None:
-    run_root_a, cfg_a = _build_trained_run(tmp_path=tmp_path / "run_a", run_name="cmp_webui_a", seed=5)
-    run_root_b, cfg_b = _build_trained_run(tmp_path=tmp_path / "run_b", run_name="cmp_webui_b", seed=8)
+    run_root_a, cfg_a = build_trained_run(tmp_path=tmp_path / "run_a", run_name="cmp_webui_a", seed=5)
+    run_root_b, cfg_b = build_trained_run(tmp_path=tmp_path / "run_b", run_name="cmp_webui_b", seed=8)
     subprocess.check_call(["oneehr", "test", "--config", str(cfg_a), "--force"])
     subprocess.check_call(["oneehr", "test", "--config", str(cfg_b), "--force"])
     subprocess.check_call(
@@ -158,7 +161,7 @@ def test_webui_service_comparison_payload(tmp_path: Path) -> None:
 
 
 def test_webui_service_cohort_compare_payload(tmp_path: Path) -> None:
-    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_compare", seed=23)
+    run_root, _ = build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_compare", seed=23)
     service = WebUIService(root_dir=run_root.parent)
 
     payload = service.cohort_compare_payload(
@@ -176,7 +179,7 @@ def test_webui_service_cohort_compare_payload(tmp_path: Path) -> None:
 
 
 def test_webui_service_cases_payloads(tmp_path: Path) -> None:
-    run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="webui_cases", seed=19)
+    run_root, _ = build_cases_run(tmp_path=tmp_path, run_name="webui_cases", seed=19)
     service = WebUIService(root_dir=run_root.parent)
 
     cases = service.cases_payload(run_name="webui_cases", limit=10)
@@ -199,8 +202,8 @@ def test_webui_service_cases_payloads(tmp_path: Path) -> None:
 
 
 def test_webui_service_agents_payload(tmp_path: Path) -> None:
-    with _mock_review_server() as (_, base_url):
-        run_root, cfg_path = _build_review_run(
+    with mock_review_server() as (_, base_url):
+        run_root, cfg_path = build_review_run(
             tmp_path=tmp_path,
             run_name="webui_agents",
             seed=41,
@@ -276,7 +279,7 @@ def test_webui_fastapi_routes(tmp_path: Path) -> None:
 
     from oneehr.web import create_app
 
-    run_root, _ = _build_cases_run(tmp_path=tmp_path, run_name="webui_api", seed=17)
+    run_root, _ = build_cases_run(tmp_path=tmp_path, run_name="webui_api", seed=17)
     client = TestClient(create_app(root_dir=run_root.parent))
 
     runs = client.get("/api/v1/runs")
@@ -337,7 +340,7 @@ def test_webui_fastapi_cohort_compare_route(tmp_path: Path) -> None:
 
     from oneehr.web import create_app
 
-    run_root, _ = _build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_api", seed=27)
+    run_root, _ = build_analyzed_run(tmp_path=tmp_path, run_name="webui_cohort_api", seed=27)
     client = TestClient(create_app(root_dir=run_root.parent))
 
     response = client.get(

@@ -25,10 +25,20 @@ def run_train(cfg_path: str, force: bool) -> None:
     _require_training_model(cfg0)
     out_root = cfg0.output.root / cfg0.output.run_name
 
-    if out_root.exists() and not force:
+    existing_training_artifacts = [
+        "models",
+        "preds",
+        "hpo",
+        "summary.json",
+        "hpo_best.csv",
+        "preprocess",
+        "final",
+    ]
+    has_existing_training_outputs = any((out_root / rel).exists() for rel in existing_training_artifacts)
+    if has_existing_training_outputs and not force:
         raise SystemExit(
-            f"Run directory already exists: {out_root}. "
-            "Choose a new output.run_name or pass --force to overwrite."
+            f"Training artifacts already exist under {out_root}. "
+            "Pass --force to overwrite them."
         )
     ensure_dir(out_root)
 
@@ -38,7 +48,7 @@ def run_train(cfg_path: str, force: bool) -> None:
     if force:
         import shutil
 
-        for rel in ["models", "preds", "hpo", "splits", "summary.json", "hpo_best.csv"]:
+        for rel in existing_training_artifacts:
             p = out_root / rel
             if p.is_dir():
                 shutil.rmtree(p)
@@ -53,8 +63,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
 
     from oneehr.config.load import load_experiment_config
     from oneehr.data.io import load_dynamic_table_optional, load_static_table
-    from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
-    from oneehr.data.splits import Split, make_splits, save_splits, _parse_repeat_index
+    from oneehr.data.splits import require_saved_splits, _parse_repeat_index
     from oneehr.data.postprocess import maybe_fit_transform_postprocess
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.hpo.grid import apply_overrides, iter_grid
@@ -75,33 +84,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
     dynamic = load_dynamic_table_optional(train_dataset.dynamic)
     static_raw = load_static_table(train_dataset.static)
-    if dynamic is not None:
-        patient_index = make_patient_index(dynamic, "event_time", "patient_id")
-    elif static_raw is not None:
-        patient_index = make_patient_index_from_static(static_raw, patient_id_col="patient_id")
-    else:
-        raise SystemExit("dataset.dynamic or dataset.static is required for training.")
-    splits = make_splits(patient_index, cfg0.split)
-
     out_root = cfg0.output.root / cfg0.output.run_name
-
-    # Persist splits so that `oneehr test` can use them for self-split evaluation.
-    save_splits(splits, out_root / "splits")
-
-    # Expand splits with repeats for multi-seed training.
-    if cfg0.trainer.repeat > 1:
-        expanded: list[Split] = []
-        for sp in splits:
-            for r in range(cfg0.trainer.repeat):
-                expanded.append(Split(
-                    name=f"{sp.name}__r{r}",
-                    train_patients=sp.train_patients,
-                    val_patients=sp.val_patients,
-                    test_patients=sp.test_patients,
-                ))
-        splits = expanded
-        # Save expanded splits too (test command matches by name).
-        save_splits(splits, out_root / "splits")
+    splits = require_saved_splits(out_root / "splits", context="running `oneehr train`")
     run = RunIO(run_root=out_root)
     manifest = run.require_manifest()
     labels_df = run.load_labels(manifest)

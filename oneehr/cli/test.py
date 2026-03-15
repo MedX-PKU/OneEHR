@@ -287,7 +287,7 @@ def _run_self_split_test(
     from oneehr.models.tabular import load_tabular_model, predict_tabular
     from oneehr.models.registry import build_model
     from oneehr.data.postprocess import transform_postprocess_pipeline
-    from oneehr.data.splits import load_splits
+    from oneehr.data.splits import require_saved_splits
     from oneehr.artifacts.run_io import RunIO
     from oneehr.cli._common import require_manifest
 
@@ -303,30 +303,8 @@ def _run_self_split_test(
         raise SystemExit(f"Output directory already exists: {output}. Use --force to overwrite.")
     ensure_dir(output)
 
-    # Load saved splits.
     split_dir = run_root / "splits"
-    saved_splits = load_splits(split_dir)
-    if not saved_splits:
-        # Fallback: recompute splits from config with warning.
-        print(
-            f"WARNING: No saved splits found at {split_dir}. "
-            "Recomputing from config. Upgrade by re-running `oneehr train`.",
-            file=sys.stderr,
-        )
-        from oneehr.data.io import load_dynamic_table_optional, load_static_table
-        from oneehr.data.patient_index import make_patient_index, make_patient_index_from_static
-        from oneehr.data.splits import make_splits
-
-        train_dataset = cfg0.datasets.train if cfg0.datasets is not None else cfg0.dataset
-        dynamic_raw = load_dynamic_table_optional(train_dataset.dynamic)
-        static_raw = load_static_table(train_dataset.static)
-        if dynamic_raw is not None:
-            patient_index = make_patient_index(dynamic_raw, "event_time", "patient_id")
-        elif static_raw is not None:
-            patient_index = make_patient_index_from_static(static_raw, patient_id_col="patient_id")
-        else:
-            raise SystemExit("Cannot recompute splits: no dynamic or static dataset available.")
-        saved_splits = make_splits(patient_index, cfg0.split)
+    saved_splits = require_saved_splits(split_dir, context="running `oneehr test`")
 
     split_lookup = {sp.name: sp for sp in saved_splits}
 

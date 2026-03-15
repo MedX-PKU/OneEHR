@@ -5,6 +5,7 @@ from __future__ import annotations
 def run_preprocess(cfg_path: str, *, overview: bool, overview_top_k_codes: int) -> None:
     from oneehr.config.load import load_experiment_config
     from oneehr.data.io import load_dynamic_table_optional, load_label_table, load_static_table
+    from oneehr.data.splits import build_splits_for_dataset, save_splits
     from oneehr.artifacts.materialize import materialize_preprocess_artifacts
 
     cfg = load_experiment_config(cfg_path)
@@ -13,6 +14,13 @@ def run_preprocess(cfg_path: str, *, overview: bool, overview_top_k_codes: int) 
     label = load_label_table(cfg.dataset.label)
     out_root = cfg.output.root / cfg.output.run_name
     materialize_preprocess_artifacts(dynamic=dynamic, static=static, label=label, cfg=cfg, out_root=out_root)
+    splits = build_splits_for_dataset(
+        dynamic=dynamic,
+        static=static,
+        split=cfg.split,
+        repeat=cfg.trainer.repeat,
+    )
+    save_splits(splits, out_root / "splits")
     if overview:
         import json
 
