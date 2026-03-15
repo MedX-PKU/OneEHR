@@ -61,7 +61,6 @@ def test_cli_analyze_default_writes_structured_outputs(tmp_path: Path) -> None:
     assert "prediction_audit" in modules
     assert "test_audit" in modules
     assert "interpretability" in modules
-    assert "agent_audit" in modules
 
     assert (analysis_root / "index.json").exists()
     assert not (analysis_root / "index.md").exists()
@@ -72,7 +71,6 @@ def test_cli_analyze_default_writes_structured_outputs(tmp_path: Path) -> None:
     assert (analysis_root / "cohort_analysis" / "feature_drift.csv").exists()
     assert (analysis_root / "test_audit" / "summary.json").exists()
     assert (analysis_root / "temporal_analysis" / "segments.csv").exists()
-    assert (analysis_root / "agent_audit" / "summary.json").exists()
     assert any(path.name.startswith("feature_importance_xgboost_") for path in analysis_root.iterdir())
 
     pred_summary = read_analysis_summary(run_root, "prediction_audit")
@@ -81,8 +79,6 @@ def test_cli_analyze_default_writes_structured_outputs(tmp_path: Path) -> None:
     assert not pred_table.empty
     assert set(pred_table.columns) >= {"model", "split", "error_rate"}
 
-    agent_summary = read_analysis_summary(run_root, "agent_audit")
-    assert agent_summary["status"] == "skipped"
     test_summary = read_analysis_summary(run_root, "test_audit")
     assert test_summary["status"] == "skipped"
     assert index["comparison"] is None

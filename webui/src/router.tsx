@@ -44,19 +44,9 @@ const ModuleDashboardPage = createLazyPage(
   'Loading analysis dashboard',
 )
 
-const CasesPage = createLazyPage(
-  () => import('./routes/CasesPage').then((module) => ({ default: module.CasesPage })),
-  'Loading cases',
-)
-
-const CaseDetailPage = createLazyPage(
-  () => import('./routes/CaseDetailPage').then((module) => ({ default: module.CaseDetailPage })),
-  'Loading case detail',
-)
-
-const AgentsPage = createLazyPage(
-  () => import('./routes/AgentsPage').then((module) => ({ default: module.AgentsPage })),
-  'Loading agents',
+const EvalPage = createLazyPage(
+  () => import('./routes/EvalPage').then((module) => ({ default: module.EvalPage })),
+  'Loading evaluation console',
 )
 
 const ComparisonPage = createLazyPage(
@@ -75,7 +65,7 @@ function RootLayout() {
             OneEHR
           </Link>
           <p className="brand-tagline">
-            Longitudinal EHR observability, analysis, and agent-era model operations.
+            Unified longitudinal EHR evaluation, analysis, and model operations.
           </p>
         </div>
         <nav className="topnav">
@@ -129,22 +119,13 @@ function RunLayout() {
               <span>Overview</span>
             </Link>
             <Link
-              to="/runs/$runName/cases"
+              to="/runs/$runName/eval"
               params={{ runName }}
               activeProps={{ className: 'rail-link active' }}
               className="rail-link"
             >
-              <span>Cases</span>
-              <strong>{run.cases.case_count}</strong>
-            </Link>
-            <Link
-              to="/runs/$runName/agents"
-              params={{ runName }}
-              activeProps={{ className: 'rail-link active' }}
-              className="rail-link"
-            >
-              <span>Agents</span>
-              <strong>{run.agent_predict.record_count + run.agent_review.record_count}</strong>
+              <span>Evaluation</span>
+              <strong>{run.eval.system_count}</strong>
             </Link>
             <Link
               to="/runs/$runName/comparison"
@@ -242,22 +223,10 @@ const moduleRoute = createRoute({
   component: ModuleDashboardPage,
 })
 
-const casesRoute = createRoute({
+const evalRoute = createRoute({
   getParentRoute: () => runRoute,
-  path: 'cases',
-  component: CasesPage,
-})
-
-const caseDetailRoute = createRoute({
-  getParentRoute: () => runRoute,
-  path: 'cases/$caseId',
-  component: CaseDetailPage,
-})
-
-const agentsRoute = createRoute({
-  getParentRoute: () => runRoute,
-  path: 'agents',
-  component: AgentsPage,
+  path: 'eval',
+  component: EvalPage,
 })
 
 const comparisonRoute = createRoute({
@@ -271,9 +240,7 @@ const routeTree = rootRoute.addChildren([
   runRoute.addChildren([
     runOverviewRoute,
     moduleRoute,
-    casesRoute,
-    caseDetailRoute,
-    agentsRoute,
+    evalRoute,
     comparisonRoute,
   ]),
 ])

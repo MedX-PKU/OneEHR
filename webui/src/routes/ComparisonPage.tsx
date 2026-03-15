@@ -215,7 +215,7 @@ export function ComparisonPage() {
           <p className="eyebrow">Comparison</p>
           <h1 className="entity-title identifier-text">{formatIdentifierDisplay(runName)}</h1>
           <p className="hero-copy">
-            Compare saved train, external-test, and agent deltas when they exist, then inspect cohort integrity gaps directly from cohort analysis artifacts.
+            Compare saved train and external-test deltas when they exist, then inspect cohort integrity gaps directly from cohort analysis artifacts.
           </p>
         </div>
       </section>
@@ -257,7 +257,7 @@ export function ComparisonPage() {
             <p className="eyebrow">Compare Run</p>
             <h2>Artifact deltas</h2>
             <p className="panel-copy">
-              Compare-run outputs are optional. When they exist, this section shows saved training, external-test, and agent metric deltas.
+              Compare-run outputs are optional. When they exist, this section shows saved training and external-test metric deltas.
             </p>
           </div>
         </div>

@@ -19,8 +19,8 @@ def write_run_manifest(
 ) -> None:
     """Write a run-level manifest describing data + features for reproducibility.
 
-    This is a v5 schema that captures the run contract for modeling, analysis,
-    cases, and agent workflows in one manifest.
+    This is a v6 schema that captures the run contract for preprocessing,
+    training, testing, analysis, and unified evaluation.
     It is intended as the single source of truth for a training run.
     """
 
@@ -30,7 +30,7 @@ def write_run_manifest(
     st_cols = [] if not static_feature_columns else list(static_feature_columns)
 
     manifest = {
-        "schema_version": 5,
+        "schema_version": 6,
         "dataset": as_jsonable(asdict(cfg.dataset)),
         "task": as_jsonable(asdict(cfg.task)),
         "split": as_jsonable(asdict(cfg.split)),
@@ -48,93 +48,74 @@ def write_run_manifest(
             if static_postprocess_pipeline is None
             else {"schema_version": 1, "pipeline": as_jsonable(list(static_postprocess_pipeline))},
         },
-        "cases": {
-            "include_static": bool(cfg.cases.include_static),
-            "include_analysis_refs": bool(cfg.cases.include_analysis_refs),
-            "history_window": None if cfg.cases.history_window is None else str(cfg.cases.history_window),
-            "max_events": int(cfg.cases.max_events),
-            "time_order": str(cfg.cases.time_order),
-            "case_limit": None if cfg.cases.case_limit is None else int(cfg.cases.case_limit),
-        },
-        "agent": {
-            "predict": {
-                "enabled": bool(cfg.agent.predict.enabled),
-                "sample_unit": str(cfg.agent.predict.sample_unit),
-                "prompt_template": str(cfg.agent.predict.prompt_template),
-                "json_schema_version": int(cfg.agent.predict.json_schema_version),
-                "max_samples": None if cfg.agent.predict.max_samples is None else int(cfg.agent.predict.max_samples),
-                "save_prompts": bool(cfg.agent.predict.save_prompts),
-                "save_responses": bool(cfg.agent.predict.save_responses),
-                "save_parsed": bool(cfg.agent.predict.save_parsed),
-                "concurrency": int(cfg.agent.predict.concurrency),
-                "max_retries": int(cfg.agent.predict.max_retries),
-                "timeout_seconds": float(cfg.agent.predict.timeout_seconds),
-                "temperature": float(cfg.agent.predict.temperature),
-                "top_p": float(cfg.agent.predict.top_p),
-                "seed": None if cfg.agent.predict.seed is None else int(cfg.agent.predict.seed),
-                "prompt": {
-                    "include_static": bool(cfg.agent.predict.prompt.include_static),
-                    "include_labels_context": bool(cfg.agent.predict.prompt.include_labels_context),
-                    "history_window": None if cfg.agent.predict.prompt.history_window is None else str(cfg.agent.predict.prompt.history_window),
-                    "max_events": int(cfg.agent.predict.prompt.max_events),
-                    "time_order": str(cfg.agent.predict.prompt.time_order),
-                    "sections": list(cfg.agent.predict.prompt.sections),
-                },
-                "output": {
-                    "include_explanation": bool(cfg.agent.predict.output.include_explanation),
-                    "include_confidence": bool(cfg.agent.predict.output.include_confidence),
-                },
-                "backends": [
-                    {
-                        "name": str(m.name),
-                        "provider": str(m.provider),
-                        "base_url": str(m.base_url),
-                        "model": str(m.model),
-                        "api_key_env": str(m.api_key_env),
-                        "system_prompt": None if m.system_prompt is None else str(m.system_prompt),
-                        "supports_json_schema": bool(m.supports_json_schema),
-                        "headers": dict(m.headers),
-                    }
-                    for m in cfg.agent.predict.backends
-                ],
-            },
-            "review": {
-                "enabled": bool(cfg.agent.review.enabled),
-                "prompt_template": str(cfg.agent.review.prompt_template),
-                "json_schema_version": int(cfg.agent.review.json_schema_version),
-                "prediction_origins": list(cfg.agent.review.prediction_origins),
-                "max_cases": None if cfg.agent.review.max_cases is None else int(cfg.agent.review.max_cases),
-                "save_prompts": bool(cfg.agent.review.save_prompts),
-                "save_responses": bool(cfg.agent.review.save_responses),
-                "save_parsed": bool(cfg.agent.review.save_parsed),
-                "concurrency": int(cfg.agent.review.concurrency),
-                "max_retries": int(cfg.agent.review.max_retries),
-                "timeout_seconds": float(cfg.agent.review.timeout_seconds),
-                "temperature": float(cfg.agent.review.temperature),
-                "top_p": float(cfg.agent.review.top_p),
-                "seed": None if cfg.agent.review.seed is None else int(cfg.agent.review.seed),
-                "prompt": {
-                    "include_static": bool(cfg.agent.review.prompt.include_static),
-                    "include_ground_truth": bool(cfg.agent.review.prompt.include_ground_truth),
-                    "include_analysis_context": bool(cfg.agent.review.prompt.include_analysis_context),
-                    "max_events": int(cfg.agent.review.prompt.max_events),
-                    "time_order": str(cfg.agent.review.prompt.time_order),
-                    "sections": list(cfg.agent.review.prompt.sections),
-                },
-                "backends": [
-                    {
-                        "name": str(m.name),
-                        "provider": str(m.provider),
-                        "base_url": str(m.base_url),
-                        "model": str(m.model),
-                        "api_key_env": str(m.api_key_env),
-                        "system_prompt": None if m.system_prompt is None else str(m.system_prompt),
-                        "supports_json_schema": bool(m.supports_json_schema),
-                        "headers": dict(m.headers),
-                    }
-                    for m in cfg.agent.review.backends
-                ],
-            },
+        "eval": {
+            "instance_unit": str(cfg.eval.instance_unit),
+            "max_instances": None if cfg.eval.max_instances is None else int(cfg.eval.max_instances),
+            "seed": int(cfg.eval.seed),
+            "include_static": bool(cfg.eval.include_static),
+            "include_analysis_context": bool(cfg.eval.include_analysis_context),
+            "max_events": int(cfg.eval.max_events),
+            "time_order": str(cfg.eval.time_order),
+            "slice_by": list(cfg.eval.slice_by),
+            "primary_metric": None if cfg.eval.primary_metric is None else str(cfg.eval.primary_metric),
+            "bootstrap_samples": int(cfg.eval.bootstrap_samples),
+            "save_evidence": bool(cfg.eval.save_evidence),
+            "save_traces": bool(cfg.eval.save_traces),
+            "text_render_template": str(cfg.eval.text_render_template),
+            "backends": [
+                {
+                    "name": str(m.name),
+                    "provider": str(m.provider),
+                    "base_url": str(m.base_url),
+                    "model": str(m.model),
+                    "api_key_env": str(m.api_key_env),
+                    "system_prompt": None if m.system_prompt is None else str(m.system_prompt),
+                    "supports_json_schema": bool(m.supports_json_schema),
+                    "prompt_token_cost_per_1k": (
+                        None if m.prompt_token_cost_per_1k is None else float(m.prompt_token_cost_per_1k)
+                    ),
+                    "completion_token_cost_per_1k": (
+                        None if m.completion_token_cost_per_1k is None else float(m.completion_token_cost_per_1k)
+                    ),
+                    "headers": dict(m.headers),
+                }
+                for m in cfg.eval.backends
+            ],
+            "systems": [
+                {
+                    "name": str(system.name),
+                    "kind": str(system.kind),
+                    "framework_type": None if system.framework_type is None else str(system.framework_type),
+                    "enabled": bool(system.enabled),
+                    "sample_unit": str(system.sample_unit),
+                    "source_model": None if system.source_model is None else str(system.source_model),
+                    "backend_refs": list(system.backend_refs),
+                    "prompt_template": str(system.prompt_template),
+                    "max_samples": None if system.max_samples is None else int(system.max_samples),
+                    "max_rounds": int(system.max_rounds),
+                    "concurrency": int(system.concurrency),
+                    "max_retries": int(system.max_retries),
+                    "timeout_seconds": float(system.timeout_seconds),
+                    "temperature": float(system.temperature),
+                    "top_p": float(system.top_p),
+                    "seed": None if system.seed is None else int(system.seed),
+                    "framework_params": as_jsonable(dict(system.framework_params)),
+                }
+                for system in cfg.eval.systems
+            ],
+            "suites": [
+                {
+                    "name": str(suite.name),
+                    "splits": list(suite.splits),
+                    "include_systems": list(suite.include_systems),
+                    "primary_metric": None if suite.primary_metric is None else str(suite.primary_metric),
+                    "secondary_metrics": list(suite.secondary_metrics),
+                    "slice_by": list(suite.slice_by),
+                    "min_coverage": float(suite.min_coverage),
+                    "compare_pairs": [list(pair) for pair in suite.compare_pairs],
+                }
+                for suite in cfg.eval.suites
+            ],
         },
         "features": {
             "dynamic": {

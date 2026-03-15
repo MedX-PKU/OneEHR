@@ -48,10 +48,10 @@ def test_query_prompt_registry() -> None:
     assert "summary_v1" in names
 
     desc = _run_json(
-        ["oneehr", "query", "prompts", "describe", "--template", "evidence_review_v1"],
+        ["oneehr", "query", "prompts", "describe", "--template", "summary_v1"],
         cwd=Path.cwd(),
     )
-    assert desc["template"]["family"] == "review"
+    assert desc["template"]["family"] == "prediction"
     assert "output_schema" in desc["template"]["default_sections"]
 
 

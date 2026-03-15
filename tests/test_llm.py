@@ -12,17 +12,10 @@ import pytest
 
 from oneehr.agent.client import OpenAICompatibleAgentClient
 from oneehr.agent.contracts import AgentRequestSpec
-from oneehr.agent.instances import validate_agent_predict_setup
 from oneehr.agent.predict_schema import parse_prediction_response
-from oneehr.agent.render import render_prompt
-from oneehr.agent.templates import describe_prompt_template, list_prompt_templates
+from oneehr.agent.templates import describe_prompt_template, get_prompt_template, list_prompt_templates
 from oneehr.config.load import load_experiment_config
 from oneehr.config.schema import (
-    AgentBackendConfig,
-    AgentConfig,
-    AgentPredictConfig,
-    AgentPredictOutputConfig,
-    AgentPredictPromptConfig,
     DatasetConfig,
     DynamicTableConfig,
     ExperimentConfig,
@@ -32,7 +25,7 @@ from oneehr.config.schema import (
 )
 
 
-def test_load_config_with_agent_predict_sections(tmp_path: Path) -> None:
+def test_load_config_rejects_legacy_agent_sections(tmp_path: Path) -> None:
     cfg_path = tmp_path / "exp.toml"
     cfg_path.write_text(
         "\n".join(
@@ -49,54 +42,23 @@ def test_load_config_with_agent_predict_sections(tmp_path: Path) -> None:
                 "",
                 "[agent.predict]",
                 "enabled = true",
-                'sample_unit = "patient"',
-                'prompt_template = "summary_v1"',
-                "concurrency = 2",
-                "",
-                "[agent.predict.prompt]",
-                "max_events = 25",
-                'time_order = "desc"',
-                "",
-                "[agent.predict.output]",
-                "include_explanation = true",
-                "",
-                "[[agent.predict.backends]]",
-                'name = "mock"',
-                'provider = "openai_compatible"',
-                'base_url = "http://127.0.0.1:9999/v1"',
-                'model = "mock-model"',
-                'api_key_env = "TEST_OPENAI_API_KEY"',
-                "",
             ]
         ),
         encoding="utf-8",
     )
 
-    cfg = load_experiment_config(cfg_path)
-    assert cfg.agent.predict.enabled is True
-    assert cfg.agent.predict.concurrency == 2
-    assert cfg.agent.predict.prompt.max_events == 25
-    assert cfg.agent.predict.prompt.time_order == "desc"
-    assert len(cfg.agent.predict.backends) == 1
-    assert cfg.model is None
-    assert cfg.agent.predict.backends[0].base_url == "http://127.0.0.1:9999/v1"
-    validate_agent_predict_setup(cfg)
-    with pytest.raises(ValueError, match="training"):
-        cfg.require_model(context="training")
+    with pytest.raises(ValueError, match="Legacy config sections are no longer supported"):
+        load_experiment_config(cfg_path)
 
 
 def test_prompt_template_registry() -> None:
     templates = list_prompt_templates()
     names = {item["name"] for item in templates}
-    assert {"summary_v1", "evidence_review_v1"} <= names
+    assert names == {"summary_v1"}
 
     summary = describe_prompt_template("summary_v1")
     assert summary["family"] == "prediction"
     assert "prediction_task" in summary["default_sections"]
-
-    review = describe_prompt_template("evidence_review_v1")
-    assert review["family"] == "review"
-    assert review["allow_labels_context"] is True
 
 
 def test_parse_prediction_response_binary_and_regression() -> None:
@@ -136,15 +98,6 @@ def test_render_prompt_time_excludes_future_events() -> None:
         task=TaskConfig(kind="binary", prediction_mode="time"),
         split=SplitConfig(kind="random"),
         model=ModelConfig(name="xgboost"),
-        agent=AgentConfig(
-            predict=AgentPredictConfig(
-                enabled=True,
-                sample_unit="time",
-                prompt=AgentPredictPromptConfig(max_events=10),
-                output=AgentPredictOutputConfig(include_explanation=True),
-                backends=[AgentBackendConfig(name="mock", model="mock-model")],
-            )
-        ),
     )
     dynamic = pd.DataFrame(
         [
@@ -154,7 +107,9 @@ def test_render_prompt_time_excludes_future_events() -> None:
     )
     dynamic["event_time"] = pd.to_datetime(dynamic["event_time"])
 
-    prompt = render_prompt(
+    spec = get_prompt_template("summary_v1")
+    assert spec.renderer is not None
+    prompt = spec.renderer(
         cfg=cfg,
         instance={
             "instance_id": "time0:p1:2020-01-02T00:00:00",

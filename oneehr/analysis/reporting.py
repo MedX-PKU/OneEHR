@@ -31,7 +31,6 @@ SUPPORTED_MODULES = (
     "test_audit",
     "temporal_analysis",
     "interpretability",
-    "agent_audit",
 )
 
 
@@ -64,7 +63,6 @@ class AnalysisContext:
     splits: list[Any]
     train_summary_records: list[dict[str, Any]]
     test_summary_records: list[dict[str, Any]]
-    agent_predict_summary_records: list[dict[str, Any]]
 
 
 def available_modules() -> tuple[str, ...]:
@@ -129,9 +127,6 @@ def load_analysis_context(*, cfg, run_root: Path, manifest) -> AnalysisContext:
         splits=load_splits(run_root / "splits"),
         train_summary_records=_read_summary_records(run_root / "summary.json"),
         test_summary_records=_read_summary_records(run_root / "test_runs" / "test_summary.json"),
-        agent_predict_summary_records=_read_summary_records(
-            run_root / "agent" / "predict" / "summary.json"
-        ),
     )
 
 
@@ -156,7 +151,6 @@ def run_analysis_suite(
         "test_audit": _module_test_audit,
         "temporal_analysis": _module_temporal_analysis,
         "interpretability": _module_interpretability,
-        "agent_audit": _module_agent_audit,
     }
     for name in modules:
         result = module_map[name](
@@ -715,127 +709,6 @@ def _module_interpretability(
         legacy_paths=legacy_paths,
     )
 
-
-def _module_agent_audit(
-    *,
-    ctx: AnalysisContext,
-    analysis_root: Path,
-    case_limit: int,
-    method: str | None,
-    save_plot_specs: bool,
-) -> AnalysisModuleResult:
-    del method
-    module_dir = ensure_dir(analysis_root / "agent_audit")
-    agent_predict_root = ctx.run_root / "agent" / "predict"
-    if not agent_predict_root.exists() or not ctx.agent_predict_summary_records:
-        summary = {
-            "schema_version": ANALYSIS_SCHEMA_VERSION,
-            "module": "agent_audit",
-            "status": "skipped",
-            "reason": "no_agent_predict_artifacts",
-        }
-        return _write_module_artifacts(
-            run_root=ctx.run_root,
-            module_dir=module_dir,
-            module_name="agent_audit",
-            summary=summary,
-            tables={},
-            plot_specs={},
-            case_tables={},
-            save_plot_specs=save_plot_specs,
-            legacy_paths=[],
-        )
-
-    summary_rows: list[dict[str, Any]] = []
-    failure_rows: list[dict[str, Any]] = []
-    case_tables: dict[str, pd.DataFrame] = {}
-    for rec in ctx.agent_predict_summary_records:
-        predictor_name = str(rec.get("predictor_name"))
-        split_name = str(rec.get("split"))
-        pred_rel = (((rec.get("artifacts") or {}).get("preds_parquet")) or None)
-        if not isinstance(pred_rel, str):
-            continue
-        pred_path = ctx.run_root / pred_rel
-        if not pred_path.exists():
-            continue
-        preds = pd.read_parquet(pred_path).copy()
-        if preds.empty:
-            continue
-        parsed_rate = float(rec.get("parse_success_rate", 0.0) or 0.0)
-        coverage = float(rec.get("coverage", 0.0) or 0.0)
-        summary_rows.append(
-            {
-                "predictor_name": predictor_name,
-                "split": split_name,
-                "parse_success_rate": parsed_rate,
-                "coverage": coverage,
-                "avg_latency_ms": float(pd.to_numeric(preds.get("latency_ms"), errors="coerce").mean()),
-                "total_prompt_tokens": int(pd.to_numeric(preds.get("token_usage_prompt"), errors="coerce").fillna(0).sum()),
-                "total_completion_tokens": int(pd.to_numeric(preds.get("token_usage_completion"), errors="coerce").fillna(0).sum()),
-                "total_tokens": int(pd.to_numeric(preds.get("token_usage_total"), errors="coerce").fillna(0).sum()),
-                **{f"metric_{k}": v for k, v in (rec.get("metrics") or {}).items()},
-            }
-        )
-        fail_df = preds[preds["parsed_ok"] == False].copy()  # noqa: E712
-        if not fail_df.empty:
-            counts = fail_df["error_code"].fillna("unknown").value_counts()
-            case_tables[f"{predictor_name}_{split_name}"] = (
-                fail_df.sort_values("latency_ms", ascending=False, kind="stable")
-                .head(case_limit)
-                .reset_index(drop=True)
-            )
-            for code, count in counts.items():
-                failure_rows.append(
-                    {
-                        "predictor_name": predictor_name,
-                        "split": split_name,
-                        "error_code": code,
-                        "count": int(count),
-                    }
-                )
-
-    summary_df = pd.DataFrame(summary_rows)
-    failure_df = pd.DataFrame(failure_rows)
-    tables = {
-        "slices": summary_df,
-        "failures": failure_df,
-    }
-    plots: dict[str, dict[str, Any]] = {}
-    if not summary_df.empty:
-        plots["parse_success_rate"] = _grouped_bar_plot_spec(
-            title="Agent Parse Success Rate",
-            rows=summary_df.to_dict(orient="records"),
-            x_key="split",
-            y_key="parse_success_rate",
-            group_key="predictor_name",
-        )
-        plots["token_usage"] = _grouped_bar_plot_spec(
-            title="Agent Token Usage",
-            rows=summary_df.to_dict(orient="records"),
-            x_key="split",
-            y_key="total_tokens",
-            group_key="predictor_name",
-        )
-    summary = {
-        "schema_version": ANALYSIS_SCHEMA_VERSION,
-        "module": "agent_audit",
-        "status": "ok",
-        "n_slices": int(len(summary_df)),
-        "n_failure_buckets": int(len(failure_df)),
-    }
-    return _write_module_artifacts(
-        run_root=ctx.run_root,
-        module_dir=module_dir,
-        module_name="agent_audit",
-        summary=summary,
-        tables=tables,
-        plot_specs=plots,
-        case_tables=case_tables,
-        save_plot_specs=save_plot_specs,
-        legacy_paths=[],
-    )
-
-
 def _write_module_artifacts(
     *,
     run_root: Path,
@@ -908,13 +781,6 @@ def _write_run_comparison(
     )
     if not train_delta.empty:
         train_delta.to_csv(comparison_dir / "train_metrics.csv", index=False)
-    agent_predict_delta = _compare_summary_records(
-        current_records=_read_summary_records(current_run_root / "agent" / "predict" / "summary.json"),
-        other_records=_read_summary_records(compare_run_root / "agent" / "predict" / "summary.json"),
-        model_key="predictor_name",
-    )
-    if not agent_predict_delta.empty:
-        agent_predict_delta.to_csv(comparison_dir / "agent_predict_metrics.csv", index=False)
     test_delta = _compare_summary_records(
         current_records=_read_summary_records(current_run_root / "test_runs" / "test_summary.json"),
         other_records=_read_summary_records(compare_run_root / "test_runs" / "test_summary.json"),
@@ -929,7 +795,6 @@ def _write_run_comparison(
         "compare_run_root": str(compare_run_root),
         "task": current_task,
         "train_delta_rows": int(len(train_delta)),
-        "agent_predict_delta_rows": int(len(agent_predict_delta)),
         "test_delta_rows": int(len(test_delta)),
     }
     write_json(comparison_dir / "summary.json", summary)
@@ -939,11 +804,6 @@ def _write_run_comparison(
             None
             if train_delta.empty
             else str((comparison_dir / "train_metrics.csv").relative_to(current_run_root))
-        ),
-        "agent_predict_metrics_path": (
-            None
-            if agent_predict_delta.empty
-            else str((comparison_dir / "agent_predict_metrics.csv").relative_to(current_run_root))
         ),
         "test_metrics_path": (
             None

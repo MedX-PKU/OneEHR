@@ -1,23 +1,22 @@
 import type {
-  AgentRowsPayload,
-  AgentTaskPayload,
   AnalysisModuleMeta,
-  AgentsPayload,
-  RunConsolePayload,
-  RunDetail,
-  CaseDetailPayload,
-  CasesIndexPayload,
+  CohortComparison,
+  ComparisonPayload,
   DashboardCard,
   DashboardChart,
   DashboardTable,
-  TablePage,
-  FailureCasePage,
-  ComparisonPayload,
-  CohortComparison,
+  EvalIndexRecord,
+  EvalInstancePayload,
+  EvalPayload,
+  EvalSystemSummary,
   FailureCaseArtifact,
+  FailureCasePage,
   ModuleDashboard,
   PatientCasePayload,
+  RunConsolePayload,
+  RunDetail,
   RunRecord,
+  TablePage,
   TestBestModel,
   TestingSummary,
 } from './types'
@@ -140,11 +139,15 @@ function normalizeRunRecord(run: unknown): RunRecord {
     has_train_summary: Boolean(record.has_train_summary),
     has_test_summary: hasTestSummary,
     has_analysis_index: Boolean(record.has_analysis_index),
-    has_cases_index: Boolean(record.has_cases_index),
-    has_agent_predict_summary: Boolean(record.has_agent_predict_summary),
-    has_agent_review_summary: Boolean(record.has_agent_review_summary),
+    has_eval_index: Boolean(record.has_eval_index),
+    has_eval_summary: Boolean(record.has_eval_summary),
+    has_eval_report_summary: Boolean(record.has_eval_report_summary),
+    analysis_status: typeof record.analysis_status === 'string' ? record.analysis_status : undefined,
     testing_status:
       typeof record.testing_status === 'string' ? record.testing_status : hasTestSummary ? 'ready' : 'pending',
+    eval_status: typeof record.eval_status === 'string' ? record.eval_status : undefined,
+    task_label: typeof record.task_label === 'string' ? record.task_label : undefined,
+    route: typeof record.route === 'string' ? record.route : undefined,
     testing,
     mtime_unix: record.mtime_unix == null ? undefined : asNumber(record.mtime_unix, 0),
   }
@@ -160,8 +163,6 @@ function normalizeRunDetail(run: unknown): RunDetail {
       schema_version: asNumber(asObject(record.manifest).schema_version, 0),
       task: asObject(asObject(record.manifest).task),
       split: asObject(asObject(record.manifest).split),
-      cases: asObject(asObject(record.manifest).cases),
-      agent: asObject(asObject(record.manifest).agent),
     },
     training: {
       record_count: asNumber(asObject(record.training).record_count, 0),
@@ -177,24 +178,18 @@ function normalizeRunDetail(run: unknown): RunDetail {
       index_path:
         typeof asObject(record.analysis).index_path === 'string' ? String(asObject(record.analysis).index_path) : null,
     },
-    cases: {
-      case_count: asNumber(asObject(record.cases).case_count, 0),
-      index_path: typeof asObject(record.cases).index_path === 'string' ? String(asObject(record.cases).index_path) : null,
-    },
-    agent_predict: {
-      record_count: asNumber(asObject(record.agent_predict).record_count, 0),
-      predictors: asStringArray(asObject(record.agent_predict).predictors),
+    eval: {
+      instance_count: asNumber(asObject(record.eval).instance_count, 0),
+      system_count: asNumber(asObject(record.eval).system_count, 0),
+      leaderboard_rows: asNumber(asObject(record.eval).leaderboard_rows, 0),
+      primary_metric:
+        typeof asObject(record.eval).primary_metric === 'string' ? String(asObject(record.eval).primary_metric) : null,
+      index_path: typeof asObject(record.eval).index_path === 'string' ? String(asObject(record.eval).index_path) : null,
       summary_path:
-        typeof asObject(record.agent_predict).summary_path === 'string'
-          ? String(asObject(record.agent_predict).summary_path)
-          : null,
-    },
-    agent_review: {
-      record_count: asNumber(asObject(record.agent_review).record_count, 0),
-      reviewers: asStringArray(asObject(record.agent_review).reviewers),
-      summary_path:
-        typeof asObject(record.agent_review).summary_path === 'string'
-          ? String(asObject(record.agent_review).summary_path)
+        typeof asObject(record.eval).summary_path === 'string' ? String(asObject(record.eval).summary_path) : null,
+      report_summary_path:
+        typeof asObject(record.eval).report_summary_path === 'string'
+          ? String(asObject(record.eval).report_summary_path)
           : null,
     },
     artifacts: asObject(record.artifacts) as Record<string, boolean>,
@@ -225,9 +220,8 @@ function normalizeRunConsole(payload: unknown): RunConsolePayload {
       test_model_count: asNumber(asObject(record.hero).test_model_count, run.testing.models.length),
       test_record_count: asNumber(asObject(record.hero).test_record_count, run.testing.record_count),
       analysis_module_count: asNumber(asObject(record.hero).analysis_module_count, analysisModules.length),
-      case_count: asNumber(asObject(record.hero).case_count, run.cases.case_count),
-      agent_predict_record_count: asNumber(asObject(record.hero).agent_predict_record_count, run.agent_predict.record_count),
-      agent_review_record_count: asNumber(asObject(record.hero).agent_review_record_count, run.agent_review.record_count),
+      eval_instance_count: asNumber(asObject(record.hero).eval_instance_count, run.eval.instance_count),
+      eval_system_count: asNumber(asObject(record.hero).eval_system_count, run.eval.system_count),
     },
     analysis: {
       run_name: typeof analysisRecord.run_name === 'string' ? analysisRecord.run_name : run.run_name,
@@ -241,29 +235,16 @@ function normalizeRunConsole(payload: unknown): RunConsolePayload {
         typeof asObject(record.navigation).overview_route === 'string'
           ? String(asObject(record.navigation).overview_route)
           : `/runs/${encodeURIComponent(run.run_name)}`,
-      cases_route:
-        typeof asObject(record.navigation).cases_route === 'string'
-          ? String(asObject(record.navigation).cases_route)
-          : `/runs/${encodeURIComponent(run.run_name)}/cases`,
-      agents_route:
-        typeof asObject(record.navigation).agents_route === 'string'
-          ? String(asObject(record.navigation).agents_route)
-          : `/runs/${encodeURIComponent(run.run_name)}/agents`,
+      eval_route:
+        typeof asObject(record.navigation).eval_route === 'string'
+          ? String(asObject(record.navigation).eval_route)
+          : `/runs/${encodeURIComponent(run.run_name)}/eval`,
       comparison_route:
         typeof asObject(record.navigation).comparison_route === 'string'
           ? String(asObject(record.navigation).comparison_route)
           : `/runs/${encodeURIComponent(run.run_name)}/comparison`,
     },
   }
-}
-
-export async function fetchRuns(): Promise<RunRecord[]> {
-  const payload = await request<{ runs: RunRecord[] }>('/runs')
-  return (payload.runs ?? []).map(normalizeRunRecord)
-}
-
-export async function fetchRunConsole(runName: string): Promise<RunConsolePayload> {
-  return normalizeRunConsole(await request<RunConsolePayload>(`/runs/${encodeURIComponent(runName)}`))
 }
 
 interface RawKpiCard {
@@ -305,14 +286,6 @@ interface RawDashboard {
   }
 }
 
-interface RawTablePayload {
-  name: string
-  title: string
-  row_count: number
-  columns: Array<{ name: string }>
-  preview: Array<Record<string, unknown>>
-}
-
 function mapCards(cards: RawKpiCard[]): DashboardCard[] {
   return cards.map((card) => ({
     key: card.id,
@@ -339,7 +312,15 @@ function mapCharts(
   }))
 }
 
-function mapTables(tables: RawDashboard['tables']): DashboardTable[] {
+function mapTables(
+  tables: Array<{
+    name: string
+    title: string
+    row_count: number
+    columns: Array<{ name: string }>
+    preview: Array<Record<string, unknown>>
+  }>,
+): DashboardTable[] {
   return tables.map((table) => ({
     key: table.name,
     title: table.title,
@@ -348,20 +329,6 @@ function mapTables(tables: RawDashboard['tables']): DashboardTable[] {
     columns: table.columns.map((column) => column.name),
     records: table.preview,
   }))
-}
-
-function mapTablePayload(table: RawTablePayload | null | undefined): DashboardTable | null {
-  if (!table) {
-    return null
-  }
-  return {
-    key: table.name,
-    title: table.title,
-    description: `${table.row_count} rows`,
-    row_count: table.row_count,
-    columns: table.columns.map((column) => column.name),
-    records: table.preview,
-  }
 }
 
 function mapTablePagePayload(payload: {
@@ -386,10 +353,48 @@ function mapTablePagePayload(payload: {
   }
 }
 
-export async function fetchModuleDashboard(
-  runName: string,
-  moduleName: string,
-): Promise<ModuleDashboard> {
+function normalizeEvalIndexRecord(value: unknown): EvalIndexRecord {
+  const record = asObject(value)
+  return {
+    instance_id: typeof record.instance_id === 'string' ? record.instance_id : 'unknown',
+    patient_id: typeof record.patient_id === 'string' ? record.patient_id : 'unknown',
+    split: typeof record.split === 'string' ? record.split : 'unknown',
+    split_role: typeof record.split_role === 'string' ? record.split_role : null,
+    prediction_mode: typeof record.prediction_mode === 'string' ? record.prediction_mode : null,
+    bin_time: typeof record.bin_time === 'string' ? record.bin_time : null,
+    ground_truth: record.ground_truth,
+    event_count: record.event_count == null ? undefined : asNumber(record.event_count, 0),
+    static_feature_count:
+      record.static_feature_count == null ? undefined : asNumber(record.static_feature_count, 0),
+    evidence_path: typeof record.evidence_path === 'string' ? record.evidence_path : null,
+  }
+}
+
+function normalizeEvalSystemSummary(value: unknown): EvalSystemSummary {
+  const record = asObject(value)
+  return {
+    system_name: typeof record.system_name === 'string' ? record.system_name : 'unknown',
+    system_kind: typeof record.system_kind === 'string' ? record.system_kind : null,
+    framework_type: typeof record.framework_type === 'string' ? record.framework_type : null,
+    row_count: asNumber(record.row_count, 0),
+    parsed_ok_rows: asNumber(record.parsed_ok_rows, 0),
+    coverage: asNumber(record.coverage, 0),
+    mean_latency_ms: record.mean_latency_ms == null ? null : asNumber(record.mean_latency_ms, 0),
+    total_tokens: record.total_tokens == null ? null : asNumber(record.total_tokens, 0),
+    total_cost_usd: record.total_cost_usd == null ? null : asNumber(record.total_cost_usd, 0),
+  }
+}
+
+export async function fetchRuns(): Promise<RunRecord[]> {
+  const payload = await request<{ runs: RunRecord[] }>('/runs')
+  return (payload.runs ?? []).map(normalizeRunRecord)
+}
+
+export async function fetchRunConsole(runName: string): Promise<RunConsolePayload> {
+  return normalizeRunConsole(await request<RunConsolePayload>(`/runs/${encodeURIComponent(runName)}`))
+}
+
+export async function fetchModuleDashboard(runName: string, moduleName: string): Promise<ModuleDashboard> {
   const payload = await request<RawDashboard>(
     `/runs/${encodeURIComponent(runName)}/analysis/${encodeURIComponent(moduleName)}/dashboard`,
   )
@@ -491,10 +496,7 @@ export async function fetchFailureCaseRows(
   }
 }
 
-export async function fetchCaseArtifacts(
-  runName: string,
-  moduleName: string,
-): Promise<FailureCaseArtifact[]> {
+export async function fetchCaseArtifacts(runName: string, moduleName: string): Promise<FailureCaseArtifact[]> {
   const payload = await request<{ case_artifacts: FailureCaseArtifact[] }>(
     `/runs/${encodeURIComponent(runName)}/analysis/${encodeURIComponent(moduleName)}/cases`,
   )
@@ -539,10 +541,7 @@ export async function fetchComparison(runName: string): Promise<ComparisonPayloa
     payload.summary == null
       ? []
       : Object.entries(payload.summary)
-          .filter((entry): entry is [string, number] => {
-            const value = entry[1]
-            return typeof value === 'number'
-          })
+          .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
           .map(([key, value]) => ({
             key,
             title: key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
@@ -617,288 +616,127 @@ export async function fetchCohortComparison(
     right_role: options.rightRole ?? 'test',
     top_k: options.topK ?? 10,
   })
-  const payload = await request<{
-    run_name: string
-    comparison: {
-      split: string
-      left_role: string
-      right_role: string
-      left: Record<string, unknown>
-      right: Record<string, unknown>
-      deltas: Record<string, number | null>
-      feature_drift_available: boolean
-      top_feature_drift: Array<Record<string, unknown>>
-    }
-  }>(`/runs/${encodeURIComponent(runName)}/cohorts/compare${query}`)
+  const payload = await request<{ comparison: CohortComparison }>(
+    `/runs/${encodeURIComponent(runName)}/cohorts/compare${query}`,
+  )
   return payload.comparison
 }
 
-export async function fetchCasesIndex(
+export async function fetchEval(runName: string): Promise<EvalPayload> {
+  const payload = await request<{
+    run_name: string
+    status: string
+    index: Record<string, unknown> | null
+    systems: Record<string, unknown> | null
+    report: Record<string, unknown> | null
+    tables: Array<{
+      name: string
+      title: string
+      row_count: number
+      columns: Array<{ name: string }>
+      preview: Array<Record<string, unknown>>
+    }>
+    highlights: Array<{ title: string; body: string }>
+  }>(`/runs/${encodeURIComponent(runName)}/eval`)
+
+  const index = payload.index == null ? null : {
+    instance_count: asNumber(asObject(payload.index).instance_count, 0),
+    records: Array.isArray(asObject(payload.index).records)
+      ? (asObject(payload.index).records as unknown[]).map(normalizeEvalIndexRecord)
+      : [],
+  }
+  const systems = payload.systems == null ? null : {
+    records: Array.isArray(asObject(payload.systems).records)
+      ? (asObject(payload.systems).records as unknown[]).map(normalizeEvalSystemSummary)
+      : [],
+  }
+  const report = payload.report == null ? null : {
+    primary_metric:
+      typeof asObject(payload.report).primary_metric === 'string'
+        ? String(asObject(payload.report).primary_metric)
+        : null,
+    leaderboard_rows: asNumber(asObject(payload.report).leaderboard_rows, 0),
+    pairwise_rows: asNumber(asObject(payload.report).pairwise_rows, 0),
+  }
+
+  return {
+    run_name: payload.run_name,
+    status: payload.status,
+    index,
+    systems,
+    report,
+    tables: mapTables(payload.tables ?? []),
+    highlights: (payload.highlights ?? []).map((item) => `${item.title}: ${item.body}`),
+  }
+}
+
+export async function fetchEvalTable(
   runName: string,
+  tableName: string,
   options: {
-    split?: string | null
-    search?: string | null
     limit?: number
     offset?: number
+    sortBy?: string | null
+    sortDir?: 'asc' | 'desc'
+    filterCol?: string | null
+    filterValue?: string | null
   } = {},
-): Promise<CasesIndexPayload> {
+): Promise<TablePage> {
   const query = buildQueryString({
-    split: options.split,
-    search: options.search,
     limit: options.limit ?? 25,
     offset: options.offset ?? 0,
+    sort_by: options.sortBy,
+    sort_dir: options.sortDir ?? 'desc',
+    filter_col: options.filterCol,
+    filter_value: options.filterValue,
   })
   const payload = await request<{
-    run_name: string
-    status: string
-    case_count: number
+    table: string
+    title: string
     offset: number
     limit: number
     row_count: number
     total_rows: number
-    splits: string[]
     columns: Array<{ name: string }>
     records: Array<Record<string, unknown>>
-  }>(`/runs/${encodeURIComponent(runName)}/cases${query}`)
-
-  return {
-    run_name: payload.run_name,
-    status: payload.status,
-    case_count: payload.case_count,
-    offset: payload.offset,
-    limit: payload.limit,
-    row_count: payload.row_count,
-    total_rows: payload.total_rows,
-    splits: payload.splits,
-    columns: payload.columns.map((column) => column.name),
-    records: payload.records,
-  }
+  }>(`/runs/${encodeURIComponent(runName)}/eval/tables/${encodeURIComponent(tableName)}${query}`)
+  return mapTablePagePayload(payload)
 }
 
-export async function fetchCaseDetail(runName: string, caseId: string): Promise<CaseDetailPayload> {
-  const payload = await request<{
-    run_name: string
-    case: Record<string, unknown>
-    timeline: RawTablePayload
-    predictions: RawTablePayload
-    static: {
-      feature_count: number
-      table: RawTablePayload
-    }
-    analysis_refs: {
-      module_count: number
-      patient_case_match_count: number
-      modules: RawTablePayload
-      patient_case_matches: RawTablePayload
-    }
-  }>(`/runs/${encodeURIComponent(runName)}/cases/${encodeURIComponent(caseId)}`)
-
-  return {
-    run_name: payload.run_name,
-    case: payload.case,
-    timeline: mapTablePayload(payload.timeline) ?? {
-      key: 'timeline',
-      title: 'Case Timeline',
-      row_count: 0,
-      columns: [],
-      records: [],
-    },
-    predictions: mapTablePayload(payload.predictions) ?? {
-      key: 'predictions',
-      title: 'Case Predictions',
-      row_count: 0,
-      columns: [],
-      records: [],
-    },
-    static: {
-      feature_count: payload.static.feature_count,
-      table: mapTablePayload(payload.static.table) ?? {
-        key: 'static_features',
-        title: 'Static Features',
-        row_count: 0,
-        columns: [],
-        records: [],
-      },
-    },
-    analysis_refs: {
-      module_count: payload.analysis_refs.module_count,
-      patient_case_match_count: payload.analysis_refs.patient_case_match_count,
-      modules: mapTablePayload(payload.analysis_refs.modules) ?? {
-        key: 'analysis_modules',
-        title: 'Analysis References',
-        row_count: 0,
-        columns: [],
-        records: [],
-      },
-      patient_case_matches: mapTablePayload(payload.analysis_refs.patient_case_matches) ?? {
-        key: 'patient_case_matches',
-        title: 'Patient Case Matches',
-        row_count: 0,
-        columns: [],
-        records: [],
-      },
-    },
-  }
+export async function fetchEvalInstance(runName: string, instanceId: string): Promise<EvalInstancePayload> {
+  const payload = await request<{ instance: EvalInstancePayload }>(
+    `/runs/${encodeURIComponent(runName)}/eval/instances/${encodeURIComponent(instanceId)}`,
+  )
+  return payload.instance
 }
 
-function mapAgentTaskPayload(task: {
-  status: string
-  summary: Record<string, unknown> | null
-  cards: RawKpiCard[]
-  table: RawTablePayload | null
-  actors: string[]
-  splits: string[]
-  detail_available: boolean
-}): AgentTaskPayload {
-  return {
-    status: task.status,
-    summary: task.summary,
-    cards: mapCards(task.cards),
-    table: mapTablePayload(task.table),
-    actors: task.actors,
-    splits: task.splits,
-    detail_available: task.detail_available,
-  }
-}
-
-function mapAgentRowsPayload(payload: {
-  run_name: string
-  task_name: string
-  kind: string
-  status: string
-  actors: string[]
-  splits: string[]
-  detail_available: boolean
-  offset: number
-  limit: number
-  row_count: number
-  total_rows: number
-  columns: Array<{ name: string }>
-  records: Array<Record<string, unknown>>
-}): AgentRowsPayload {
-  return {
-    run_name: payload.run_name,
-    task_name: payload.task_name,
-    kind: payload.kind,
-    status: payload.status,
-    actors: payload.actors,
-    splits: payload.splits,
-    detail_available: payload.detail_available,
-    offset: payload.offset,
-    limit: payload.limit,
-    row_count: payload.row_count,
-    total_rows: payload.total_rows,
-    table: {
-      key: `agent_${payload.task_name}_${payload.kind}`,
-      title: payload.kind === 'failures' ? 'Failure Rows' : 'Detailed Rows',
-      description: `${payload.row_count} of ${payload.total_rows} rows`,
-      row_count: payload.total_rows,
-      columns: payload.columns.map((column) => column.name),
-      records: payload.records,
-    },
-  }
-}
-
-export async function fetchAgents(runName: string): Promise<AgentsPayload> {
-  const payload = await request<{
-    run_name: string
-    predict: {
-      status: string
-      summary: Record<string, unknown> | null
-      cards: RawKpiCard[]
-      table: RawTablePayload | null
-      actors: string[]
-      splits: string[]
-      detail_available: boolean
-    }
-    review: {
-      status: string
-      summary: Record<string, unknown> | null
-      cards: RawKpiCard[]
-      table: RawTablePayload | null
-      actors: string[]
-      splits: string[]
-      detail_available: boolean
-    }
-  }>(`/runs/${encodeURIComponent(runName)}/agents`)
-
-  return {
-    run_name: payload.run_name,
-    predict: mapAgentTaskPayload(payload.predict),
-    review: mapAgentTaskPayload(payload.review),
-  }
-}
-
-export async function fetchAgentTaskRecords(
+export async function fetchEvalTrace(
   runName: string,
-  taskName: string,
+  systemName: string,
   options: {
-    actor?: string | null
-    split?: string | null
-    parsedOk?: boolean | null
-    search?: string | null
     limit?: number
     offset?: number
+    stage?: string | null
+    role?: string | null
+    roundIndex?: number | null
   } = {},
-): Promise<AgentRowsPayload> {
+): Promise<TablePage> {
   const query = buildQueryString({
-    actor: options.actor,
-    split: options.split,
-    parsed_ok: options.parsedOk,
-    search: options.search,
-    limit: options.limit ?? 100,
+    limit: options.limit ?? 25,
     offset: options.offset ?? 0,
+    stage: options.stage,
+    role: options.role,
+    round_index: options.roundIndex,
   })
   const payload = await request<{
-    run_name: string
-    task_name: string
-    kind: string
-    status: string
-    actors: string[]
-    splits: string[]
-    detail_available: boolean
+    table: string
+    title: string
     offset: number
     limit: number
     row_count: number
     total_rows: number
     columns: Array<{ name: string }>
     records: Array<Record<string, unknown>>
-  }>(`/runs/${encodeURIComponent(runName)}/agents/${encodeURIComponent(taskName)}/records${query}`)
-  return mapAgentRowsPayload(payload)
-}
-
-export async function fetchAgentTaskFailures(
-  runName: string,
-  taskName: string,
-  options: {
-    actor?: string | null
-    split?: string | null
-    search?: string | null
-    limit?: number
-    offset?: number
-  } = {},
-): Promise<AgentRowsPayload> {
-  const query = buildQueryString({
-    actor: options.actor,
-    split: options.split,
-    search: options.search,
-    limit: options.limit ?? 100,
-    offset: options.offset ?? 0,
-  })
-  const payload = await request<{
-    run_name: string
-    task_name: string
-    kind: string
-    status: string
-    actors: string[]
-    splits: string[]
-    detail_available: boolean
-    offset: number
-    limit: number
-    row_count: number
-    total_rows: number
-    columns: Array<{ name: string }>
-    records: Array<Record<string, unknown>>
-  }>(`/runs/${encodeURIComponent(runName)}/agents/${encodeURIComponent(taskName)}/failures${query}`)
-  return mapAgentRowsPayload(payload)
+  }>(`/runs/${encodeURIComponent(runName)}/eval/traces/${encodeURIComponent(systemName)}${query}`)
+  return mapTablePagePayload(payload)
 }

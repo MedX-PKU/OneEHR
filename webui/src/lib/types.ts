@@ -30,10 +30,14 @@ export interface RunRecord {
   has_train_summary?: boolean
   has_test_summary?: boolean
   has_analysis_index?: boolean
-  has_cases_index?: boolean
-  has_agent_predict_summary?: boolean
-  has_agent_review_summary?: boolean
+  has_eval_index?: boolean
+  has_eval_summary?: boolean
+  has_eval_report_summary?: boolean
+  analysis_status?: string
   testing_status?: string
+  eval_status?: string
+  task_label?: string
+  route?: string
   testing?: TestingSummary
   mtime_unix?: number
 }
@@ -57,8 +61,6 @@ export interface RunDetail {
     schema_version: number
     task?: Record<string, unknown>
     split?: Record<string, unknown>
-    cases?: Record<string, unknown>
-    agent?: Record<string, unknown>
   }
   training: {
     record_count: number
@@ -72,19 +74,14 @@ export interface RunDetail {
     modules: AnalysisModuleMeta[]
     index_path?: string | null
   }
-  cases: {
-    case_count: number
+  eval: {
+    instance_count: number
+    system_count: number
+    leaderboard_rows: number
+    primary_metric?: string | null
     index_path?: string | null
-  }
-  agent_predict: {
-    record_count: number
-    predictors: string[]
     summary_path?: string | null
-  }
-  agent_review: {
-    record_count: number
-    reviewers: string[]
-    summary_path?: string | null
+    report_summary_path?: string | null
   }
   artifacts: Record<string, boolean>
 }
@@ -98,9 +95,8 @@ export interface RunConsolePayload {
     test_model_count: number
     test_record_count: number
     analysis_module_count: number
-    case_count: number
-    agent_predict_record_count: number
-    agent_review_record_count: number
+    eval_instance_count: number
+    eval_system_count: number
   }
   analysis: {
     run_name: string
@@ -111,8 +107,7 @@ export interface RunConsolePayload {
   }
   navigation: {
     overview_route: string
-    cases_route: string
-    agents_route: string
+    eval_route: string
     comparison_route: string
   }
 }
@@ -222,63 +217,70 @@ export interface CohortComparison {
   top_feature_drift: Array<Record<string, unknown>>
 }
 
-export interface CasesIndexPayload {
-  run_name: string
-  status: string
-  case_count: number
-  offset: number
-  limit: number
+export interface EvalSystemSummary {
+  system_name: string
+  system_kind?: string | null
+  framework_type?: string | null
   row_count: number
-  total_rows: number
-  splits: string[]
-  columns: string[]
-  records: Array<Record<string, unknown>>
+  parsed_ok_rows: number
+  coverage: number
+  mean_latency_ms?: number | null
+  total_tokens?: number | null
+  total_cost_usd?: number | null
 }
 
-export interface CaseDetailPayload {
+export interface EvalIndexRecord {
+  instance_id: string
+  patient_id: string
+  split: string
+  split_role?: string | null
+  prediction_mode?: string | null
+  bin_time?: string | null
+  ground_truth?: unknown
+  event_count?: number
+  static_feature_count?: number
+  evidence_path?: string | null
+}
+
+export interface EvalPayload {
   run_name: string
-  case: Record<string, unknown>
-  timeline: DashboardTable
-  predictions: DashboardTable
-  static: {
-    feature_count: number
-    table: DashboardTable
-  }
-  analysis_refs: {
-    module_count: number
-    patient_case_match_count: number
-    modules: DashboardTable
-    patient_case_matches: DashboardTable
-  }
-}
-
-export interface AgentTaskPayload {
   status: string
-  summary: Record<string, unknown> | null
-  cards: DashboardCard[]
-  table: DashboardTable | null
-  actors: string[]
-  splits: string[]
-  detail_available: boolean
+  index: {
+    instance_count: number
+    records: EvalIndexRecord[]
+  } | null
+  systems: {
+    records: EvalSystemSummary[]
+  } | null
+  report: {
+    primary_metric?: string | null
+    leaderboard_rows?: number
+    pairwise_rows?: number
+  } | null
+  tables: DashboardTable[]
+  highlights: string[]
 }
 
-export interface AgentRowsPayload {
-  run_name: string
-  task_name: string
-  kind: string
-  status: string
-  actors: string[]
-  splits: string[]
-  detail_available: boolean
-  offset: number
-  limit: number
-  row_count: number
-  total_rows: number
-  table: DashboardTable | null
-}
-
-export interface AgentsPayload {
-  run_name: string
-  predict: AgentTaskPayload
-  review: AgentTaskPayload
+export interface EvalInstancePayload {
+  instance_id: string
+  evidence: {
+    patient_id?: string
+    split?: string
+    split_role?: string
+    prediction_mode?: string
+    bin_time?: string | null
+    ground_truth?: unknown
+    event_count?: number
+    static_feature_count?: number
+    events: Array<Record<string, unknown>>
+    static: {
+      patient_id?: string
+      features: Record<string, unknown>
+    }
+    analysis_refs: {
+      modules: Array<Record<string, unknown>>
+      patient_case_matches: Array<Record<string, unknown>>
+    }
+  }
+  outputs: Array<Record<string, unknown>>
 }

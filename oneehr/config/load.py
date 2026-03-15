@@ -6,16 +6,8 @@ from typing import Any
 import tomllib
 
 from oneehr.config.schema import (
-    AgentBackendConfig,
-    AgentConfig,
-    AgentPredictConfig,
-    AgentPredictOutputConfig,
-    AgentPredictPromptConfig,
-    AgentReviewConfig,
-    AgentReviewPromptConfig,
     AnalysisConfig,
     CalibrationConfig,
-    CasesConfig,
     DynamicTableConfig,
     DatasetConfig,
     DatasetsConfig,
@@ -77,25 +69,20 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     output_raw = raw.get("output", {})
     eval_raw = raw.get("eval", {})
     analysis_raw = raw.get("analysis", {})
-    cases_raw = raw.get("cases", {})
-    agent_raw = raw.get("agent", {})
     labels_raw = raw.get("labels", {})
     trainer_raw = raw.get("trainer", {})
     hpo_raw = raw.get("hpo", {})
     hpo_models_raw = raw.get("hpo_models", {})
     calibration_raw = raw.get("calibration", {})
+    legacy_sections = [name for name in ("cases", "agent") if name in raw]
+    if legacy_sections:
+        joined = ", ".join(legacy_sections)
+        raise ValueError(
+            f"Legacy config sections are no longer supported: {joined}. "
+            "Use the unified [eval] surface instead."
+        )
     if not isinstance(eval_raw, dict):
         raise ValueError("eval must be a table")
-    if not isinstance(cases_raw, dict):
-        raise ValueError("cases must be a table")
-    if not isinstance(agent_raw, dict):
-        raise ValueError("agent must be a table")
-    agent_predict_raw = agent_raw.get("predict", {}) or {}
-    agent_review_raw = agent_raw.get("review", {}) or {}
-    if not isinstance(agent_predict_raw, dict):
-        raise ValueError("agent.predict must be a table")
-    if not isinstance(agent_review_raw, dict):
-        raise ValueError("agent.review must be a table")
 
     dataset = None
     if dataset_raw is not None:
@@ -315,14 +302,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             backends.append(EvalBackendConfig(**entry))
         return backends
 
-    def _load_agent_backends(raw_backends: list[dict[str, Any]], *, path_name: str) -> list[AgentBackendConfig]:
-        backends: list[AgentBackendConfig] = []
-        for braw in raw_backends or []:
-            if not isinstance(braw, dict):
-                raise ValueError(f"{path_name} entries must be tables")
-            backends.append(AgentBackendConfig(**_load_backend_entry(braw, path_name=path_name)))
-        return backends
-
     eval_backends_raw = eval_raw.get("backends", []) or []
     eval_systems_raw = eval_raw.get("systems", []) or []
     eval_suites_raw = eval_raw.get("suites", []) or []
@@ -443,23 +422,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         shap_max_samples=int(analysis_raw.get("shap_max_samples", 500)),
     )
 
-    cases = CasesConfig(
-        include_static=bool(cases_raw.get("include_static", True)),
-        include_analysis_refs=bool(cases_raw.get("include_analysis_refs", True)),
-        history_window=(
-            None
-            if cases_raw.get("history_window") in {None, "", "null"}
-            else str(cases_raw.get("history_window"))
-        ),
-        max_events=int(cases_raw.get("max_events", 200)),
-        time_order=str(cases_raw.get("time_order", "asc")),
-        case_limit=(
-            None
-            if cases_raw.get("case_limit") in {None, "", "null"}
-            else int(cases_raw.get("case_limit"))
-        ),
-    )
-
     trainer = TrainerConfig(
         device=str(trainer_raw.get("device", "auto")),
         precision=str(trainer_raw.get("precision", "fp32")),
@@ -513,140 +475,14 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         use_calibrated=bool(calibration_raw.get("use_calibrated", True)),
     )
 
-    agent_predict_prompt_raw = agent_predict_raw.get("prompt", {}) or {}
-    agent_predict_output_raw = agent_predict_raw.get("output", {}) or {}
-    agent_predict_backends_raw = agent_predict_raw.get("backends", []) or []
-    if not isinstance(agent_predict_prompt_raw, dict):
-        raise ValueError("agent.predict.prompt must be a table")
-    if not isinstance(agent_predict_output_raw, dict):
-        raise ValueError("agent.predict.output must be a table")
-    if not isinstance(agent_predict_backends_raw, list):
-        raise ValueError("agent.predict.backends must be an array of tables")
-    agent_predict_prompt = AgentPredictPromptConfig(
-        include_static=bool(agent_predict_prompt_raw.get("include_static", True)),
-        include_labels_context=bool(agent_predict_prompt_raw.get("include_labels_context", False)),
-        history_window=(
-            None
-            if agent_predict_prompt_raw.get("history_window") in {None, "", "null"}
-            else str(agent_predict_prompt_raw.get("history_window"))
-        ),
-        max_events=int(agent_predict_prompt_raw.get("max_events", 200)),
-        time_order=str(agent_predict_prompt_raw.get("time_order", "asc")),
-        sections=[str(s) for s in agent_predict_prompt_raw.get("sections", [])] or AgentPredictPromptConfig().sections,
-    )
-    agent_predict_output = AgentPredictOutputConfig(
-        include_explanation=bool(agent_predict_output_raw.get("include_explanation", True)),
-        include_confidence=bool(agent_predict_output_raw.get("include_confidence", False)),
-    )
-    agent_predict = AgentPredictConfig(
-        enabled=bool(agent_predict_raw.get("enabled", False)),
-        sample_unit=str(agent_predict_raw.get("sample_unit", "patient")),
-        prompt_template=str(agent_predict_raw.get("prompt_template", "summary_v1")),
-        json_schema_version=int(agent_predict_raw.get("json_schema_version", 1)),
-        max_samples=(
-            None
-            if agent_predict_raw.get("max_samples") in {None, "", "null"}
-            else int(agent_predict_raw.get("max_samples"))
-        ),
-        save_prompts=bool(agent_predict_raw.get("save_prompts", True)),
-        save_responses=bool(agent_predict_raw.get("save_responses", True)),
-        save_parsed=bool(agent_predict_raw.get("save_parsed", True)),
-        concurrency=int(agent_predict_raw.get("concurrency", 1)),
-        max_retries=int(agent_predict_raw.get("max_retries", 2)),
-        timeout_seconds=float(agent_predict_raw.get("timeout_seconds", 60.0)),
-        temperature=float(agent_predict_raw.get("temperature", 0.0)),
-        top_p=float(agent_predict_raw.get("top_p", 1.0)),
-        seed=(
-            None
-            if agent_predict_raw.get("seed") in {None, "", "null"}
-            else int(agent_predict_raw.get("seed"))
-        ),
-        prompt=agent_predict_prompt,
-        output=agent_predict_output,
-        backends=_load_agent_backends(agent_predict_backends_raw, path_name="agent.predict.backends"),
-    )
-
-    agent_review_prompt_raw = agent_review_raw.get("prompt", {}) or {}
-    agent_review_backends_raw = agent_review_raw.get("backends", []) or []
-    if not isinstance(agent_review_prompt_raw, dict):
-        raise ValueError("agent.review.prompt must be a table")
-    if not isinstance(agent_review_backends_raw, list):
-        raise ValueError("agent.review.backends must be an array of tables")
-    agent_review_prompt = AgentReviewPromptConfig(
-        include_static=bool(agent_review_prompt_raw.get("include_static", True)),
-        include_ground_truth=bool(agent_review_prompt_raw.get("include_ground_truth", True)),
-        include_analysis_context=bool(agent_review_prompt_raw.get("include_analysis_context", True)),
-        max_events=int(agent_review_prompt_raw.get("max_events", 100)),
-        time_order=str(agent_review_prompt_raw.get("time_order", "asc")),
-        sections=[str(s) for s in agent_review_prompt_raw.get("sections", [])] or AgentReviewPromptConfig().sections,
-    )
-    agent_review = AgentReviewConfig(
-        enabled=bool(agent_review_raw.get("enabled", False)),
-        prompt_template=str(agent_review_raw.get("prompt_template", "evidence_review_v1")),
-        json_schema_version=int(agent_review_raw.get("json_schema_version", 1)),
-        prediction_origins=[
-            str(s) for s in agent_review_raw.get("prediction_origins", [])
-        ] or AgentReviewConfig().prediction_origins,
-        max_cases=(
-            None
-            if agent_review_raw.get("max_cases") in {None, "", "null"}
-            else int(agent_review_raw.get("max_cases"))
-        ),
-        save_prompts=bool(agent_review_raw.get("save_prompts", True)),
-        save_responses=bool(agent_review_raw.get("save_responses", True)),
-        save_parsed=bool(agent_review_raw.get("save_parsed", True)),
-        concurrency=int(agent_review_raw.get("concurrency", 1)),
-        max_retries=int(agent_review_raw.get("max_retries", 2)),
-        timeout_seconds=float(agent_review_raw.get("timeout_seconds", 60.0)),
-        temperature=float(agent_review_raw.get("temperature", 0.0)),
-        top_p=float(agent_review_raw.get("top_p", 1.0)),
-        seed=(
-            None
-            if agent_review_raw.get("seed") in {None, "", "null"}
-            else int(agent_review_raw.get("seed"))
-        ),
-        prompt=agent_review_prompt,
-        backends=_load_agent_backends(agent_review_backends_raw, path_name="agent.review.backends"),
-    )
-    agent = AgentConfig(predict=agent_predict, review=agent_review)
-
-    if agent.predict.enabled:
-        if agent.predict.sample_unit not in {"patient", "time"}:
-            raise ValueError("agent.predict.sample_unit must be 'patient' or 'time'")
-        if agent.predict.prompt.time_order not in {"asc", "desc"}:
-            raise ValueError("agent.predict.prompt.time_order must be 'asc' or 'desc'")
-        if not agent.predict.backends:
-            raise ValueError("agent.predict.enabled=true requires at least one [[agent.predict.backends]] entry")
-    for backend_cfg in agent.predict.backends:
-        if backend_cfg.provider != "openai_compatible":
-            raise ValueError("agent.predict.backends.provider must be 'openai_compatible' in v1")
-    if agent.review.enabled:
-        if agent.review.prompt.time_order not in {"asc", "desc"}:
-            raise ValueError("agent.review.prompt.time_order must be 'asc' or 'desc'")
-        if not agent.review.backends:
-            raise ValueError("agent.review.enabled=true requires at least one [[agent.review.backends]] entry")
-        invalid_origins = [origin for origin in agent.review.prediction_origins if origin not in {"model", "agent"}]
-        if invalid_origins:
-            raise ValueError("agent.review.prediction_origins must contain only 'model' and/or 'agent'")
-    for backend_cfg in agent.review.backends:
-        if backend_cfg.provider != "openai_compatible":
-            raise ValueError("agent.review.backends.provider must be 'openai_compatible' in v1")
     if analysis.top_k <= 0:
         raise ValueError("analysis.top_k must be >= 1")
     if analysis.case_limit <= 0:
         raise ValueError("analysis.case_limit must be >= 1")
     if analysis.shap_max_samples <= 0:
         raise ValueError("analysis.shap_max_samples must be >= 1")
-    if cases.max_events <= 0:
-        raise ValueError("cases.max_events must be >= 1")
-    if cases.time_order not in {"asc", "desc"}:
-        raise ValueError("cases.time_order must be 'asc' or 'desc'")
-    if cases.case_limit is not None and cases.case_limit <= 0:
-        raise ValueError("cases.case_limit must be >= 1 when provided")
-    if agent.review.prompt.max_events <= 0:
-        raise ValueError("agent.review.prompt.max_events must be >= 1")
-    if agent.review.max_cases is not None and agent.review.max_cases <= 0:
-        raise ValueError("agent.review.max_cases must be >= 1 when provided")
+    if "agent_audit" in analysis.default_modules:
+        raise ValueError("analysis.default_modules no longer supports 'agent_audit'")
     if eval_cfg.instance_unit not in {"patient", "time"}:
         raise ValueError("eval.instance_unit must be 'patient' or 'time'")
     if eval_cfg.max_instances is not None and eval_cfg.max_instances <= 0:
@@ -736,7 +572,5 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         calibration=calibration,
         eval=eval_cfg,
         analysis=analysis,
-        cases=cases,
-        agent=agent,
         output=output,
     )

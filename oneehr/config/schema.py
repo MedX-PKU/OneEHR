@@ -147,119 +147,6 @@ class HPOConfig:
 
 
 @dataclass(frozen=True)
-class AgentPredictPromptConfig:
-    include_static: bool = True
-    include_labels_context: bool = False
-    history_window: str | None = None
-    max_events: int = 200
-    time_order: str = "asc"  # asc | desc
-    sections: list[str] = field(
-        default_factory=lambda: [
-            "patient_profile",
-            "event_timeline",
-            "code_summary",
-            "prediction_task",
-            "output_schema",
-        ]
-    )
-
-
-@dataclass(frozen=True)
-class AgentPredictOutputConfig:
-    include_explanation: bool = True
-    include_confidence: bool = False
-
-
-@dataclass(frozen=True)
-class AgentBackendConfig:
-    name: str
-    provider: str = "openai_compatible"
-    base_url: str = "https://api.openai.com/v1"
-    model: str = ""
-    api_key_env: str = "OPENAI_API_KEY"
-    system_prompt: str | None = None
-    supports_json_schema: bool = True
-    headers: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class AgentPredictConfig:
-    enabled: bool = False
-    sample_unit: str = "patient"  # patient | time
-    prompt_template: str = "summary_v1"
-    json_schema_version: int = 1
-    max_samples: int | None = None
-    save_prompts: bool = True
-    save_responses: bool = True
-    save_parsed: bool = True
-    concurrency: int = 1
-    max_retries: int = 2
-    timeout_seconds: float = 60.0
-    temperature: float = 0.0
-    top_p: float = 1.0
-    seed: int | None = None
-    prompt: AgentPredictPromptConfig = field(default_factory=AgentPredictPromptConfig)
-    output: AgentPredictOutputConfig = field(default_factory=AgentPredictOutputConfig)
-    backends: list[AgentBackendConfig] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class CasesConfig:
-    include_static: bool = True
-    include_analysis_refs: bool = True
-    history_window: str | None = None
-    max_events: int = 200
-    time_order: str = "asc"
-    case_limit: int | None = None
-
-
-@dataclass(frozen=True)
-class AgentReviewPromptConfig:
-    include_static: bool = True
-    include_ground_truth: bool = True
-    include_analysis_context: bool = True
-    max_events: int = 100
-    time_order: str = "asc"
-    sections: list[str] = field(
-        default_factory=lambda: [
-            "case_profile",
-            "observed_evidence",
-            "target_prediction",
-            "ground_truth",
-            "analysis_context",
-            "review_rubric",
-            "output_schema",
-        ]
-    )
-
-
-@dataclass(frozen=True)
-class AgentReviewConfig:
-    enabled: bool = False
-    prompt_template: str = "evidence_review_v1"
-    json_schema_version: int = 1
-    prediction_origins: list[str] = field(default_factory=lambda: ["model", "agent"])
-    max_cases: int | None = None
-    save_prompts: bool = True
-    save_responses: bool = True
-    save_parsed: bool = True
-    concurrency: int = 1
-    max_retries: int = 2
-    timeout_seconds: float = 60.0
-    temperature: float = 0.0
-    top_p: float = 1.0
-    seed: int | None = None
-    prompt: AgentReviewPromptConfig = field(default_factory=AgentReviewPromptConfig)
-    backends: list[AgentBackendConfig] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class AgentConfig:
-    predict: AgentPredictConfig = field(default_factory=AgentPredictConfig)
-    review: AgentReviewConfig = field(default_factory=AgentReviewConfig)
-
-
-@dataclass(frozen=True)
 class EvalBackendConfig:
     name: str
     provider: str = "openai_compatible"
@@ -336,7 +223,6 @@ class AnalysisConfig:
             "test_audit",
             "temporal_analysis",
             "interpretability",
-            "agent_audit",
         ]
     )
     top_k: int = 20
@@ -529,8 +415,6 @@ class ExperimentConfig:
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
     eval: EvalConfig = field(default_factory=EvalConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
-    cases: CasesConfig = field(default_factory=CasesConfig)
-    agent: AgentConfig = field(default_factory=AgentConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     # Internal: runtime-derived static feature dimension for models that support
     # a dedicated static branch (e.g., MCGRU, DrAgent). This is populated by the

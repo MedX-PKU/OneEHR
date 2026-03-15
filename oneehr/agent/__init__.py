@@ -1,13 +1,6 @@
 from oneehr.agent.client import AgentClientError, OpenAICompatibleAgentClient
 from oneehr.agent.contracts import AgentRequestSpec, AgentResponse, ParsedPrediction
-from oneehr.agent.instances import (
-    MaterializedAgentInstances,
-    agent_instance_path,
-    materialize_agent_instances,
-)
-from oneehr.agent.predict_eval import summarize_prediction_rows
-from oneehr.agent.render import render_prompt
-from oneehr.agent.review_eval import summarize_review_rows
+from oneehr.agent.predict_schema import build_response_format, parse_prediction_response, schema_prompt_text
 from oneehr.agent.templates import (
     PromptTemplateSpec,
     describe_prompt_template,
@@ -16,26 +9,20 @@ from oneehr.agent.templates import (
     safe_case_slug,
     select_events,
 )
-from oneehr.agent.validation import validate_agent_predict_setup, validate_agent_review_setup
 
 __all__ = [
     "AgentClientError",
     "AgentRequestSpec",
     "AgentResponse",
-    "MaterializedAgentInstances",
     "OpenAICompatibleAgentClient",
     "ParsedPrediction",
     "PromptTemplateSpec",
+    "build_response_format",
     "describe_prompt_template",
     "get_prompt_template",
     "list_prompt_templates",
+    "parse_prediction_response",
     "safe_case_slug",
+    "schema_prompt_text",
     "select_events",
-    "agent_instance_path",
-    "materialize_agent_instances",
-    "render_prompt",
-    "summarize_prediction_rows",
-    "summarize_review_rows",
-    "validate_agent_predict_setup",
-    "validate_agent_review_setup",
 ]

@@ -41,7 +41,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Analysis module to run. Repeatable. "
-            "Examples: dataset_profile, cohort_analysis, prediction_audit, test_audit, temporal_analysis, interpretability, agent_audit"
+            "Examples: dataset_profile, cohort_analysis, prediction_audit, test_audit, temporal_analysis, interpretability"
         ),
     )
     an.add_argument("--compare-run", default=None, help="Optional second run directory for comparison reporting")

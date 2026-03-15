@@ -1,6 +1,13 @@
 import type { AnalysisModuleMeta } from './types'
 
-const MODULE_PRIORITY = ['test_audit', 'prediction_audit', 'agent_audit', 'cohort_analysis', 'dataset_profile']
+const MODULE_PRIORITY = [
+  'test_audit',
+  'prediction_audit',
+  'cohort_analysis',
+  'dataset_profile',
+  'temporal_analysis',
+  'interpretability',
+]
 
 function moduleRank(name: string): number {
   const index = MODULE_PRIORITY.indexOf(name)

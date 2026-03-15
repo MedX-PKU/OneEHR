@@ -16,7 +16,10 @@ export function RunsPage() {
   })
   const runs = runsQuery.data ?? []
   const spotlightRun =
-    runs.find((run) => run.has_analysis_index && run.has_test_summary) ?? runs.find((run) => run.has_analysis_index)
+    runs.find((run) => run.has_eval_report_summary && run.has_analysis_index) ??
+    runs.find((run) => run.has_eval_report_summary) ??
+    runs.find((run) => run.has_analysis_index && run.has_test_summary) ??
+    runs.find((run) => run.has_analysis_index)
   const runConsoleQuery = useQuery({
     queryKey: ['run-console', spotlightRun?.run_name],
     queryFn: () => fetchRunConsole(String(spotlightRun?.run_name)),
@@ -53,7 +56,7 @@ export function RunsPage() {
           <p className="eyebrow">Operations Console</p>
           <h1>Longitudinal EHR run explorer</h1>
           <p className="hero-copy">
-            Review modeling outputs, structured analysis, and agent-era audit signals from one console.
+            Review training outputs, structured analysis, and unified evaluation artifacts from one console.
           </p>
         </div>
         <div className="hero-stats">
@@ -64,6 +67,10 @@ export function RunsPage() {
           <div>
             <span>Analysis-ready</span>
             <strong>{runs.filter((run) => run.has_analysis_index).length}</strong>
+          </div>
+          <div>
+            <span>Eval-ready</span>
+            <strong>{runs.filter((run) => run.has_eval_report_summary).length}</strong>
           </div>
           <div>
             <span>Test-ready</span>
@@ -78,7 +85,7 @@ export function RunsPage() {
             <p className="eyebrow">Visual Spotlight</p>
             <h2>First look at the latest result-rich run</h2>
             <p className="panel-copy">
-              Prioritize runs that already have analysis and held-out test summaries so the first page shows tutorial-grade results.
+              Prioritize runs that already have unified evaluation or analysis artifacts so the first page opens with real outputs instead of placeholders.
             </p>
           </div>
           {spotlightRun ? (
@@ -91,7 +98,7 @@ export function RunsPage() {
         {!spotlightRun ? (
           <EmptyState
             title="No analysis-ready runs yet"
-            description="Run `oneehr analyze` after training to populate dashboard charts on the landing page."
+            description="Run `oneehr analyze` or the `oneehr eval` pipeline after training to populate dashboard previews on the landing page."
           />
         ) : runConsoleQuery.isLoading || spotlightDashboardQuery.isLoading ? (
           <LoadingPanel label="Loading visual spotlight" />
@@ -171,6 +178,10 @@ export function RunsPage() {
                   <strong>{run.has_test_summary ? 'Ready' : 'Pending'}</strong>
                 </div>
                 <div>
+                  <span>Unified eval</span>
+                  <strong>{run.has_eval_report_summary ? 'Ready' : 'Pending'}</strong>
+                </div>
+                <div>
                   <span>Primary metric</span>
                   <strong>{formatMetricName(run.testing?.primary_metric)}</strong>
                 </div>
@@ -180,15 +191,9 @@ export function RunsPage() {
                 </div>
               </div>
               <div className="capability-row">
-                <span>{run.has_cases_index ? 'Cases ready' : 'No cases'}</span>
+                <span>{run.has_analysis_index ? 'Analysis ready' : 'Analysis pending'}</span>
                 <span>{run.has_test_summary ? 'External test ready' : 'No test summary'}</span>
-                <span>
-                  {run.testing?.best_model
-                    ? formatTestingBestModel(run.testing)
-                    : run.has_agent_predict_summary
-                      ? 'Agent predict'
-                      : 'Model only'}
-                </span>
+                <span>{run.has_eval_report_summary ? 'Eval leaderboard ready' : formatTestingBestModel(run.testing)}</span>
               </div>
             </Link>
           ))}

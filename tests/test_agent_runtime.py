@@ -5,7 +5,6 @@ from hashlib import sha256
 from oneehr.agent.client import AgentClientError
 from oneehr.agent.contracts import AgentRequestSpec, AgentResponse
 from oneehr.agent.predict_schema import parse_prediction_response
-from oneehr.agent.review_schema import parse_review_response
 from oneehr.agent.runtime import execute_agent_request, run_jobs
 
 
@@ -104,11 +103,11 @@ def test_execute_agent_request_normalizes_parse_errors() -> None:
 
 def test_execute_agent_request_reuses_error_response_body_for_parse() -> None:
     request = AgentRequestSpec(
-        backend_name="mock-review",
-        provider_model="mock-review-model",
+        backend_name="mock-predict",
+        provider_model="mock-predict-model",
         base_url="http://127.0.0.1:9999/v1",
         api_key_env="TEST_OPENAI_API_KEY",
-        prompt="review case",
+        prompt="predict case",
         system_prompt=None,
         response_format={"type": "json_object"},
         temperature=0.0,
@@ -124,14 +123,17 @@ def test_execute_agent_request_reuses_error_response_body_for_parse() -> None:
                 message="provider returned HTTP 500",
                 status_code=500,
                 response_text=(
-                    '{"supported": true, "clinically_grounded": true, "leakage_suspected": false, '
-                    '"needs_human_review": false, "overall_score": 0.8, "review_summary": "ok", '
-                    '"key_evidence": ["trend"], "missing_evidence": []}'
+                    '{"label": 1, "probability": 0.8, "explanation": "supported by evidence"}'
                 ),
             )
         ),
         request=request,
-        parse_response=parse_review_response,
+        parse_response=lambda raw_text: parse_prediction_response(
+            raw_text,
+            task_kind="binary",
+            include_explanation=True,
+            include_confidence=False,
+        ),
     )
 
     assert result.parsed is not None

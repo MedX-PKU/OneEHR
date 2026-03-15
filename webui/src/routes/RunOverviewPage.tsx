@@ -70,10 +70,15 @@ export function RunOverviewPage() {
           <p className="eyebrow">Run Overview</p>
           <h1 className="entity-title identifier-text">{formatIdentifierDisplay(run.run_name)}</h1>
           <p className="hero-copy">
-            Unified control room for modeling outputs, analysis modules, and future case-level investigations.
+            Unified control room for training outputs, analysis modules, and reproducible evaluation artifacts.
           </p>
         </div>
         <div className="header-actions">
+          {run.eval.report_summary_path ? (
+            <Link to="/runs/$runName/eval" params={{ runName }} className="button-link">
+              Open evaluation
+            </Link>
+          ) : null}
           {testAuditModule ? (
             <Link to="/runs/$runName/analysis/$moduleName" params={{ runName, moduleName: 'test_audit' }} className="button-link">
               Open Test Audit
@@ -94,7 +99,12 @@ export function RunOverviewPage() {
           value={run.testing.record_count}
           subtitle={formatTestingBestModel(run.testing)}
         />
-        <KpiCard key="cases" title="Cases" value={run.cases.case_count} subtitle="Durable case bundles" />
+        <KpiCard
+          key="eval"
+          title="Eval systems"
+          value={run.eval.system_count}
+          subtitle={`${run.eval.instance_count} frozen instances`}
+        />
         <KpiCard
           key="modules"
           title="Analysis modules"
@@ -109,7 +119,7 @@ export function RunOverviewPage() {
             <p className="eyebrow">Visual Preview</p>
             <h2>Charts visible from the run overview</h2>
             <p className="panel-copy">
-              Ready module dashboards are previewed here so the first run screen already contains actual visual output.
+              Ready module dashboards are previewed here so the first run screen already contains actual structured output.
             </p>
           </div>
         </div>
@@ -197,6 +207,57 @@ export function RunOverviewPage() {
         )}
       </section>
 
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Unified Eval</p>
+            <h2>Frozen cross-system comparison</h2>
+            <p className="panel-copy">
+              The eval pipeline keeps model and framework comparisons on one reproducible instance index.
+            </p>
+          </div>
+          {run.eval.report_summary_path ? (
+            <Link to="/runs/$runName/eval" params={{ runName }} className="button-link">
+              Inspect evaluation
+            </Link>
+          ) : null}
+        </div>
+
+        {run.eval.report_summary_path == null ? (
+          <EmptyState
+            title="No unified evaluation report yet"
+            description="Run `oneehr eval build`, `oneehr eval run`, and `oneehr eval report` to compare trained models, LLM systems, and multi-agent frameworks."
+          />
+        ) : (
+          <div className="detail-grid">
+            <div>
+              <span>Eval instances</span>
+              <strong>{run.eval.instance_count}</strong>
+            </div>
+            <div>
+              <span>Systems</span>
+              <strong>{run.eval.system_count}</strong>
+            </div>
+            <div>
+              <span>Leaderboard rows</span>
+              <strong>{run.eval.leaderboard_rows}</strong>
+            </div>
+            <div>
+              <span>Primary metric</span>
+              <strong>{formatMetricName(run.eval.primary_metric)}</strong>
+            </div>
+            <div>
+              <span>Index artifact</span>
+              <strong>{run.eval.index_path ?? 'Missing'}</strong>
+            </div>
+            <div>
+              <span>Report artifact</span>
+              <strong>{run.eval.report_summary_path ?? 'Missing'}</strong>
+            </div>
+          </div>
+        )}
+      </section>
+
       <section className="two-column-grid">
         <article className="panel">
           <div className="panel-header">
@@ -232,26 +293,26 @@ export function RunOverviewPage() {
         <article className="panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Connected systems</p>
-              <h2>Agent and artifact coverage</h2>
+              <p className="eyebrow">Artifacts</p>
+              <h2>Run surface coverage</h2>
             </div>
           </div>
           <div className="detail-grid">
             <div>
-              <span>Agent predictors</span>
-              <strong>{run.agent_predict.predictors.length}</strong>
-            </div>
-            <div>
-              <span>Reviewers</span>
-              <strong>{run.agent_review.reviewers.length}</strong>
-            </div>
-            <div>
-              <span>Cases index</span>
-              <strong>{run.cases.index_path ? 'Present' : 'Missing'}</strong>
-            </div>
-            <div>
               <span>Analysis index</span>
               <strong>{run.analysis.index_path ? 'Present' : 'Missing'}</strong>
+            </div>
+            <div>
+              <span>Eval index</span>
+              <strong>{run.eval.index_path ? 'Present' : 'Missing'}</strong>
+            </div>
+            <div>
+              <span>Eval report</span>
+              <strong>{run.eval.report_summary_path ? 'Present' : 'Missing'}</strong>
+            </div>
+            <div>
+              <span>Test summary</span>
+              <strong>{run.testing.summary_path ? 'Present' : 'Missing'}</strong>
             </div>
             <div>
               <span>Best test model</span>
@@ -261,7 +322,7 @@ export function RunOverviewPage() {
         </article>
       </section>
 
-      {(skippedModules.length > 0 || run.training.record_count === 0 || run.cases.case_count === 0 || run.testing.record_count === 0) && (
+      {(skippedModules.length > 0 || run.training.record_count === 0 || run.testing.record_count === 0 || run.eval.report_summary_path == null) && (
         <section className="panel">
           <div className="panel-header">
             <div>
@@ -279,8 +340,8 @@ export function RunOverviewPage() {
               <strong>{run.training.record_count}</strong>
             </div>
             <div>
-              <span>Case bundles</span>
-              <strong>{run.cases.case_count}</strong>
+              <span>Eval systems</span>
+              <strong>{run.eval.system_count}</strong>
             </div>
             <div>
               <span>Test rows</span>
@@ -293,15 +354,14 @@ export function RunOverviewPage() {
                   ? 'Train the run'
                   : run.testing.record_count === 0
                     ? 'Run held-out test'
-                  : run.cases.case_count === 0
-                    ? 'Build cases'
-                    : 'Re-run analysis'}
+                    : run.eval.report_summary_path == null
+                      ? 'Run unified eval'
+                      : 'Re-run analysis'}
               </strong>
             </div>
           </div>
           <p className="panel-copy">
-            Model-backed modules stay skipped until the run has training outputs. Case drilldowns stay sparse until
-            `oneehr cases build` has materialized durable bundles.
+            Model-backed modules stay skipped until the run has training outputs. Cross-system comparison stays empty until the `oneehr eval` pipeline has produced the frozen evaluation index, predictions, and report.
           </p>
         </section>
       )}

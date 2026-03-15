@@ -41,10 +41,6 @@ MODULE_META: dict[str, dict[str, str]] = {
         "title": "Interpretability",
         "description": "Feature-importance artifacts across model, split, and method.",
     },
-    "agent_audit": {
-        "title": "Agent Audit",
-        "description": "Agent parse success, token usage, and failure buckets.",
-    },
 }
 
 MODULE_KPI_FIELDS: dict[str, list[str]] = {
@@ -60,7 +56,6 @@ MODULE_KPI_FIELDS: dict[str, list[str]] = {
     "test_audit": ["n_test_slices", "n_test_models", "best_primary_metric"],
     "temporal_analysis": ["n_segments"],
     "interpretability": ["result_count"],
-    "agent_audit": ["n_slices", "n_failure_buckets"],
 }
 
 SUMMARY_EXCLUDE_FIELDS = {
@@ -93,14 +88,11 @@ TABLE_TITLES = {
     "failures": "Failures",
     "train_metrics": "Train Metric Deltas",
     "test_metrics": "External Test Metric Deltas",
-    "agent_predict_metrics": "Agent Predict Metric Deltas",
     "timeline": "Case Timeline",
     "predictions": "Case Predictions",
     "static_features": "Static Features",
     "analysis_modules": "Analysis References",
     "patient_case_matches": "Patient Case Matches",
-    "agent_predict_records": "Agent Prediction Records",
-    "agent_review_records": "Agent Review Records",
     "leaderboard": "Evaluation Leaderboard",
     "split_metrics": "Evaluation Split Metrics",
     "pairwise": "Evaluation Pairwise Deltas",
@@ -822,19 +814,6 @@ class WebUIService:
                             "body": f"{top.get('model')} {top.get('method')} top feature {top.get('top_feature')}",
                         }
                     )
-        elif module_name == "agent_audit":
-            slices = self._find_table_preview(tables, "slices")
-            if slices and slices.get("preview"):
-                top = max(
-                    slices["preview"],
-                    key=lambda row: float(row.get("parse_success_rate", 0.0) or 0.0),
-                )
-                highlights.append(
-                    {
-                        "title": "Best parse success",
-                        "body": f"{top.get('predictor_name')} {top.get('split')} rate={self._format_highlight_value(top.get('parse_success_rate'))}",
-                    }
-                )
         if not highlights and summary.get("reason") is not None:
             highlights.append({"title": "Module state", "body": str(summary["reason"])})
         return highlights
@@ -957,7 +936,7 @@ class WebUIService:
         return total_rows, page
 
     def _supports_cases(self, module_name: str) -> bool:
-        return module_name in {"prediction_audit", "agent_audit"}
+        return module_name == "prediction_audit"
 
     def _task_label(self, task: dict[str, Any] | None) -> str:
         task = task or {}

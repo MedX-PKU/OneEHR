@@ -30,8 +30,6 @@ function buildModuleHeroCopy(moduleName: string): string {
       return 'Temporal and event-density segmentation that reveals where model behavior shifts across the patient timeline.'
     case 'interpretability':
       return 'Saved feature-importance artifacts and supporting tables for explaining model behavior in the tutorial demo.'
-    case 'agent_audit':
-      return 'Agent parse success, failure buckets, and token-usage traces aligned with saved backend outputs.'
     default:
       return 'Structured artifacts translated into dashboard cards, rich tables, and visual drill-downs.'
   }
@@ -50,7 +48,7 @@ export function ModuleDashboardPage() {
   const caseArtifactsQuery = useQuery({
     queryKey: ['case-artifacts', runName, moduleName],
     queryFn: () => fetchCaseArtifacts(runName, moduleName),
-    enabled: moduleName === 'prediction_audit' || moduleName === 'agent_audit',
+    enabled: moduleName === 'prediction_audit',
   })
 
   const patientQuery = useQuery({
