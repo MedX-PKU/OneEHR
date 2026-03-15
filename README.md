@@ -1,15 +1,15 @@
 # OneEHR
 
-OneEHR is a TOML-first Python infrastructure toolkit for longitudinal EHR modeling, structured analysis, and reproducible cross-system evaluation across conventional ML/DL models, single-LLM systems, and multi-agent medical AI systems. It starts from standardized CSV tables and writes one shared run contract that is consumed by the CLI, notebooks, automation, and the first-party web/API layer.
+OneEHR is a TOML-first Python infrastructure toolkit for longitudinal EHR experiments. It standardizes preprocessing, modeling, analysis, and reproducible evaluation for AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query APIs, and the web/API layer.
 
 ## Workflow At A Glance
 
-OneEHR is task-oriented in how you operate it and artifact-first in how it persists state. The top-level workflow is organized around one shared run contract:
+The top-level workflow is organized around one shared run contract:
 
 - `preprocess` materializes the binned and tabular views used by every downstream workflow and saves the split contract under `splits/`.
 - `train` and `test` run conventional ML or DL modeling from a TOML experiment config.
 - `analyze` writes structured module outputs under `analysis/`.
-- `eval build`, `eval run`, and `eval report` freeze evaluation instances, execute configured ML/DL, LLM, or agent systems on the same evidence, and write reproducible comparison outputs under `eval/`.
+- `eval build`, `eval run`, and `eval report` freeze evaluation instances, execute configured ML/DL baselines, LLM systems, or AI agents on the same evidence, and write reproducible comparison outputs under `eval/`.
 - `query ...` and `webui serve` expose the same artifacts as JSON or a browser-backed API.
 
 The top-level CLI surface is:
@@ -65,7 +65,7 @@ uv run oneehr query eval report --run-dir logs/example
 
 This writes the run under `logs/example/`, including `run_manifest.json`, `splits/`, model outputs, `analysis/`, and `eval/`.
 
-The bundled example config ships with a conventional trained-model baseline. To compare LLM or multi-agent systems on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
+The bundled example config ships with a conventional trained-model baseline. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
 
 Supported framework types in the current eval surface:
 

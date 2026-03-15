@@ -3,7 +3,7 @@
 ## Project Snapshot
 
 - **Project name:** OneEHR
-- **Purpose:** TOML-first Python infrastructure toolkit for EHR modeling, analysis, and cross-system evaluation
+- **Purpose:** TOML-first EHR AI infrastructure toolkit in Python
 - **CLI:** `oneehr`
 - **Configuration style:** TOML-first
 - **Python version:** 3.12 (`.python-version`)

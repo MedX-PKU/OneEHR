@@ -1,4 +1,4 @@
-"""OneEHR: TOML-first EHR modeling, analysis, and evaluation infrastructure toolkit."""
+"""OneEHR: TOML-first infrastructure toolkit for longitudinal EHR experiments."""
 
 __all__ = ["__version__"]
 
