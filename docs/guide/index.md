@@ -4,12 +4,12 @@ Use this section when you want to understand how OneEHR operates after the initi
 
 ## What This Covers
 
-- The standard preprocess, train, test, analyze, and case-building path
-- The agent prediction and review workflows built on top of the same run artifacts
-- The browser-based Web UI for exploring runs, cases, dashboards, and agent outputs
+- The standard preprocess, train, test, analyze, and eval-ready artifact path
+- The unified evaluation workflow for trained models, single LLMs, and multi-agent frameworks
+- The browser/API layer for exploring runs, dashboards, evaluation outputs, and comparison artifacts
 
 ## Workflow Guides
 
 - [Core Workflows](core-workflows.md)
-- [Agent Workflows](agent-workflows.md)
+- [Evaluation Workflows](eval-workflows.md)
 - [Web UI](webui.md)

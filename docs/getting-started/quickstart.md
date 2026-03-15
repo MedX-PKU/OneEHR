@@ -1,6 +1,6 @@
 # Quickstart
 
-This quickstart uses the bundled example config at `examples/experiment.toml`. It walks through the standard modeling path first, then points to the optional agent and Web UI workflows.
+This quickstart uses the bundled example config at `examples/experiment.toml`. It walks through the standard modeling path first, then runs the eval-first comparison workflow on the resulting run artifacts.
 
 ## 1. Preprocess The Example Data
 
@@ -34,41 +34,42 @@ uv run oneehr analyze --config examples/experiment.toml
 
 This writes module outputs under `analysis/`, including summaries, tables, optional plot specs, and case slices when the selected module emits them.
 
-## 5. Materialize Durable Case Bundles
+## 5. Freeze Evaluation Instances
 
 ```bash
-uv run oneehr cases build --config examples/experiment.toml
+uv run oneehr eval build --config examples/experiment.toml
 ```
 
-Case bundles live under `cases/` and merge available evidence, split context, and predictions into a durable review-friendly format.
+This materializes `eval/index.json`, `eval/instances/instances.parquet`, and, by default, saved evidence bundles under `eval/evidence/`.
 
-## 6. Query The Run Contract
+## 6. Execute The Configured Evaluation Systems
+
+```bash
+uv run oneehr eval run --config examples/experiment.toml
+```
+
+The bundled example config includes a trained-model baseline system, so this step works without any external API keys. To compare LLM or multi-agent systems on the same frozen instances, add `[[eval.backends]]` and more `[[eval.systems]]` entries to the config.
+
+## 7. Build The Comparison Report
+
+```bash
+uv run oneehr eval report --config examples/experiment.toml
+```
+
+This writes `eval/reports/leaderboard.csv`, `eval/reports/split_metrics.csv`, `eval/reports/pairwise.csv`, and `eval/reports/summary.json`.
+
+## 8. Query The Run Contract
 
 ```bash
 uv run oneehr query runs describe --config examples/experiment.toml
 uv run oneehr query analysis summary --run-dir logs/example --module prediction_audit
-uv run oneehr query cases list --run-dir logs/example
+uv run oneehr query eval report --run-dir logs/example
+uv run oneehr query eval table --run-dir logs/example --table leaderboard
 ```
 
 `query` is the structured read layer for automation, notebooks, and UI consumers. It emits JSON to stdout.
 
-## 7. Optional Agent Workflows
-
-After you configure `[[agent.predict.backends]]` and/or `[[agent.review.backends]]`:
-
-```bash
-uv run oneehr agent predict --config examples/experiment.toml
-uv run oneehr agent review --config examples/experiment.toml
-```
-
-Inspect the resulting artifacts:
-
-```bash
-uv run oneehr query agent predict-summary --run-dir logs/example
-uv run oneehr query agent review-summary --run-dir logs/example
-```
-
-## 8. Optional Web UI
+## 9. Optional Web UI
 
 Build the frontend once:
 

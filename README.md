@@ -1,6 +1,6 @@
 # OneEHR
 
-OneEHR is a Python toolkit for longitudinal EHR predictive modeling, structured run analysis, and agent-ready case workflows. It starts from standardized CSV tables and writes reproducible run artifacts that can be consumed from the CLI, notebooks, and the first-party Web UI.
+OneEHR is a Python toolkit for longitudinal EHR modeling, structured analysis, and reproducible evaluation across trained models, single-LLM systems, and multi-agent medical frameworks. It starts from standardized CSV tables and writes one run contract that can be consumed from the CLI, notebooks, and the first-party web/API layer.
 
 ## Workflow At A Glance
 
@@ -9,8 +9,8 @@ OneEHR is organized around one artifact contract:
 - `preprocess` materializes the binned and tabular views used by every downstream workflow and saves the split contract under `splits/`.
 - `train` and `test` run classical ML or DL modeling from a TOML experiment config.
 - `analyze` writes structured module outputs under `analysis/`.
-- `cases build`, `agent predict`, and `agent review` add durable case bundles and OpenAI-compatible agent workflows.
-- `query ...` and `webui serve` expose the same artifacts as JSON or a browser UI.
+- `eval build`, `eval run`, and `eval report` freeze evaluation instances, execute configured systems on the same evidence, and write reproducible comparison outputs under `eval/`.
+- `query ...` and `webui serve` expose the same artifacts as JSON or a browser-backed API.
 
 The top-level CLI surface is:
 
@@ -18,9 +18,7 @@ The top-level CLI surface is:
 - `oneehr train`
 - `oneehr test`
 - `oneehr analyze`
-- `oneehr cases build`
-- `oneehr agent predict`
-- `oneehr agent review`
+- `oneehr eval ...`
 - `oneehr query ...`
 - `oneehr webui serve`
 
@@ -28,8 +26,8 @@ Inspect the live interface with:
 
 ```bash
 uv run oneehr --help
+uv run oneehr eval --help
 uv run oneehr query --help
-uv run oneehr agent --help
 ```
 
 ## Install
@@ -58,20 +56,28 @@ uv run oneehr preprocess --config examples/experiment.toml --overview
 uv run oneehr train --config examples/experiment.toml
 uv run oneehr test --config examples/experiment.toml
 uv run oneehr analyze --config examples/experiment.toml
-uv run oneehr cases build --config examples/experiment.toml
+uv run oneehr eval build --config examples/experiment.toml
+uv run oneehr eval run --config examples/experiment.toml
+uv run oneehr eval report --config examples/experiment.toml
 uv run oneehr query runs describe --config examples/experiment.toml
+uv run oneehr query eval report --run-dir logs/example
 ```
 
-This writes the run under `logs/example/`, including `run_manifest.json`, `splits/`, model outputs, `analysis/`, and `cases/`.
+This writes the run under `logs/example/`, including `run_manifest.json`, `splits/`, model outputs, `analysis/`, and `eval/`.
 
-Optional agent workflows require configured `[[agent.predict.backends]]` and/or `[[agent.review.backends]]` plus the corresponding API key environment variables:
+The bundled example config ships with a trained-model evaluation baseline. To compare LLM or multi-agent systems on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
 
-```bash
-uv run oneehr agent predict --config examples/experiment.toml
-uv run oneehr agent review --config examples/experiment.toml
-```
+Supported framework types in the current eval surface:
 
-Optional Web UI workflow:
+- `single_llm`
+- `healthcareagent`
+- `reconcile`
+- `mac`
+- `medagent`
+- `colacare`
+- `mdagents`
+
+Optional web/API workflow:
 
 ```bash
 cd webui
@@ -91,7 +97,8 @@ OneEHR is TOML-first. CLI flags are primarily for locating configs, run director
 - `[preprocess]` for binning, vocabulary selection, and post-split feature transforms
 - `[task]`, `[labels]`, and `[split]` for task definition and leakage-safe evaluation setup
 - `[model]` or `[[models]]`, `[trainer]`, `[hpo]`, and `[calibration]` for training
-- `[analysis]`, `[cases]`, `[agent.predict]`, and `[agent.review]` for downstream workflows
+- `[analysis]` for structured reporting modules
+- `[eval]`, `[[eval.backends]]`, `[[eval.systems]]`, and `[[eval.suites]]` for unified evaluation
 - `[output]` for run root and run name
 
 The standard input model is:
@@ -113,7 +120,7 @@ Start with:
 - [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md)
 - [`docs/getting-started/data-model.md`](docs/getting-started/data-model.md)
 - [`docs/guide/core-workflows.md`](docs/guide/core-workflows.md)
-- [`docs/guide/agent-workflows.md`](docs/guide/agent-workflows.md)
+- [`docs/guide/eval-workflows.md`](docs/guide/eval-workflows.md)
 - [`docs/guide/webui.md`](docs/guide/webui.md)
 - [`docs/reference/cli.md`](docs/reference/cli.md)
 - [`docs/reference/configuration.md`](docs/reference/configuration.md)
@@ -135,6 +142,7 @@ Recommended checks:
 
 ```bash
 uv run oneehr --help
+uv run oneehr eval --help
 uv run oneehr preprocess --config examples/experiment.toml --overview
 uv run mkdocs build
 ```

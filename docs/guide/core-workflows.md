@@ -1,6 +1,6 @@
 # Core Workflows
 
-This guide covers the standard OneEHR operating path: prepare standardized tables, materialize features, train and test models, write structured analysis, and build durable case bundles for downstream inspection.
+This guide covers the standard OneEHR operating path: prepare standardized tables, materialize features, train and test models, write structured analysis, and produce the artifacts consumed by the eval-first comparison layer.
 
 Use this page for workflow decisions. Use the [Configuration Reference](../reference/configuration.md), [CLI Reference](../reference/cli.md), and [Artifacts Reference](../reference/artifacts.md) for full option tables and on-disk details.
 
@@ -13,7 +13,9 @@ uv run oneehr preprocess --config experiment.toml --overview
 uv run oneehr train --config experiment.toml
 uv run oneehr test --config experiment.toml
 uv run oneehr analyze --config experiment.toml
-uv run oneehr cases build --config experiment.toml
+uv run oneehr eval build --config experiment.toml
+uv run oneehr eval run --config experiment.toml
+uv run oneehr eval report --config experiment.toml
 uv run oneehr query runs describe --config experiment.toml
 ```
 
@@ -91,19 +93,19 @@ Current modules are:
 - `dataset_profile`
 - `cohort_analysis`
 - `prediction_audit`
+- `test_audit`
 - `temporal_analysis`
 - `interpretability`
-- `agent_audit`
 
 The public contract is structured only: JSON summaries, CSV tables, parquet case slices, and plot specs. There is no markdown or HTML report layer in the current architecture.
 
-## Cases And Query
+## Eval-Ready Artifacts And Query
 
-`oneehr cases build` materializes durable evidence bundles that downstream chart review, agent workflows, and notebooks can consume directly.
+After `analyze`, the run is ready for the eval-first layer. `oneehr eval build` freezes the instances and evidence that every compared system will see.
 
 ```bash
-uv run oneehr cases build --config experiment.toml
-uv run oneehr cases build --config experiment.toml --run-dir logs/my_run --force
+uv run oneehr eval build --config experiment.toml
+uv run oneehr eval build --config experiment.toml --run-dir logs/my_run --force
 ```
 
 Use `query` as the read-only interface over existing artifacts:
@@ -111,11 +113,23 @@ Use `query` as the read-only interface over existing artifacts:
 ```bash
 uv run oneehr query runs describe --run-dir logs/example
 uv run oneehr query analysis modules --run-dir logs/example
-uv run oneehr query cases list --run-dir logs/example
-uv run oneehr query cases evidence --run-dir logs/example --case-id fold0:p0001
+uv run oneehr query eval index --run-dir logs/example
+uv run oneehr query eval report --run-dir logs/example
 ```
 
 `query` prints JSON to stdout, so it is the preferred entrypoint for automation, notebooks, and non-browser consumers.
+
+## Why Eval Comes After Core Workflows
+
+The evaluation layer is intentionally downstream of preprocess, train, test, and analyze:
+
+- `preprocess` and `split` define the leakage-safe sampling contract.
+- `train` produces the model baselines you may want to compare against frameworks.
+- `test` gives held-out model evaluation outside the unified eval leaderboard.
+- `analyze` emits structured context that can optionally be attached to eval evidence bundles.
+- `eval build/run/report` then compares systems on the same frozen instances with the same scoring code.
+
+If you only need the eval comparison workflow in detail, continue with [Evaluation Workflows](eval-workflows.md).
 
 ## Split Strategies
 

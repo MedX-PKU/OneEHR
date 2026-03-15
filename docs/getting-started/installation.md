@@ -26,16 +26,15 @@ You should see these top-level command groups:
 - `train`
 - `test`
 - `analyze`
-- `cases`
-- `agent`
+- `eval`
 - `query`
 - `webui`
 
 Check a few common entrypoints:
 
 ```bash
+uv run oneehr eval --help
 uv run oneehr query --help
-uv run oneehr agent --help
 uv run oneehr webui serve --help
 ```
 
