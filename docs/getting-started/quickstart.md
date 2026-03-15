@@ -8,7 +8,7 @@ This quickstart uses the bundled example config at `examples/experiment.toml`. I
 uv run oneehr preprocess --config examples/experiment.toml --overview
 ```
 
-This creates `logs/example/`, writes `run_manifest.json`, and materializes the feature views used by every downstream command.
+This creates `logs/example/`, writes `run_manifest.json`, saves `splits/`, and materializes the feature views used by every downstream command.
 
 ## 2. Train The Configured Models
 

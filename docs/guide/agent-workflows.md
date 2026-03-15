@@ -8,7 +8,7 @@ Use this guide for when and how to run agent workflows. Use the [Configuration R
 
 Agent workflows build on a prepared run directory:
 
-- `agent predict` requires a preprocessed run plus configured backends
+- `agent predict` requires a preprocessed run with saved `splits/` plus configured backends
 - `agent review` requires durable case bundles plus predictions to review
 - `query` and `webui` can inspect agent artifacts after they are written
 
@@ -63,7 +63,7 @@ uv run oneehr query agent predict-records --run-dir logs/example --actor gpt4o-m
 uv run oneehr query agent predict-failures --run-dir logs/example --actor gpt4o-mini
 ```
 
-Outputs are written under `agent/predict/`, including prompts, raw responses, parsed records, metrics, and failure rows.
+Outputs are written under `agent/predict/`. Parsed records, metrics, predictions, failures, and `summary.json` are the stable downstream artifacts; prompts and raw responses are optional debug outputs controlled by config.
 
 ## Agent Review
 

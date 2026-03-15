@@ -2,11 +2,11 @@
 
 OneEHR writes all experiment outputs to a structured run directory under `{output.root}/{output.run_name}/`.
 
-The public contract is the structured artifact tree itself: JSON, JSONL, CSV, and Parquet. There is no markdown or HTML report layer in the current architecture.
+The core public contract is the structured artifact tree consumed by `train`, `test`, `analyze`, `cases`, `query`, and `webui`. Some agent raw files are optional debug outputs rather than required downstream inputs.
 
 Typical writers:
 
-- `preprocess` writes the run manifest, binned data, labels, feature metadata, and tabular views
+- `preprocess` writes the run manifest, saved splits, binned data, labels, and tabular views
 - `train` writes model checkpoints, split metrics, predictions, and HPO outputs
 - `test` writes evaluation outputs under `test_runs/`
 - `analyze` writes `analysis/`
@@ -26,10 +26,7 @@ Typical writers:
         patient_tabular.parquet
         time_tabular.parquet
     features/
-        dynamic/
-            feature_columns.json
         static/
-            feature_columns.json
             static_all.parquet
     splits/
         {split_name}.json
@@ -74,7 +71,6 @@ Typical writers:
         predict/
             instances/
                 patient_instances.parquet | time_instances.parquet
-                summary.json
             prompts/
                 {predictor_name}/
                     {split}.jsonl
@@ -125,7 +121,7 @@ Written by `oneehr preprocess` and read by all downstream commands.
 
 The single source of truth for the run.
 
-Schema version: **4**
+Schema version: **5**
 
 Key top-level fields:
 
@@ -164,14 +160,6 @@ Model-ready patient-level view for N-1 prediction.
 ### `views/time_tabular.parquet`
 
 Model-ready time-level view for N-N prediction.
-
-### `features/dynamic/feature_columns.json`
-
-JSON array of dynamic feature column names.
-
-### `features/static/feature_columns.json`
-
-JSON array of static feature column names after encoding.
 
 ### `features/static/static_all.parquet`
 
@@ -340,17 +328,13 @@ Common columns:
 
 Agent prediction instances for time-level runs. Includes `bin_time`.
 
-### `agent/predict/instances/summary.json`
-
-Summary of the materialized instance table with `sample_unit`, row count, and split list.
-
 ### `agent/predict/prompts/{predictor_name}/{split}.jsonl`
 
-Rendered prompts for one backend and one split. Written when `agent.predict.save_prompts = true`.
+Rendered prompts for one backend and one split. Optional debug output, written when `agent.predict.save_prompts = true`.
 
 ### `agent/predict/responses/{predictor_name}/{split}.jsonl`
 
-Raw response payloads for one backend and one split. Written when `agent.predict.save_responses = true`.
+Raw response payloads for one backend and one split. Optional debug output, written when `agent.predict.save_responses = true`.
 
 ### `agent/predict/parsed/{predictor_name}/{split}.parquet`
 
@@ -423,11 +407,11 @@ Written by `oneehr agent review`.
 
 ### `agent/review/prompts/{reviewer_name}/{split}.jsonl`
 
-Rendered reviewer prompts for one reviewer backend and one split.
+Rendered reviewer prompts for one reviewer backend and one split. Optional debug output.
 
 ### `agent/review/responses/{reviewer_name}/{split}.jsonl`
 
-Raw reviewer responses for one reviewer backend and one split.
+Raw reviewer responses for one reviewer backend and one split. Optional debug output.
 
 ### `agent/review/parsed/{reviewer_name}/{split}.parquet`
 
@@ -564,9 +548,10 @@ Written by `oneehr test` under `test_runs/`.
 
 | File | Description |
 |------|-------------|
-| `test_runs/{model}/{split}/metrics.json` | Per-split test metrics |
-| `test_runs/{model}/{split}/preds.parquet` | Test predictions |
-| `test_summary.json` | Aggregated test summary |
+| `test_runs/metrics_{model}_{split}.json` | Per-split test metrics |
+| `test_runs/preds_{model}_{split}.parquet` | Per-split test predictions |
+| `test_runs/test_summary.json` | Aggregated test summary |
+| `test_runs/test_summary.csv` | Optional flat CSV export when evaluable rows exist |
 
 ---
 
@@ -576,5 +561,6 @@ Written for time-split prospective evaluation under `final/`.
 
 | File | Description |
 |------|-------------|
-| `final/{model}/metrics.json` | Prospective test metrics |
-| `final/{model}/preds.parquet` | Prospective test predictions |
+| `final/test_metrics_{model}.json` | Prospective test metrics |
+| `final/test_preds_{model}.parquet` | Prospective test predictions |
+| `final/test_summary.json` | Aggregated prospective summary when final evaluation runs |

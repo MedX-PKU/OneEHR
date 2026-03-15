@@ -6,7 +6,7 @@ OneEHR is a Python toolkit for longitudinal EHR predictive modeling, structured 
 
 OneEHR is organized around one artifact contract:
 
-- `preprocess` materializes the binned and tabular views used by every downstream workflow.
+- `preprocess` materializes the binned and tabular views used by every downstream workflow and saves the split contract under `splits/`.
 - `train` and `test` run classical ML or DL modeling from a TOML experiment config.
 - `analyze` writes structured module outputs under `analysis/`.
 - `cases build`, `agent predict`, and `agent review` add durable case bundles and OpenAI-compatible agent workflows.
@@ -62,7 +62,7 @@ uv run oneehr cases build --config examples/experiment.toml
 uv run oneehr query runs describe --config examples/experiment.toml
 ```
 
-This writes the run under `logs/example/`, including `run_manifest.json`, model outputs, `analysis/`, and `cases/`.
+This writes the run under `logs/example/`, including `run_manifest.json`, `splits/`, model outputs, `analysis/`, and `cases/`.
 
 Optional agent workflows require configured `[[agent.predict.backends]]` and/or `[[agent.review.backends]]` plus the corresponding API key environment variables:
 
@@ -118,6 +118,8 @@ Start with:
 - [`docs/reference/cli.md`](docs/reference/cli.md)
 - [`docs/reference/configuration.md`](docs/reference/configuration.md)
 - [`docs/reference/artifacts.md`](docs/reference/artifacts.md)
+
+The canonical step-by-step walkthrough lives in [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md).
 
 Build the docs locally:
 

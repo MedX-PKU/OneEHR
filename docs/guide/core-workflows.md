@@ -21,7 +21,7 @@ All of these commands operate on the same run root, usually `{output.root}/{outp
 
 ## Preprocess
 
-`oneehr preprocess` is the first required step for every run. It reads the standardized dataset tables, materializes the feature views, and writes the run manifest used by downstream workflows.
+`oneehr preprocess` is the first required step for every run. It reads the standardized dataset tables, materializes the feature views, saves the split contract, and writes the run manifest used by downstream workflows.
 
 ```bash
 uv run oneehr preprocess --config experiment.toml --overview
@@ -36,6 +36,7 @@ What preprocessing decides:
 - code vocabulary selection and optional importance-based filtering
 - post-split feature pipeline definitions such as standardization and imputation
 - patient-level or time-level view materialization for `[task].prediction_mode`
+- patient-level saved splits under `splits/`, including repeat-expanded names when `trainer.repeat > 1`
 
 Inputs come from `[dataset]` or `[datasets].train`. The required raw shape is:
 
@@ -45,7 +46,7 @@ Inputs come from `[dataset]` or `[datasets].train`. The required raw shape is:
 
 ## Train
 
-`oneehr train` fits one or more configured models against the saved preprocess artifacts.
+`oneehr train` fits one or more configured models against the saved preprocess artifacts and split contract.
 
 ```bash
 uv run oneehr train --config experiment.toml
