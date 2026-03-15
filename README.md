@@ -129,6 +129,7 @@ Start with:
 - [`docs/reference/cli.md`](docs/reference/cli.md)
 - [`docs/reference/configuration.md`](docs/reference/configuration.md)
 - [`docs/reference/artifacts.md`](docs/reference/artifacts.md)
+- [`docs/reference/positioning.md`](docs/reference/positioning.md)
 
 The canonical step-by-step walkthrough lives in [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md).
 
