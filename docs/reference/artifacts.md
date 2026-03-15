@@ -94,7 +94,7 @@ Written by `oneehr preprocess` and read by all downstream commands.
 
 The single source of truth for the run.
 
-Schema version: **5**
+Schema version: **6**
 
 Stable fields consumers should rely on:
 
@@ -106,12 +106,15 @@ Stable fields consumers should rely on:
 | `split` | Split config snapshot |
 | `preprocess` | Preprocess config snapshot |
 | `static` | Static postprocess pipeline snapshot |
+| `eval` | Unified evaluation config snapshot, including backends, systems, and suites |
 | `features.dynamic.feature_columns` | Dynamic feature column names |
 | `features.static.feature_columns` | Static feature column names |
 | `artifacts.binned_parquet_path` | Relative path to `binned.parquet` |
 | `artifacts.labels_parquet_path` | Relative path to `labels.parquet` |
 | `artifacts.patient_tabular_parquet_path` | Relative path to the patient view, when available |
 | `artifacts.time_tabular_parquet_path` | Relative path to the time view, when available |
+
+Legacy `cases` and `agent` manifest sections were removed in schema v6.
 
 ### `binned.parquet`
 

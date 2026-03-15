@@ -4,6 +4,8 @@ OneEHR experiments are driven by a single TOML config file. This page documents 
 
 See `examples/experiment.toml` for a complete working example.
 
+Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer part of the supported config contract. Cross-system prompting and framework evaluation now live entirely under `[eval]`.
+
 ---
 
 ## `[dataset]`

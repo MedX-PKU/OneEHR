@@ -101,6 +101,8 @@ OneEHR is TOML-first. CLI flags are primarily for locating configs, run director
 - `[eval]`, `[[eval.backends]]`, `[[eval.systems]]`, and `[[eval.suites]]` for unified evaluation
 - `[output]` for run root and run name
 
+Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer supported.
+
 The standard input model is:
 
 - `dynamic.csv` required: long-form event table with `patient_id`, `event_time`, `code`, and `value`
