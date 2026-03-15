@@ -65,7 +65,7 @@ function RootLayout() {
             OneEHR
           </Link>
           <p className="brand-tagline">
-            Shared run contracts for EHR modeling, analysis, and evaluation.
+            EHR AI evaluation, analysis, and comparison on one run contract.
           </p>
         </div>
         <nav className="topnav">

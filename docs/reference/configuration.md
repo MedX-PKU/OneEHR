@@ -4,7 +4,7 @@ OneEHR experiments are driven by a single TOML config file. This page documents 
 
 See `examples/experiment.toml` for a complete working example.
 
-Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer part of the supported config contract. Cross-system prompting and framework evaluation now live entirely under `[eval]`.
+Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer part of the supported config contract. Cross-system prompting and LLM or AI agent evaluation now live entirely under `[eval]`.
 
 ---
 
@@ -355,7 +355,7 @@ Controls the unified evaluation workflow under `oneehr eval`.
 | `primary_metric` | `str` | `None` | Override the default report metric |
 | `bootstrap_samples` | `int` | `200` | Number of bootstrap samples for pairwise reporting |
 | `save_evidence` | `bool` | `true` | Save `eval/evidence/` bundles |
-| `save_traces` | `bool` | `true` | Save framework trace parquet files |
+| `save_traces` | `bool` | `true` | Save trace parquet files for `kind = "framework"` systems |
 | `text_render_template` | `str` | `"summary_v1"` | Prompt template used to render text evidence |
 
 ```toml
@@ -377,7 +377,7 @@ text_render_template = "summary_v1"
 
 ## `[[eval.backends]]`
 
-Reusable backend definitions for framework systems.
+Reusable backend definitions for LLM and AI agent systems configured as `kind = "framework"`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -414,11 +414,11 @@ System definitions executed by `oneehr eval run`.
 |-----------|------|---------|-------------|
 | `name` | `str` | *required* | Unique system name |
 | `kind` | `str` | `"framework"` | `framework` or `trained_model` |
-| `framework_type` | `str` | `None` | Required for framework systems |
+| `framework_type` | `str` | `None` | Required for `kind = "framework"` systems |
 | `enabled` | `bool` | `true` | Enable this system |
 | `sample_unit` | `str` | `"patient"` | Must match `eval.instance_unit` |
 | `source_model` | `str` | `None` | Required for `trained_model` systems |
-| `backend_refs` | `list[str]` | `[]` | Backend names used by framework systems |
+| `backend_refs` | `list[str]` | `[]` | Backend names used by `kind = "framework"` systems |
 | `prompt_template` | `str` | `"summary_v1"` | Prompt template used for text rendering |
 | `max_samples` | `int` | `None` | Optional cap on rows executed for this system |
 | `max_rounds` | `int` | `1` | Max framework discussion rounds |

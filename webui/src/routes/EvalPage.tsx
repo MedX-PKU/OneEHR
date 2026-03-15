@@ -117,7 +117,7 @@ export function EvalPage() {
     return (
       <EmptyState
         title="No unified evaluation artifacts yet"
-        description="Run `oneehr eval build`, `oneehr eval run`, and `oneehr eval report` to populate reproducible evaluation artifacts for ML/DL baselines, LLM, and AI agent systems."
+        description="Run `oneehr eval build`, `oneehr eval run`, and `oneehr eval report` to populate reproducible evaluation artifacts for ML/DL baselines, LLM systems, and AI agents."
       />
     )
   }
@@ -129,7 +129,7 @@ export function EvalPage() {
           <p className="eyebrow">Evaluation</p>
           <h1 className="entity-title identifier-text">{formatIdentifierDisplay(runName)}</h1>
           <p className="hero-copy">
-            Unified, reproducible evaluation across ML/DL baselines, single-LLM systems, and multi-agent AI systems.
+            Unified, reproducible evaluation across ML/DL baselines, LLM systems, and AI agents.
           </p>
         </div>
       </section>
@@ -157,7 +157,7 @@ export function EvalPage() {
           key="system_kinds"
           title="System kinds"
           value={new Set(evalPayload.systems.records.map((record) => record.system_kind ?? 'unknown')).size}
-          subtitle="ML/DL baselines and LLM or AI agent systems"
+          subtitle="ML/DL baselines and AI systems"
         />
       </section>
 
@@ -271,7 +271,7 @@ export function EvalPage() {
               <p className="eyebrow">Trace Inspector</p>
               <h2>System trace rows</h2>
               <p className="panel-copy">
-                Read saved stage traces for one framework or LLM system without leaving the run.
+                Read saved stage traces for one AI agent or LLM system without leaving the run.
               </p>
             </div>
           </div>

@@ -6,7 +6,7 @@ Operationally, OneEHR is task-oriented: you run `preprocess`, `train`, `test`, `
 
 ## Workflow At A Glance
 
-The task surface is organized around one shared run contract:
+The workflow is organized around one shared run contract:
 
 - `preprocess` materializes the binned and tabular views used by every downstream workflow and saves the split contract under `splits/`.
 - `train` and `test` run conventional ML or DL modeling from a TOML experiment config.
@@ -69,7 +69,7 @@ This writes the run under `logs/example/`, including `run_manifest.json`, `split
 
 The bundled example config ships with a conventional trained-model baseline. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
 
-Supported framework types in the current eval surface:
+Supported `framework_type` values in the current eval surface:
 
 - `single_llm`
 - `healthcareagent`

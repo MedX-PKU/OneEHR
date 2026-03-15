@@ -4,7 +4,7 @@ This guide covers the standard OneEHR operating path: prepare standardized table
 
 Use this page for workflow decisions. Use the [Configuration Reference](../reference/configuration.md), [CLI Reference](../reference/cli.md), and [Artifacts Reference](../reference/artifacts.md) for full option tables and on-disk details.
 
-Operationally, this is the task-oriented surface of OneEHR. Persisted state stays artifact-first: each command reads and writes the same run directory contract.
+Operationally, this is the task surface of OneEHR, but persisted state stays artifact-first: each command reads and writes the same shared run directory contract.
 
 ## Workflow Shape
 

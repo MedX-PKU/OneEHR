@@ -5,10 +5,10 @@ OneEHR's public evaluation surface provides unified, cross-system evaluation. It
 Use this guide when you want to compare:
 
 - conventional ML/DL baselines already produced by `oneehr train`
-- single-LLM systems
-- multi-agent medical AI systems
+- LLM systems
+- AI agent systems
 
-The currently supported framework types are:
+The currently supported `kind = "framework"` system types are:
 
 - `single_llm`
 - `healthcareagent`
@@ -24,7 +24,7 @@ The evaluation workflow builds on a prepared run directory:
 
 - `eval build` requires a run produced by `oneehr preprocess`
 - trained-model systems in `[[eval.systems]]` require model outputs from `oneehr train`
-- framework systems require one or more configured `[[eval.backends]]`
+- systems with `kind = "framework"` require one or more configured `[[eval.backends]]`
 - `analyze` is optional, but `eval.include_analysis_context = true` can only enrich evidence after analysis artifacts exist
 
 Typical sequence:
@@ -65,7 +65,7 @@ source_model = "xgboost"
 
 That is enough to benchmark a trained model baseline on the frozen eval set.
 
-To add LLM or agent systems, define reusable backends and point systems at them:
+To add LLM or AI agent systems, define reusable backends and point systems at them:
 
 ```toml
 [[eval.backends]]
@@ -139,7 +139,7 @@ Outputs are written under:
 - `eval/traces/{system_name}/trace.parquet` when traces are saved
 - `eval/summary.json`
 
-Trained-model systems reuse saved model predictions. Framework systems call the configured OpenAI-compatible backends and store both predictions and structured trace rows.
+Trained-model systems reuse saved model predictions. Systems with `kind = "framework"` call the configured OpenAI-compatible backends and store both predictions and structured trace rows.
 
 ## Step 3: Build The Report
 
@@ -191,7 +191,7 @@ uv run oneehr query prompts describe --template summary_v1
 The unified evaluation design is intended to make cross-system claims defensible:
 
 - one frozen `instances.parquet` anchors the sample set
-- one saved evidence bundle per instance anchors what each framework saw
+- one saved evidence bundle per instance anchors what each LLM or AI agent system saw
 - one explicit `[[eval.backends]]` block records backend model, endpoint, and optional cost settings
 - one `config_sha256` is persisted into predictions and traces for system-level provenance
 - one scoring pass produces the leaderboard, split tables, and pairwise deltas
