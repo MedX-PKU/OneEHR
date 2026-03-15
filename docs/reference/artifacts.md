@@ -2,16 +2,15 @@
 
 OneEHR writes all experiment outputs to a structured run directory under `{output.root}/{output.run_name}/`.
 
-The core public contract is the structured artifact tree consumed by `train`, `test`, `analyze`, `cases`, `query`, and `webui`. Some agent raw files are optional debug outputs rather than required downstream inputs.
+This page documents the current public artifact surface for the eval-first workflow. The core contract is the structured tree consumed by `train`, `test`, `analyze`, `eval`, `query`, and `webui`.
 
 Typical writers:
 
 - `preprocess` writes the run manifest, saved splits, binned data, labels, and tabular views
 - `train` writes model checkpoints, split metrics, predictions, and HPO outputs
-- `test` writes evaluation outputs under `test_runs/`
+- `test` writes held-out or external-test outputs under `test_runs/`
 - `analyze` writes `analysis/`
-- `cases build` writes `cases/`
-- `agent predict` and `agent review` write `agent/`
+- `eval build`, `eval run`, and `eval report` write `eval/`
 
 ---
 
@@ -57,55 +56,29 @@ Typical writers:
         comparison/
             summary.json
             train_metrics.csv
-            agent_predict_metrics.csv
+            test_metrics.csv
         feature_importance_{model}_{split}_{method}.json
-    cases/
+    eval/
         index.json
-        {case_dir}/
-            case.json
-            events.csv
-            static.json
-            predictions.csv
-            analysis_refs.json
-    agent/
-        predict/
-            instances/
-                patient_instances.parquet | time_instances.parquet
-            prompts/
-                {predictor_name}/
-                    {split}.jsonl
-            responses/
-                {predictor_name}/
-                    {split}.jsonl
-            parsed/
-                {predictor_name}/
-                    {split}.parquet
-            preds/
-                {predictor_name}/
-                    {split}.parquet
-            failures/
-                {predictor_name}/
-                    {split}.jsonl
-            metrics/
-                {predictor_name}/
-                    {split}.json
-            summary.json
-        review/
-            prompts/
-                {reviewer_name}/
-                    {split}.jsonl
-            responses/
-                {reviewer_name}/
-                    {split}.jsonl
-            parsed/
-                {reviewer_name}/
-                    {split}.parquet
-            failures/
-                {reviewer_name}/
-                    {split}.jsonl
-            metrics/
-                {reviewer_name}/
-                    {split}__{target_origin}__{target_predictor_name}.json
+        instances/
+            instances.parquet
+        evidence/
+            {instance_dir}/
+                evidence.json
+                events.csv
+                static.json
+                analysis_refs.json
+        predictions/
+            {system_name}/
+                predictions.parquet
+        traces/
+            {system_name}/
+                trace.parquet
+        summary.json
+        reports/
+            leaderboard.csv
+            split_metrics.csv
+            pairwise.csv
             summary.json
     test_runs/
     final/
@@ -117,13 +90,13 @@ Typical writers:
 
 Written by `oneehr preprocess` and read by all downstream commands.
 
-### `run_manifest.json` { #run-manifest }
+### `run_manifest.json`
 
 The single source of truth for the run.
 
 Schema version: **5**
 
-Key top-level fields:
+Key public fields:
 
 | Field | Description |
 |-------|-------------|
@@ -132,9 +105,6 @@ Key top-level fields:
 | `task` | Task config snapshot |
 | `split` | Split config snapshot |
 | `preprocess` | Preprocess config snapshot |
-| `static` | Static postprocess pipeline snapshot |
-| `cases` | Case materialization config snapshot |
-| `agent` | Agent predict/review config snapshot tree |
 | `features.dynamic.feature_columns` | Dynamic feature column names |
 | `features.static.feature_columns` | Static feature column names |
 | `artifacts.binned_parquet_path` | Relative path to `binned.parquet` |
@@ -150,8 +120,8 @@ Binned dynamic events in long format. Columns include `patient_id`, `bin_time`, 
 
 Processed labels.
 
-- Patient mode: `patient_id`, `label`
-- Time mode: `patient_id`, `bin_time`, `label`, `mask`
+- patient mode: `patient_id`, `label`
+- time mode: `patient_id`, `bin_time`, `label`, `mask`
 
 ### `views/patient_tabular.parquet`
 
@@ -171,7 +141,7 @@ Encoded static feature matrix keyed by `patient_id`.
 
 ### `splits/{split_name}.json`
 
-Patient-level split definition used by training, cases, and agent workflows.
+Patient-level split definition used by training, testing, and eval instance construction.
 
 Fields:
 
@@ -230,236 +200,16 @@ Flat CSV of best HPO settings across models.
 
 ---
 
-## Cases artifacts
-
-Written by `oneehr cases build`.
-
-Case directories are filesystem-safe slugs with a short hash suffix. Treat `cases/index.json.records[].case_path` as the source of truth instead of constructing paths yourself.
-
-### `cases/index.json`
-
-Run-level case index.
-
-Key fields:
-
-- `schema_version`
-- `run_dir`
-- `case_count`
-- `records[]` with `case_id`, `patient_id`, `split`, `prediction_mode`, `bin_time`, `ground_truth`, `case_path`, `event_count`, and `prediction_count`
-
-### `cases/{case_dir}/case.json`
-
-Case metadata plus artifact pointers.
-
-Key fields include:
-
-- `case_id`
-- `patient_id`
-- `split`
-- `prediction_mode`
-- `bin_time`
-- `ground_truth`
-- `artifacts`
-- `evidence`
-
-### `cases/{case_dir}/events.csv`
-
-Leakage-safe event timeline for the case. Time-level cases are truncated at `bin_time`.
-
-### `cases/{case_dir}/static.json`
-
-Static features for the case. When `[cases].include_static = false`, `features` is empty.
-
-### `cases/{case_dir}/predictions.csv`
-
-Merged prediction table for the case across trained models and agent predictors.
-
-Common columns:
-
-- `origin`
-- `predictor_name`
-- `split`
-- `patient_id`
-- `prediction`
-- `probability`
-- `value`
-- `confidence`
-- `explanation`
-- `parsed_ok`
-- `error_code`
-- `ground_truth`
-
-Time-level cases also include `bin_time`.
-
-Semantics:
-
-- `origin = "model"` means a trained predictive model from `preds/`
-- `origin = "agent"` means an agent backend result from `agent/predict/preds/`
-- `predictor_name` is the concrete model or backend name, for example `xgboost` or `gpt4o-mini`
-
-### `cases/{case_dir}/analysis_refs.json`
-
-References to available analysis modules plus patient-level matches in `prediction_audit` and `agent_audit`, when present. When `[cases].include_analysis_refs = false`, the file still exists with empty lists.
-
----
-
-## Agent prediction artifacts
-
-Written by `oneehr agent predict`.
-
-### `agent/predict/instances/patient_instances.parquet`
-
-Agent prediction instances for patient-level runs.
-
-Common columns:
-
-- `instance_id`
-- `split`
-- `split_role`
-- `patient_id`
-- `task_kind`
-- `ground_truth`
-- `event_count`
-- `first_event_time`
-- `last_event_time`
-- `has_static`
-
-### `agent/predict/instances/time_instances.parquet`
-
-Agent prediction instances for time-level runs. Includes `bin_time`.
-
-### `agent/predict/prompts/{predictor_name}/{split}.jsonl`
-
-Rendered prompts for one backend and one split. Optional debug output, written when `agent.predict.save_prompts = true`.
-
-### `agent/predict/responses/{predictor_name}/{split}.jsonl`
-
-Raw response payloads for one backend and one split. Optional debug output, written when `agent.predict.save_responses = true`.
-
-### `agent/predict/parsed/{predictor_name}/{split}.parquet`
-
-Parsed prediction outputs. Written when `agent.predict.save_parsed = true`.
-
-### `agent/predict/preds/{predictor_name}/{split}.parquet`
-
-Prediction rows with audit fields.
-
-Common columns:
-
-- `instance_id`
-- `patient_id`
-- `split`
-- `split_role`
-- `predictor_name`
-- `ground_truth`
-- `parsed_ok`
-- `prediction`
-- `probability`
-- `value`
-- `explanation`
-- `confidence`
-- `prompt_sha256`
-- `response_sha256`
-- `token_usage_prompt`
-- `token_usage_completion`
-- `token_usage_total`
-- `latency_ms`
-- `error_code`
-- `error_message`
-
-Time-level outputs also include `bin_time`.
-
-### `agent/predict/failures/{predictor_name}/{split}.jsonl`
-
-Rows that failed request execution or structured parsing.
-
-### `agent/predict/metrics/{predictor_name}/{split}.json`
-
-Per-split metrics and coverage fields:
-
-- `total_rows`
-- `parsed_ok_rows`
-- `parse_success_rate`
-- `ground_truth_rows`
-- `scored_rows`
-- `coverage`
-- `metrics`
-
-### `agent/predict/summary.json`
-
-Run-level summary for all prediction backends and splits.
-
-Each record includes:
-
-- `predictor_name`
-- `provider_model`
-- `split`
-- `task_kind`
-- `prediction_mode`
-- `metrics`
-- `artifacts`
-
----
-
-## Agent review artifacts
-
-Written by `oneehr agent review`.
-
-### `agent/review/prompts/{reviewer_name}/{split}.jsonl`
-
-Rendered reviewer prompts for one reviewer backend and one split. Optional debug output.
-
-### `agent/review/responses/{reviewer_name}/{split}.jsonl`
-
-Raw reviewer responses for one reviewer backend and one split. Optional debug output.
-
-### `agent/review/parsed/{reviewer_name}/{split}.parquet`
-
-Parsed structured review outputs.
-
-Common columns:
-
-- `review_id`
-- `case_id`
-- `patient_id`
-- `split`
-- `target_origin`
-- `target_predictor_name`
-- `parsed_ok`
-- `supported`
-- `clinically_grounded`
-- `leakage_suspected`
-- `needs_human_review`
-- `overall_score`
-- `review_summary`
-- `key_evidence_json`
-- `missing_evidence_json`
-- `ground_truth`
-- `error_code`
-- `error_message`
-
-### `agent/review/failures/{reviewer_name}/{split}.jsonl`
-
-Rows that failed reviewer request execution or structured parsing.
-
-### `agent/review/metrics/{reviewer_name}/{split}__{target_origin}__{target_predictor_name}.json`
-
-Grouped review metrics for one reviewed target within one split.
-
-Fields include:
-
-- `total_rows`
-- `parsed_ok_rows`
-- `parse_success_rate`
-- `metrics.supported_rate`
-- `metrics.clinically_grounded_rate`
-- `metrics.leakage_suspected_rate`
-- `metrics.needs_human_review_rate`
-- `metrics.mean_overall_score`
-
-### `agent/review/summary.json`
-
-Run-level summary for all reviewer backends, grouped by `reviewer_name`, split, `target_origin`, and `target_predictor_name`.
+## Test artifacts
+
+Written by `oneehr test` under `test_runs/`.
+
+| File | Description |
+|------|-------------|
+| `test_runs/metrics_{model}_{split}.json` | Per-split test metrics |
+| `test_runs/preds_{model}_{split}.parquet` | Per-split test predictions |
+| `test_runs/test_summary.json` | Aggregated test summary |
+| `test_runs/test_summary.csv` | Optional flat CSV export when evaluable rows exist |
 
 ---
 
@@ -483,14 +233,14 @@ Key fields:
 
 ### `analysis/{module}/summary.json`
 
-Module-level summary for one of:
+Module-level summary for one analysis module such as:
 
 - `dataset_profile`
 - `cohort_analysis`
 - `prediction_audit`
+- `test_audit`
 - `temporal_analysis`
 - `interpretability`
-- `agent_audit`
 
 ### `analysis/{module}/*.csv`
 
@@ -499,8 +249,8 @@ Tabular exports for the module. Examples:
 - `analysis/dataset_profile/top_codes.csv`
 - `analysis/cohort_analysis/split_roles.csv`
 - `analysis/prediction_audit/slices.csv`
+- `analysis/test_audit/metric_summary.csv`
 - `analysis/temporal_analysis/segments.csv`
-- `analysis/agent_audit/slices.csv`
 
 ### `analysis/{module}/plots/*.json`
 
@@ -508,12 +258,7 @@ Serialized plot specs written when `[analysis].save_plot_specs = true`.
 
 ### `analysis/{module}/cases/*.parquet`
 
-Case-level audit exports.
-
-Current uses:
-
-- `prediction_audit`: highest-error prediction rows per model and split
-- `agent_audit`: failure or low-coverage rows per agent predictor and split
+Case-level audit exports used for module drill-down. A common example is highest-error rows saved by `prediction_audit`.
 
 ### `analysis/comparison/summary.json`
 
@@ -523,9 +268,9 @@ Summary of compare-run outputs when `--compare-run` is provided.
 
 Metric deltas between two runs' top-level `summary.json` files.
 
-### `analysis/comparison/agent_predict_metrics.csv`
+### `analysis/comparison/test_metrics.csv`
 
-Metric deltas between two runs' `agent/predict/summary.json` files.
+Metric deltas between two runs' `test_runs/test_summary.json` files when both exist.
 
 ### `analysis/feature_importance_{model}_{split}_{method}.json`
 
@@ -542,16 +287,180 @@ Fields:
 
 ---
 
-## Test artifacts
+## Eval artifacts
 
-Written by `oneehr test` under `test_runs/`.
+Written by `oneehr eval build`, `oneehr eval run`, and `oneehr eval report`.
 
-| File | Description |
-|------|-------------|
-| `test_runs/metrics_{model}_{split}.json` | Per-split test metrics |
-| `test_runs/preds_{model}_{split}.parquet` | Per-split test predictions |
-| `test_runs/test_summary.json` | Aggregated test summary |
-| `test_runs/test_summary.csv` | Optional flat CSV export when evaluable rows exist |
+### `eval/index.json`
+
+Run-level eval index describing the frozen comparison set.
+
+Key fields:
+
+- `schema_version`
+- `run_dir`
+- `task`
+- `eval.instance_unit`
+- `eval.instance_path`
+- `instance_count`
+- `records[]`
+
+Each `records[]` item can include:
+
+- `instance_id`
+- `patient_id`
+- `split`
+- `split_role`
+- `prediction_mode`
+- `bin_time`
+- `ground_truth`
+- `event_count`
+- `static_feature_count`
+- `evidence_path`
+
+### `eval/instances/instances.parquet`
+
+Frozen instance table used by every scored system.
+
+Common columns:
+
+- `instance_id`
+- `split`
+- `split_role`
+- `patient_id`
+- `prediction_mode`
+- `task_kind`
+- `ground_truth`
+- `event_count`
+- `first_event_time`
+- `last_event_time`
+- `has_static`
+
+Time-level runs also include `bin_time`.
+
+### `eval/evidence/{instance_dir}/evidence.json`
+
+Instance-level metadata plus artifact pointers for the frozen evidence bundle.
+
+### `eval/evidence/{instance_dir}/events.csv`
+
+Leakage-safe event timeline aligned to the frozen instance.
+
+### `eval/evidence/{instance_dir}/static.json`
+
+Static features for the instance. When `[eval].include_static = false`, `features` may be empty.
+
+### `eval/evidence/{instance_dir}/analysis_refs.json`
+
+Optional analysis references attached when `[eval].include_analysis_context = true`.
+
+### `eval/predictions/{system_name}/predictions.parquet`
+
+Per-system prediction rows written by `eval run`.
+
+Common columns:
+
+- `instance_id`
+- `patient_id`
+- `split`
+- `split_role`
+- `bin_time`
+- `ground_truth`
+- `system_name`
+- `system_kind`
+- `framework_type`
+- `parsed_ok`
+- `prediction`
+- `label`
+- `probability`
+- `value`
+- `explanation`
+- `confidence`
+- `latency_ms`
+- `token_usage_prompt`
+- `token_usage_completion`
+- `token_usage_total`
+- `cost_usd`
+- `round_count`
+- `trace_row_count`
+- `config_sha256`
+- `framework_metadata_json`
+- `error_code`
+- `error_message`
+
+### `eval/traces/{system_name}/trace.parquet`
+
+Structured stage-level execution trace for framework systems.
+
+Common columns:
+
+- `instance_id`
+- `patient_id`
+- `split`
+- `bin_time`
+- `system_name`
+- `framework_type`
+- `backend_name`
+- `provider_model`
+- `round`
+- `stage`
+- `role`
+- `actor_name`
+- `parsed_ok`
+- `prompt`
+- `raw_response`
+- `prompt_sha256`
+- `response_sha256`
+- `stage_output_json`
+- `latency_ms`
+- `token_usage_prompt`
+- `token_usage_completion`
+- `token_usage_total`
+- `cost_usd`
+- `error_code`
+- `error_message`
+- `config_sha256`
+
+### `eval/summary.json`
+
+Run-level summary for every enabled system.
+
+Each record can include:
+
+- `system_name`
+- `system_kind`
+- `framework_type`
+- `row_count`
+- `parsed_ok_rows`
+- `coverage`
+- `mean_latency_ms`
+- `total_tokens`
+- `total_cost_usd`
+- `artifacts.predictions_parquet`
+- `artifacts.trace_parquet`
+
+### `eval/reports/leaderboard.csv`
+
+One row per system with the primary ranking metric plus coverage and cost/latency fields.
+
+### `eval/reports/split_metrics.csv`
+
+Per-system, per-split metric table.
+
+### `eval/reports/pairwise.csv`
+
+Paired deltas and bootstrap summaries for configured system comparisons.
+
+### `eval/reports/summary.json`
+
+High-level report metadata such as:
+
+- `primary_metric`
+- `leaderboard_rows`
+- `pairwise_rows`
+- `artifacts.leaderboard_csv`
+- `artifacts.split_metrics_csv`
+- `artifacts.pairwise_csv`
 
 ---
 
