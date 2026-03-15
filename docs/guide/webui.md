@@ -1,6 +1,6 @@
 # Web UI
 
-OneEHR ships a first-party web/API layer for browsing runs, structured analysis outputs, unified evaluation artifacts, and compare-run summaries. The surface is read-only and artifact-first: it serves the shared run contract through `/api/v1`, and the browser never touches run files directly.
+OneEHR ships a read-only web/API layer for browsing runs, structured analysis outputs, unified evaluation artifacts, and compare-run summaries. It serves the shared run contract through `/api/v1`, and the browser never touches run files directly.
 
 ## What It Serves
 

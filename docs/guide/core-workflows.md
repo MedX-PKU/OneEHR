@@ -4,7 +4,7 @@ This guide covers the standard OneEHR operating path: prepare standardized table
 
 Use this page for workflow decisions. Use the [Configuration Reference](../reference/configuration.md), [CLI Reference](../reference/cli.md), and [Artifacts Reference](../reference/artifacts.md) for full option tables and on-disk details.
 
-Operationally, this is the task surface of OneEHR, but persisted state stays artifact-first: each command reads and writes the same shared run directory contract.
+Each command reads and writes the same shared run directory contract, so persisted state stays aligned across preprocessing, training, analysis, evaluation, and inspection.
 
 ## Workflow Shape
 
@@ -64,7 +64,7 @@ Key behaviors:
 - split-level metrics, predictions, and model artifacts are written under the run directory
 - final refit, early stopping, repeated runs, and grid search all live in the same training entrypoint
 
-OneEHR is TOML-first: if the config changes, the experiment changed.
+In OneEHR, the TOML file is the experiment contract: if the config changes, the experiment changed.
 
 ## Test
 

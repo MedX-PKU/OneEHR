@@ -1,7 +1,7 @@
 [project]
 name = "oneehr"
 version = "0.1.0"
-description = "TOML-first infrastructure toolkit for longitudinal EHR experiments across AI agents, LLM systems, and ML/DL models"
+description = "Infrastructure toolkit for longitudinal EHR experiments across AI agents, LLM systems, and ML/DL models"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
