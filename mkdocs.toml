@@ -26,7 +26,7 @@ docs = "dir://docs"
 [context]
 title = "OneEHR"
 favicon = "🩺"
-tagline = "Task-first EHR predictive modeling and analysis toolkit"
+tagline = "TOML-first infrastructure toolkit for EHR modeling, analysis, and evaluation"
 repository_url = "https://github.com/MedX-PKU/OneEHR"
 
 [markdown]

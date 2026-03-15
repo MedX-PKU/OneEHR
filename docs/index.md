@@ -1,15 +1,16 @@
 <div class="landing-hero">
   <div class="landing-hero-copy">
-    <p class="landing-eyebrow">Eval-first EHR infrastructure</p>
+    <p class="landing-eyebrow">TOML-first EHR modeling and evaluation infrastructure</p>
     <h1>OneEHR</h1>
     <p class="landing-lede">
       From standardized EHR tables to reproducible runs, structured analysis, and fair evaluation
-      across ML, DL, single-LLM, and multi-agent medical systems.
+      across conventional ML/DL models, single-LLM systems, and multi-agent medical AI systems.
     </p>
     <p class="landing-body">
-      OneEHR is a Python toolkit for longitudinal EHR predictive modeling and analysis. It keeps the
-      full workflow on one run contract so the CLI, notebooks, and web/API layer all read the same
-      saved artifacts instead of inventing parallel formats for evaluation or review.
+      OneEHR is a TOML-first Python infrastructure toolkit for longitudinal EHR modeling, analysis,
+      and cross-system evaluation. It keeps the full workflow on one shared run contract so the CLI,
+      notebooks, automation, and web/API layer all read the same saved artifacts instead of inventing
+      parallel formats for evaluation or review.
     </p>
     <div class="landing-actions">
       <a class="landing-button landing-button-primary" href="./getting-started/quickstart/">Run the quickstart</a>
@@ -60,7 +61,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
     <p>Prepare normalized EHR tables once, then reuse the same inputs across preprocess, training, testing, analysis, and evaluation.</p>
   </article>
   <article class="feature-card">
-    <p class="feature-kicker">Workflow-first</p>
+    <p class="feature-kicker">Shared contract</p>
     <h3>One run contract across every interface</h3>
     <p>The CLI, notebooks, query endpoints, and Web UI all read the same run directory instead of parallel export formats.</p>
   </article>
@@ -72,7 +73,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   <article class="feature-card">
     <p class="feature-kicker">Agentic AI ready</p>
     <h3>Unified scoring across frameworks</h3>
-    <p>Evaluate trained models, single LLMs, and multi-agent medical frameworks on the same frozen instances with saved traces and metrics.</p>
+    <p>Evaluate conventional ML/DL baselines, single-LLM systems, and multi-agent medical AI systems on the same frozen instances with saved traces and metrics.</p>
   </article>
 </div>
 
@@ -87,7 +88,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   <article class="workflow-step">
     <span class="workflow-step-no">02</span>
     <h3>Train</h3>
-    <p>Fit classical ML or DL models from a TOML experiment contract.</p>
+    <p>Fit conventional ML or DL models from a TOML experiment contract.</p>
   </article>
   <article class="workflow-step">
     <span class="workflow-step-no">03</span>
@@ -107,7 +108,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   <article class="workflow-step">
     <span class="workflow-step-no">06</span>
     <h3>Eval Run</h3>
-    <p>Execute trained-model baselines, single LLMs, and multi-agent frameworks over the same instances.</p>
+    <p>Execute ML/DL baselines, single-LLM systems, and multi-agent frameworks over the same instances.</p>
   </article>
   <article class="workflow-step">
     <span class="workflow-step-no">07</span>

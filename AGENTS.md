@@ -3,7 +3,7 @@
 ## Project Snapshot
 
 - **Project name:** OneEHR
-- **Purpose:** EHR predictive modeling and analysis library in Python
+- **Purpose:** TOML-first Python infrastructure toolkit for EHR modeling, analysis, and cross-system evaluation
 - **CLI:** `oneehr`
 - **Configuration style:** TOML-first
 - **Python version:** 3.12 (`.python-version`)
