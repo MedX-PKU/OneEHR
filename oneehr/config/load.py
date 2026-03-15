@@ -301,7 +301,18 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         for braw in raw_backends or []:
             if not isinstance(braw, dict):
                 raise ValueError("eval.backends entries must be tables")
-            backends.append(EvalBackendConfig(**_load_backend_entry(braw, path_name="eval.backends")))
+            entry = _load_backend_entry(braw, path_name="eval.backends")
+            entry["prompt_token_cost_per_1k"] = (
+                None
+                if braw.get("prompt_token_cost_per_1k") in {None, "", "null"}
+                else float(braw.get("prompt_token_cost_per_1k"))
+            )
+            entry["completion_token_cost_per_1k"] = (
+                None
+                if braw.get("completion_token_cost_per_1k") in {None, "", "null"}
+                else float(braw.get("completion_token_cost_per_1k"))
+            )
+            backends.append(EvalBackendConfig(**entry))
         return backends
 
     def _load_agent_backends(raw_backends: list[dict[str, Any]], *, path_name: str) -> list[AgentBackendConfig]:
@@ -402,6 +413,10 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             else int(eval_raw.get("max_instances"))
         ),
         seed=int(eval_raw.get("seed", 42)),
+        include_static=bool(eval_raw.get("include_static", True)),
+        include_analysis_context=bool(eval_raw.get("include_analysis_context", False)),
+        max_events=int(eval_raw.get("max_events", 200)),
+        time_order=str(eval_raw.get("time_order", "asc")),
         slice_by=[str(v) for v in eval_raw.get("slice_by", []) or []],
         primary_metric=(
             None
@@ -638,12 +653,20 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         raise ValueError("eval.max_instances must be >= 1 when provided")
     if eval_cfg.bootstrap_samples <= 0:
         raise ValueError("eval.bootstrap_samples must be >= 1")
+    if eval_cfg.max_events <= 0:
+        raise ValueError("eval.max_events must be >= 1")
+    if eval_cfg.time_order not in {"asc", "desc"}:
+        raise ValueError("eval.time_order must be 'asc' or 'desc'")
     backend_names = [backend.name for backend in eval_cfg.backends]
     if len(set(backend_names)) != len(backend_names):
         raise ValueError("eval.backends names must be unique")
     for backend_cfg in eval_cfg.backends:
         if backend_cfg.provider != "openai_compatible":
             raise ValueError("eval.backends.provider must be 'openai_compatible' in v1")
+        if backend_cfg.prompt_token_cost_per_1k is not None and backend_cfg.prompt_token_cost_per_1k < 0:
+            raise ValueError("eval.backends.prompt_token_cost_per_1k must be >= 0")
+        if backend_cfg.completion_token_cost_per_1k is not None and backend_cfg.completion_token_cost_per_1k < 0:
+            raise ValueError("eval.backends.completion_token_cost_per_1k must be >= 0")
     allowed_frameworks = {
         "single_llm",
         "healthcareagent",
@@ -660,6 +683,8 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
             raise ValueError("eval.systems.kind must be 'framework' or 'trained_model'")
         if system_cfg.sample_unit not in {"patient", "time"}:
             raise ValueError("eval.systems.sample_unit must be 'patient' or 'time'")
+        if system_cfg.sample_unit != eval_cfg.instance_unit:
+            raise ValueError("eval.systems.sample_unit must match eval.instance_unit")
         if system_cfg.max_samples is not None and system_cfg.max_samples <= 0:
             raise ValueError("eval.systems.max_samples must be >= 1 when provided")
         if system_cfg.max_rounds <= 0:

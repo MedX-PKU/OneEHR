@@ -268,6 +268,8 @@ class EvalBackendConfig:
     api_key_env: str = "OPENAI_API_KEY"
     system_prompt: str | None = None
     supports_json_schema: bool = True
+    prompt_token_cost_per_1k: float | None = None
+    completion_token_cost_per_1k: float | None = None
     headers: dict[str, str] = field(default_factory=dict)
 
 
@@ -309,6 +311,10 @@ class EvalConfig:
     instance_unit: str = "patient"  # patient | time
     max_instances: int | None = None
     seed: int = 42
+    include_static: bool = True
+    include_analysis_context: bool = False
+    max_events: int = 200
+    time_order: str = "asc"
     slice_by: list[str] = field(default_factory=list)
     primary_metric: str | None = None
     bootstrap_samples: int = 200
