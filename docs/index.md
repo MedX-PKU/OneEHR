@@ -1,16 +1,16 @@
 <div class="landing-hero">
   <div class="landing-hero-copy">
-    <p class="landing-eyebrow">EHR AI infrastructure toolkit</p>
+    <p class="landing-eyebrow">EHR AI platform</p>
     <h1>OneEHR</h1>
     <p class="landing-lede">
       From standardized EHR tables to reproducible runs, structured analysis, and fair cross-system
       evaluation across AI agents, LLM systems, and conventional ML/DL models.
     </p>
     <p class="landing-body">
-      OneEHR is a Python infrastructure toolkit for longitudinal EHR experiments. It
-      keeps preprocessing, modeling, analysis, and evaluation on one shared run contract so the CLI,
-      notebooks, and web/API layer all read the same saved artifacts instead of inventing parallel
-      formats for evaluation or review.
+      OneEHR is a Python platform for longitudinal EHR experiments. It provides shared
+      infrastructure for preprocessing, modeling, analysis, and evaluation on one run contract so
+      the CLI, notebooks, and web/API layer all read the same saved artifacts instead of inventing
+      parallel formats for evaluation or review.
     </p>
     <div class="landing-actions">
       <a class="landing-button landing-button-primary" href="./getting-started/quickstart/">Run the quickstart</a>

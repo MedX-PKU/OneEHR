@@ -1,6 +1,6 @@
 # OneEHR
 
-OneEHR is a Python infrastructure toolkit for longitudinal EHR experiments. It standardizes preprocessing, modeling, analysis, and reproducible evaluation for AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.
+OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.
 
 You operate OneEHR through `preprocess`, `train`, `test`, `analyze`, and `eval`. Every stage reads and writes the same run contract, which stays the source of truth for automation and inspection.
 

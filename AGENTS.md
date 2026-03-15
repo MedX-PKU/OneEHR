@@ -3,7 +3,7 @@
 ## Project Snapshot
 
 - **Project name:** OneEHR
-- **Purpose:** EHR AI infrastructure toolkit in Python
+- **Purpose:** EHR AI platform in Python
 - **CLI:** `oneehr`
 - **Configuration style:** TOML
 - **Python version:** 3.12 (`.python-version`)

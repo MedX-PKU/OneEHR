@@ -1,4 +1,4 @@
-"""OneEHR: infrastructure toolkit for longitudinal EHR experiments."""
+"""OneEHR: platform for longitudinal EHR experiments."""
 
 __all__ = ["__version__"]
 
