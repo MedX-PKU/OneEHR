@@ -5,7 +5,7 @@ Use this section when you want to understand how OneEHR operates after the initi
 ## What This Covers
 
 - The standard preprocess, train, test, analyze, and eval-ready artifact path
-- The unified evaluation workflow for trained models, single LLMs, and multi-agent frameworks
+- The unified evaluation workflow for conventional ML/DL baselines, single-LLM systems, and multi-agent medical AI systems
 - The browser/API layer for exploring runs, dashboards, evaluation outputs, and comparison artifacts
 
 ## Workflow Guides

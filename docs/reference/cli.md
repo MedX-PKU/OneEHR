@@ -46,7 +46,7 @@ Trains configured models and writes model artifacts, predictions, and `summary.j
 uv run oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
 ```
 
-Evaluates trained models on held-out or external test data.
+Evaluates configured ML/DL models on held-out or external test data.
 
 ## `oneehr analyze`
 

@@ -213,7 +213,7 @@ export function RunOverviewPage() {
             <p className="eyebrow">Unified Eval</p>
             <h2>Frozen cross-system comparison</h2>
             <p className="panel-copy">
-              The eval pipeline keeps model and framework comparisons on one reproducible instance index.
+              The eval pipeline keeps ML/DL, LLM, and AI agent comparisons on one reproducible instance index.
             </p>
           </div>
           {run.eval.report_summary_path ? (
@@ -226,7 +226,7 @@ export function RunOverviewPage() {
         {run.eval.report_summary_path == null ? (
           <EmptyState
             title="No unified evaluation report yet"
-            description="Run `oneehr eval build`, `oneehr eval run`, and `oneehr eval report` to compare trained models, LLM systems, and multi-agent frameworks."
+            description="Run `oneehr eval build`, `oneehr eval run`, and `oneehr eval report` to compare ML/DL baselines, single-LLM systems, and multi-agent AI systems."
           />
         ) : (
           <div className="detail-grid">

@@ -1,12 +1,12 @@
 # Evaluation Workflows
 
-OneEHR's public evaluation surface is eval-first. It freezes a comparable EHR sample set, executes configured systems on the same saved evidence, and writes leaderboard, split, trace, and paired-comparison artifacts that are reproducible across reruns.
+OneEHR's public evaluation surface provides unified, cross-system evaluation. It freezes a comparable EHR sample set, executes configured systems on the same saved evidence, and writes leaderboard, split, trace, and paired-comparison artifacts that are reproducible across reruns.
 
 Use this guide when you want to compare:
 
-- trained models already produced by `oneehr train`
+- conventional ML/DL baselines already produced by `oneehr train`
 - single-LLM systems
-- multi-agent medical frameworks
+- multi-agent medical AI systems
 
 The currently supported framework types are:
 
@@ -65,7 +65,7 @@ source_model = "xgboost"
 
 That is enough to benchmark a trained model baseline on the frozen eval set.
 
-To add framework systems, define reusable backends and point systems at them:
+To add LLM or agent systems, define reusable backends and point systems at them:
 
 ```toml
 [[eval.backends]]
@@ -188,7 +188,7 @@ uv run oneehr query prompts describe --template summary_v1
 
 ## Reproducibility And Fairness
 
-The eval-first design is intended to make cross-system claims defensible:
+The unified evaluation design is intended to make cross-system claims defensible:
 
 - one frozen `instances.parquet` anchors the sample set
 - one saved evidence bundle per instance anchors what each framework saw

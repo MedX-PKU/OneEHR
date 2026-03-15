@@ -1,6 +1,6 @@
 # Quickstart
 
-This quickstart uses the bundled example config at `examples/experiment.toml`. It walks through the standard modeling path first, then runs the eval-first comparison workflow on the resulting run artifacts.
+This quickstart uses the bundled example config at `examples/experiment.toml`. It walks through the standard modeling path first, then runs the unified evaluation workflow on the resulting run artifacts.
 
 ## 1. Preprocess The Example Data
 
@@ -24,7 +24,7 @@ The example config trains multiple models, enables HPO, and writes model artifac
 uv run oneehr test --config examples/experiment.toml
 ```
 
-By default, `oneehr test` evaluates the trained models against the run's saved split contract. The output is written under `test_runs/` inside the run directory unless you override it.
+By default, `oneehr test` evaluates the configured ML/DL models against the run's saved split contract. The output is written under `test_runs/` inside the run directory unless you override it.
 
 ## 4. Write Structured Analysis Outputs
 

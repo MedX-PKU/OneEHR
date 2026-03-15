@@ -1,10 +1,12 @@
 # OneEHR
 
-OneEHR is a TOML-first Python infrastructure toolkit for longitudinal EHR experiments. It standardizes preprocessing, modeling, analysis, and reproducible evaluation for AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query APIs, and the web/API layer.
+OneEHR is a TOML-first Python infrastructure toolkit for longitudinal EHR experiments. It standardizes preprocessing, modeling, analysis, and reproducible evaluation for AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.
+
+Operationally, OneEHR is task-oriented: you run `preprocess`, `train`, `test`, `analyze`, and `eval`. Architecturally, it is artifact-first: every stage reads and writes the same run contract, which is the source of truth for automation and inspection.
 
 ## Workflow At A Glance
 
-The top-level workflow is organized around one shared run contract:
+The task surface is organized around one shared run contract:
 
 - `preprocess` materializes the binned and tabular views used by every downstream workflow and saves the split contract under `splits/`.
 - `train` and `test` run conventional ML or DL modeling from a TOML experiment config.

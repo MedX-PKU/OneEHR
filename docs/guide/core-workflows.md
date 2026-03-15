@@ -1,8 +1,10 @@
 # Core Workflows
 
-This guide covers the standard OneEHR operating path: prepare standardized tables, materialize features, train and test models, write structured analysis, and produce the artifacts consumed by the eval-first comparison layer.
+This guide covers the standard OneEHR operating path: prepare standardized tables, materialize features, train and test models, write structured analysis, and produce the artifacts consumed by the unified evaluation layer.
 
 Use this page for workflow decisions. Use the [Configuration Reference](../reference/configuration.md), [CLI Reference](../reference/cli.md), and [Artifacts Reference](../reference/artifacts.md) for full option tables and on-disk details.
+
+Operationally, this is the task-oriented surface of OneEHR. Persisted state stays artifact-first: each command reads and writes the same run directory contract.
 
 ## Workflow Shape
 
@@ -66,7 +68,7 @@ OneEHR is TOML-first: if the config changes, the experiment changed.
 
 ## Test
 
-`oneehr test` evaluates trained models after `train` completes.
+`oneehr test` evaluates the configured ML/DL models after `train` completes.
 
 ```bash
 uv run oneehr test --config experiment.toml
@@ -101,7 +103,7 @@ The public contract is structured only: JSON summaries, CSV tables, parquet case
 
 ## Eval-Ready Artifacts And Query
 
-After `analyze`, the run is ready for the eval-first layer. `oneehr eval build` freezes the instances and evidence that every compared system will see.
+After `analyze`, the run is ready for the unified evaluation layer. `oneehr eval build` freezes the instances and evidence that every compared system will see.
 
 ```bash
 uv run oneehr eval build --config experiment.toml
@@ -124,7 +126,7 @@ uv run oneehr query eval report --run-dir logs/example
 The evaluation layer is intentionally downstream of preprocess, train, test, and analyze:
 
 - `preprocess` and `split` define the leakage-safe sampling contract.
-- `train` produces the model baselines you may want to compare against frameworks.
+- `train` produces the conventional ML/DL baselines you may want to compare against LLM or agent systems.
 - `test` gives held-out model evaluation outside the unified eval leaderboard.
 - `analyze` emits structured context that can optionally be attached to eval evidence bundles.
 - `eval build/run/report` then compares systems on the same frozen instances with the same scoring code.

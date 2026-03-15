@@ -117,7 +117,7 @@ export function EvalPage() {
     return (
       <EmptyState
         title="No unified evaluation artifacts yet"
-        description="Run `oneehr eval build`, `oneehr eval run`, and `oneehr eval report` to populate reproducible evaluation artifacts for models and frameworks."
+        description="Run `oneehr eval build`, `oneehr eval run`, and `oneehr eval report` to populate reproducible evaluation artifacts for ML/DL baselines, LLM, and AI agent systems."
       />
     )
   }
@@ -129,7 +129,7 @@ export function EvalPage() {
           <p className="eyebrow">Evaluation</p>
           <h1 className="entity-title identifier-text">{formatIdentifierDisplay(runName)}</h1>
           <p className="hero-copy">
-            Unified, reproducible evaluation across trained models, single-LLM systems, and multi-agent frameworks.
+            Unified, reproducible evaluation across ML/DL baselines, single-LLM systems, and multi-agent AI systems.
           </p>
         </div>
       </section>
@@ -157,7 +157,7 @@ export function EvalPage() {
           key="system_kinds"
           title="System kinds"
           value={new Set(evalPayload.systems.records.map((record) => record.system_kind ?? 'unknown')).size}
-          subtitle="Trained models and frameworks"
+          subtitle="ML/DL baselines and LLM or AI agent systems"
         />
       </section>
 

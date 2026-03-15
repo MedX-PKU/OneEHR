@@ -1,6 +1,6 @@
 # Configuration Reference
 
-OneEHR experiments are driven by a single TOML config file. This page documents the public eval-first configuration surface.
+OneEHR experiments are driven by a single TOML config file. This page documents the public configuration contract for preprocessing, modeling, analysis, and unified evaluation.
 
 See `examples/experiment.toml` for a complete working example.
 
@@ -340,7 +340,7 @@ shap_max_samples = 500
 
 ## `[eval]`
 
-Controls the eval-first workflow under `oneehr eval`.
+Controls the unified evaluation workflow under `oneehr eval`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|

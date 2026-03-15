@@ -108,7 +108,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   <article class="workflow-step">
     <span class="workflow-step-no">06</span>
     <h3>Eval Run</h3>
-    <p>Execute conventional ML/DL baselines, LLM systems, and AI agents over the same instances.</p>
+    <p>Execute conventional ML/DL baselines, single-LLM systems, and multi-agent medical AI systems over the same instances.</p>
   </article>
   <article class="workflow-step">
     <span class="workflow-step-no">07</span>
@@ -135,7 +135,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   </article>
   <article class="entry-card">
     <h3><a href="./guide/eval-workflows/">Evaluation Workflows</a></h3>
-    <p>Configure frozen instances, compare conventional ML/DL baselines with AI agent and LLM systems, and inspect saved traces and paired deltas.</p>
+    <p>Configure frozen instances, compare conventional ML/DL baselines with single-LLM and multi-agent AI systems, and inspect saved traces and paired deltas.</p>
   </article>
   <article class="entry-card">
     <h3><a href="./guide/webui/">Web UI</a></h3>

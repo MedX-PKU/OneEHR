@@ -65,7 +65,7 @@ function RootLayout() {
             OneEHR
           </Link>
           <p className="brand-tagline">
-            Unified longitudinal EHR evaluation, analysis, and model operations.
+            Shared run contracts for EHR modeling, analysis, and evaluation.
           </p>
         </div>
         <nav className="topnav">
