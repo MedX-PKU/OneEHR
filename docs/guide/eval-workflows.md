@@ -4,9 +4,9 @@ OneEHR's public evaluation surface provides unified, cross-system evaluation. It
 
 Use this guide when you want to compare:
 
-- conventional ML/DL baselines already produced by `oneehr train`
+- conventional ML/DL models already produced by `oneehr train`
 - LLM systems
-- AI agent systems
+- AI agents
 
 The currently supported `kind = "framework"` system types are:
 
@@ -63,9 +63,9 @@ sample_unit = "patient"
 source_model = "xgboost"
 ```
 
-That is enough to benchmark a trained model baseline on the frozen eval set.
+That is enough to benchmark a trained model reference on the frozen eval set.
 
-To add LLM or AI agent systems, define reusable backends and point systems at them:
+To add LLM systems or AI agents, define reusable backends and point systems at them:
 
 ```toml
 [[eval.backends]]
@@ -191,7 +191,7 @@ uv run oneehr query prompts describe --template summary_v1
 The unified evaluation design is intended to make cross-system claims defensible:
 
 - one frozen `instances.parquet` anchors the sample set
-- one saved evidence bundle per instance anchors what each LLM or AI agent system saw
+- one saved evidence bundle per instance anchors what each LLM system or AI agent saw
 - one explicit `[[eval.backends]]` block records backend model, endpoint, and optional cost settings
 - one `config_sha256` is persisted into predictions and traces for system-level provenance
 - one scoring pass produces the leaderboard, split tables, and pairwise deltas

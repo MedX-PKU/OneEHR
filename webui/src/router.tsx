@@ -65,7 +65,7 @@ function RootLayout() {
             OneEHR
           </Link>
           <p className="brand-tagline">
-            EHR AI evaluation, analysis, and comparison on one run contract.
+            EHR AI evaluation, analysis, and comparison on one shared run contract.
           </p>
         </div>
         <nav className="topnav">

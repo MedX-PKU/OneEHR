@@ -48,7 +48,7 @@ This materializes `eval/index.json`, `eval/instances/instances.parquet`, and, by
 uv run oneehr eval run --config examples/experiment.toml
 ```
 
-The bundled example config includes a trained-model baseline system, so this step works without any external API keys. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` and more `[[eval.systems]]` entries to the config.
+The bundled example config includes a trained-model reference system, so this step works without any external API keys. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` and more `[[eval.systems]]` entries to the config.
 
 ## 7. Build The Comparison Report
 

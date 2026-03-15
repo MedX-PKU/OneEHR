@@ -60,7 +60,7 @@ uv run oneehr train --config experiment.toml --force
 Key behaviors:
 
 - `[model]` or `[[models]]` selects the training targets
-- tabular and deep learning models share the same run contract
+- tabular and deep learning models use the same shared run contract
 - split-level metrics, predictions, and model artifacts are written under the run directory
 - final refit, early stopping, repeated runs, and grid search all live in the same training entrypoint
 
@@ -126,7 +126,7 @@ uv run oneehr query eval report --run-dir logs/example
 The evaluation layer is intentionally downstream of preprocess, train, test, and analyze:
 
 - `preprocess` and `split` define the leakage-safe sampling contract.
-- `train` produces the conventional ML/DL baselines you may want to compare against LLM or agent systems.
+- `train` produces the conventional ML/DL models you may want to compare against LLM systems or AI agents.
 - `test` gives held-out model evaluation outside the unified eval leaderboard.
 - `analyze` emits structured context that can optionally be attached to eval evidence bundles.
 - `eval build/run/report` then compares systems on the same frozen instances with the same scoring code.

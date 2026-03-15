@@ -4,7 +4,7 @@ OneEHR experiments are driven by a single TOML config file. This page documents 
 
 See `examples/experiment.toml` for a complete working example.
 
-Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer part of the supported config contract. Cross-system prompting and LLM or AI agent evaluation now live entirely under `[eval]`.
+Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer part of the supported config contract. Cross-system prompting and evaluation of LLM systems and AI agents now live entirely under `[eval]`.
 
 ---
 
@@ -181,7 +181,7 @@ name = "xgboost"
 ```
 
 !!! note
-    `[model]` / `[[models]]` are required for `oneehr train`. Framework-only eval workflows can omit training models, but trained-model baselines obviously require saved model artifacts.
+    `[model]` / `[[models]]` are required for `oneehr train`. LLM-only or agent-only eval workflows can omit training models, but trained-model reference systems still require saved model artifacts.
 
 ---
 
@@ -377,7 +377,7 @@ text_render_template = "summary_v1"
 
 ## `[[eval.backends]]`
 
-Reusable backend definitions for LLM and AI agent systems configured as `kind = "framework"`.
+Reusable backend definitions for LLM systems and AI agents configured as `kind = "framework"`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|

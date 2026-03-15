@@ -1,8 +1,8 @@
 # OneEHR
 
-OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.
+OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.
 
-You operate OneEHR through `preprocess`, `train`, `test`, `analyze`, and `eval`. Every stage reads and writes the same run contract, which stays the source of truth for automation and inspection.
+You operate OneEHR through `preprocess`, `train`, `test`, `analyze`, and `eval`. Every stage reads and writes the same shared run contract, which stays the source of truth for automation and inspection.
 
 ## Workflow At A Glance
 
@@ -11,7 +11,7 @@ The workflow is organized around one shared run contract:
 - `preprocess` materializes the binned and tabular views used by every downstream workflow and saves the split contract under `splits/`.
 - `train` and `test` run conventional ML or DL modeling from a TOML experiment config.
 - `analyze` writes structured module outputs under `analysis/`.
-- `eval build`, `eval run`, and `eval report` freeze evaluation instances, execute configured ML/DL baselines, LLM systems, or AI agents on the same evidence, and write reproducible comparison outputs under `eval/`.
+- `eval build`, `eval run`, and `eval report` freeze evaluation instances, execute configured conventional ML/DL models, LLM systems, or AI agents on the same evidence, and write reproducible comparison outputs under `eval/`.
 - `query ...` and `webui serve` expose the same artifacts as JSON or a browser-backed API.
 
 The top-level CLI surface is:
@@ -67,7 +67,7 @@ uv run oneehr query eval report --run-dir logs/example
 
 This writes the run under `logs/example/`, including `run_manifest.json`, `splits/`, model outputs, `analysis/`, and `eval/`.
 
-The bundled example config ships with a conventional trained-model baseline. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
+The bundled example config ships with a trained-model reference system. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
 
 Supported `framework_type` values in the current eval surface:
 

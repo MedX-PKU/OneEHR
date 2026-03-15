@@ -8,7 +8,7 @@
     </p>
     <p class="landing-body">
       OneEHR is a Python platform for longitudinal EHR experiments. It provides shared
-      infrastructure for preprocessing, modeling, analysis, and evaluation on one run contract so
+      infrastructure for preprocessing, modeling, analysis, and evaluation on one shared run contract so
       the CLI, notebooks, and web/API layer all read the same saved artifacts instead of inventing
       parallel formats for evaluation or review.
     </p>
@@ -43,7 +43,7 @@
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">System layer</span>
-        <strong>Model + AI system comparison</strong>
+        <strong>Cross-system comparison</strong>
         <span class="landing-stat-meta">Same samples, same scoring contract</span>
       </article>
     </div>
@@ -62,7 +62,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   </article>
   <article class="feature-card">
     <p class="feature-kicker">Shared contract</p>
-    <h3>One run contract across every interface</h3>
+    <h3>One shared run contract across every interface</h3>
     <p>The CLI, notebooks, query endpoints, and Web UI all read the same run directory instead of parallel export formats.</p>
   </article>
   <article class="feature-card">
@@ -73,7 +73,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   <article class="feature-card">
     <p class="feature-kicker">Cross-system evaluation</p>
     <h3>Unified scoring across systems</h3>
-    <p>Evaluate conventional ML/DL baselines, LLM systems, and AI agents on the same frozen instances with saved traces and metrics.</p>
+    <p>Evaluate conventional ML/DL models, LLM systems, and AI agents on the same frozen instances with saved traces and metrics.</p>
   </article>
 </div>
 
@@ -108,7 +108,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   <article class="workflow-step">
     <span class="workflow-step-no">06</span>
     <h3>Eval Run</h3>
-    <p>Execute conventional ML/DL baselines, LLM systems, and AI agents over the same instances.</p>
+    <p>Execute conventional ML/DL models, LLM systems, and AI agents over the same instances.</p>
   </article>
   <article class="workflow-step">
     <span class="workflow-step-no">07</span>
@@ -135,7 +135,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   </article>
   <article class="entry-card">
     <h3><a href="./guide/eval-workflows/">Evaluation Workflows</a></h3>
-    <p>Configure frozen instances, compare conventional ML/DL baselines with LLM systems and AI agents, and inspect saved traces and paired deltas.</p>
+    <p>Configure frozen instances, compare conventional ML/DL models with LLM systems and AI agents, and inspect saved traces and paired deltas.</p>
   </article>
   <article class="entry-card">
     <h3><a href="./guide/webui/">Web UI</a></h3>
@@ -160,7 +160,7 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   </article>
   <article class="principle-card">
     <h3>Evaluation is first-class</h3>
-    <p>AI agent and LLM systems are scored on the same frozen samples and evidence bundles as conventional ML/DL baselines, so comparisons stay fair and reproducible.</p>
+    <p>AI agents and LLM systems are scored on the same frozen samples and evidence bundles as conventional ML/DL models, so comparisons stay fair and reproducible.</p>
   </article>
 </div>
 

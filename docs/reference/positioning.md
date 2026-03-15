@@ -37,6 +37,7 @@ Use these ideas repeatedly and consistently:
 - `web/API layer`
 - `standardized EHR tables`
 - `reproducible artifacts`
+- `conventional ML/DL models`
 
 ## Terms To Avoid
 
@@ -52,6 +53,8 @@ Do not use these as top-level positioning language:
 - `single-LLM`
 - `multi-agent medical framework`
 - `infra platform`
+- `AI agent systems`
+- `ML/DL baselines`
 
 If a page needs to mention implementation details, describe them directly instead of turning them into slogans.
 
@@ -66,7 +69,7 @@ These terms are valid when you are talking about the implementation or config su
 - `run contract`
 - `artifact`
 
-Use `framework` only for config/runtime details. For user-facing product copy, prefer `AI agents` or `LLM systems`.
+Use `framework` only for config/runtime details. For user-facing product copy, prefer `AI agents`, `LLM systems`, and `conventional ML/DL models`.
 
 Use `TOML` to describe the experiment contract or configuration model, not the product identity.
 
@@ -105,4 +108,3 @@ Pick one abstraction level and stay there. The canonical level for OneEHR is:
 - product identity: `platform`
 - system scope: `AI agents`, `LLM systems`, `conventional ML/DL models`
 - architecture: `shared run contract`
-
