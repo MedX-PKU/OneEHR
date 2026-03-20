@@ -7,7 +7,7 @@ from importlib import import_module
 
 from oneehr.config.schema import ModelConfig, TaskConfig
 
-TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt"})
+TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt", "lr"})
 DL_MODELS: frozenset[str] = frozenset({
     "gru", "lstm", "rnn", "tcn", "transformer",
     "mlp", "adacare", "stagenet", "retain",

@@ -29,7 +29,7 @@ def save_tabular_model(art: TabularArtifacts, model_dir: str | Path) -> None:
     if art.kind == "catboost":
         art.model.save_model(d / "model.cbm")
         return
-    if art.kind in ("rf", "dt", "gbdt"):
+    if art.kind in ("rf", "dt", "gbdt", "lr"):
         import joblib
         joblib.dump(art.model, d / "model.joblib")
         return
@@ -54,7 +54,7 @@ def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) ->
         model.load_model(d / "model.cbm")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
 
-    if kind in ("rf", "dt", "gbdt"):
+    if kind in ("rf", "dt", "gbdt", "lr"):
         import joblib
         model = joblib.load(d / "model.joblib")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind=kind)
@@ -155,6 +155,23 @@ def train_tabular_model(
 
         model.fit(X_train, y_train)
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="dt")
+
+    if model_name == "lr":
+        if task.kind == "binary":
+            from sklearn.linear_model import LogisticRegression
+            defaults = dict(C=1.0, max_iter=1000, solver="lbfgs")
+            kw = {**defaults, **params, "random_state": seed}
+            model = LogisticRegression(**kw)
+        elif task.kind == "regression":
+            from sklearn.linear_model import Ridge
+            defaults = dict(alpha=1.0)
+            kw = {**defaults, **params, "random_state": seed}
+            model = Ridge(**kw)
+        else:
+            raise ValueError(f"Unsupported task.kind={task.kind!r}")
+
+        model.fit(X_train, y_train)
+        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="lr")
 
     if model_name == "gbdt":
         from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
