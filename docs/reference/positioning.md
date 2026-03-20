@@ -14,14 +14,14 @@ Preferred one-sentence description:
 
 Preferred expanded description:
 
-> OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.
+> OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI and notebooks.
 
 ## Core Claims
 
 Use these ideas repeatedly and consistently:
 
 - One platform across preprocessing, modeling, analysis, and evaluation.
-- One shared run contract across CLI, notebooks, query surfaces, and the web/API layer.
+- One shared run contract across CLI and notebooks.
 - One evaluation workflow across AI agents, LLM systems, and conventional ML/DL models.
 - Standardized EHR tables in, reproducible artifacts out.
 - Fair cross-system comparison on frozen instances and saved evidence.
@@ -34,7 +34,7 @@ Use these ideas repeatedly and consistently:
 - `conventional ML/DL models`
 - `shared run contract`
 - `cross-system evaluation`
-- `web/API layer`
+- `CLI and notebooks`
 - `standardized EHR tables`
 - `reproducible artifacts`
 - `conventional ML/DL models`
@@ -89,7 +89,7 @@ Medium intro:
 
 Long intro:
 
-- `OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.`
+- `OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI and notebooks.`
 
 ## Scope Boundaries
 
