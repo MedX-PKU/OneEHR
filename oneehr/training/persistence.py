@@ -1,62 +1,42 @@
+"""Model checkpointing: torch.save for ALL models (DL + ML wrappers)."""
+
 from __future__ import annotations
 
-from dataclasses import asdict
+import json
 from pathlib import Path
 
 import torch
 
-from oneehr.config.schema import ExperimentConfig
-from oneehr.utils import as_jsonable, ensure_dir, sha256_lines, write_json
+from oneehr.utils import ensure_dir, write_json
 
 
-def write_dl_artifacts(
+def save_checkpoint(
     *,
     out_dir: Path,
-    model,
-    cfg: ExperimentConfig,
+    model: object,
+    model_name: str,
+    params: dict,
+    train_metrics: dict,
     feature_columns: list[str],
-    code_vocab: list[str] | None,
 ) -> None:
-    """Persist a trained DL model in a reproducible way.
-
-    Writes:
-      - state_dict.ckpt: torch checkpoint with model weights
-      - model_meta.json: metadata required to rebuild the model + align inputs
-    """
-
+    """Save checkpoint.ckpt + meta.json for any model type."""
     out_dir = ensure_dir(out_dir)
 
-    ckpt_path = out_dir / "state_dict.ckpt"
-    torch.save(model.state_dict(), ckpt_path)
-
-    primary_model = cfg.require_model(context="DL artifact persistence")
-    model_cfg = getattr(primary_model, primary_model.name)
+    # torch.save works for DL models (nn.Module) and wrapped ML models
+    torch.save(model, out_dir / "checkpoint.ckpt")
 
     meta = {
-        "schema_version": 1,
-        "model": {
-            "name": primary_model.name,
-            "hyperparams": as_jsonable(asdict(model_cfg)) if hasattr(model_cfg, "__dataclass_fields__") else {},
-        },
-        "task": {"kind": str(cfg.task.kind), "prediction_mode": str(cfg.task.prediction_mode)},
-        "dataset": {
-            "time_col": "event_time",
-            "patient_id_col": "patient_id",
-            "event_time_col": "event_time",
-        },
-        "input": {
-            "input_dim": int(len(feature_columns)),
-            "static_dim": 0,
-            "static_feature_columns": None,
-            "static_feature_columns_sha256": None,
-            "feature_columns": list(feature_columns),
-            "feature_columns_sha256": sha256_lines(list(feature_columns)),
-            **({"code_vocab": list(code_vocab), "code_vocab_sha256": sha256_lines(list(code_vocab))} if code_vocab is not None else {}),
-        },
-        "preprocess": {
-            "bin_size": str(cfg.preprocess.bin_size),
-            "top_k_codes": None if cfg.preprocess.top_k_codes is None else int(cfg.preprocess.top_k_codes),
-        },
+        "model_name": model_name,
+        "params": params,
+        "train_metrics": train_metrics,
+        "feature_columns": feature_columns,
     }
+    write_json(out_dir / "meta.json", meta)
 
-    write_json(out_dir / "model_meta.json", meta)
+
+def load_checkpoint(model_dir: Path) -> tuple[object, dict]:
+    """Load checkpoint.ckpt and meta.json. Returns (model, meta_dict)."""
+    model_dir = Path(model_dir)
+    model = torch.load(model_dir / "checkpoint.ckpt", map_location="cpu", weights_only=False)
+    meta = json.loads((model_dir / "meta.json").read_text(encoding="utf-8"))
+    return model, meta

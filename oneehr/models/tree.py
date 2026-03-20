@@ -1,18 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from pathlib import Path
-
-from oneehr.config.schema import (
-    CatBoostConfig,
-    TaskConfig,
-    XGBoostConfig,
-)
+from oneehr.config.schema import TaskConfig
 
 
 @dataclass
@@ -35,7 +29,6 @@ def save_tabular_model(art: TabularArtifacts, model_dir: str | Path) -> None:
     if art.kind == "catboost":
         art.model.save_model(d / "model.cbm")
         return
-
     raise ValueError(f"Unsupported tabular kind={art.kind!r}")
 
 
@@ -47,21 +40,13 @@ def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) ->
 
     if kind == "xgboost":
         from xgboost import XGBClassifier, XGBRegressor
-
-        if task.kind == "binary":
-            model = XGBClassifier()
-        else:
-            model = XGBRegressor()
+        model = XGBClassifier() if task.kind == "binary" else XGBRegressor()
         model.load_model(d / "model.json")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="xgboost")
 
     if kind == "catboost":
         from catboost import CatBoostClassifier, CatBoostRegressor
-
-        if task.kind == "binary":
-            model = CatBoostClassifier()
-        else:
-            model = CatBoostRegressor()
+        model = CatBoostClassifier() if task.kind == "binary" else CatBoostRegressor()
         model.load_model(d / "model.cbm")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
 
@@ -76,10 +61,10 @@ def train_tabular_model(
     X_val: pd.DataFrame | None,
     y_val: np.ndarray | None,
     task: TaskConfig,
-    model_cfg: Any,
+    params: dict,
     seed: int = 0,
 ) -> TabularArtifacts:
-    """Train a 2D tabular model (XGBoost or CatBoost)."""
+    """Train a 2D tabular model (XGBoost or CatBoost) using params dict."""
 
     X_train = X_train.copy()
     feature_columns = list(X_train.columns)
@@ -87,46 +72,23 @@ def train_tabular_model(
     if model_name == "xgboost":
         from xgboost import XGBClassifier, XGBRegressor
 
-        cfg: XGBoostConfig = model_cfg
+        # Defaults merged with user params
+        defaults = dict(
+            max_depth=6, n_estimators=500, learning_rate=0.05,
+            subsample=0.8, colsample_bytree=0.8, reg_lambda=1.0,
+            min_child_weight=1.0, random_state=seed,
+        )
+        kw = {**defaults, **params, "random_state": seed}
 
         if task.kind == "binary":
-            y_train_u = np.unique(y_train)
-            if y_train_u.size < 2:
-                raise ValueError(
-                    "Binary training split contains a single class; cannot fit XGBoost. "
-                    f"classes={y_train_u.tolist()}"
-                )
-            model = XGBClassifier(
-                max_depth=cfg.max_depth,
-                n_estimators=cfg.n_estimators,
-                learning_rate=cfg.learning_rate,
-                subsample=cfg.subsample,
-                colsample_bytree=cfg.colsample_bytree,
-                reg_lambda=cfg.reg_lambda,
-                min_child_weight=cfg.min_child_weight,
-                eval_metric="logloss",
-                random_state=seed,
-            )
+            kw["eval_metric"] = "logloss"
+            model = XGBClassifier(**kw)
         elif task.kind == "regression":
-            model = XGBRegressor(
-                max_depth=cfg.max_depth,
-                n_estimators=cfg.n_estimators,
-                learning_rate=cfg.learning_rate,
-                subsample=cfg.subsample,
-                colsample_bytree=cfg.colsample_bytree,
-                reg_lambda=cfg.reg_lambda,
-                min_child_weight=cfg.min_child_weight,
-                random_state=seed,
-            )
+            model = XGBRegressor(**kw)
         else:
             raise ValueError(f"Unsupported task.kind={task.kind!r}")
 
         if X_val is not None and y_val is not None and len(X_val) > 0:
-            if task.kind == "binary":
-                y_val_u = np.unique(y_val)
-                if y_val_u.size < 2:
-                    model.fit(X_train, y_train)
-                    return TabularArtifacts(feature_columns=feature_columns, model=model, kind="xgboost")
             model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
         else:
             model.fit(X_train, y_train)
@@ -136,27 +98,13 @@ def train_tabular_model(
     if model_name == "catboost":
         from catboost import CatBoostClassifier, CatBoostRegressor
 
-        cfg = model_cfg
-        assert isinstance(cfg, CatBoostConfig)
+        defaults = dict(depth=6, n_estimators=500, learning_rate=0.05)
+        kw = {**defaults, **params, "random_state": seed, "verbose": False, "allow_writing_files": False}
 
         if task.kind == "binary":
-            model = CatBoostClassifier(
-                depth=cfg.depth,
-                n_estimators=cfg.n_estimators,
-                learning_rate=cfg.learning_rate,
-                random_state=seed,
-                verbose=False,
-                allow_writing_files=False,
-            )
+            model = CatBoostClassifier(**kw)
         elif task.kind == "regression":
-            model = CatBoostRegressor(
-                depth=cfg.depth,
-                n_estimators=cfg.n_estimators,
-                learning_rate=cfg.learning_rate,
-                random_state=seed,
-                verbose=False,
-                allow_writing_files=False,
-            )
+            model = CatBoostRegressor(**kw)
         else:
             raise ValueError(f"Unsupported task.kind={task.kind!r}")
 
@@ -177,14 +125,3 @@ def predict_tabular(art: TabularArtifacts, X: pd.DataFrame, task: TaskConfig) ->
     if task.kind == "regression":
         return art.model.predict(X)
     raise ValueError(f"Unsupported task.kind={task.kind!r}")
-
-
-def predict_tabular_logits(art: TabularArtifacts, X: pd.DataFrame, task: TaskConfig) -> np.ndarray | None:
-    """Return decision values (log-odds) when available."""
-
-    if art.kind != "xgboost":
-        return None
-    if task.kind != "binary":
-        return None
-    X = X[art.feature_columns]
-    return art.model.predict(X, output_margin=True)
