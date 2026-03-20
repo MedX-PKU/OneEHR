@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Convert TJH COVID-19 ICU dataset (Excel) to OneEHR input CSVs.
 
-Reads:  examples/time_series_375_prerpocess_en.xlsx
-Writes: examples/tjh/dynamic.csv, examples/tjh/static.csv, examples/tjh/label.csv
+Reads:  examples/tjh/time_series_375_prerpocess_en.xlsx
+Writes: examples/tjh/{dynamic,static,label}.csv
 """
 from pathlib import Path
 
@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 SRC = Path(__file__).parent / "time_series_375_prerpocess_en.xlsx"
-OUT = Path(__file__).parent / "tjh"
+OUT = Path(__file__).parent
 
 RENAME = {
     "PATIENT_ID": "PatientID",

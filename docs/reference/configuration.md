@@ -2,7 +2,7 @@
 
 OneEHR experiments are driven by a single TOML config file. This page documents the public configuration contract for preprocessing, modeling, analysis, and unified evaluation.
 
-See `examples/experiment.toml` for a complete working example.
+See `examples/tjh/experiment.toml` for a complete working example.
 
 Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer part of the supported config contract. Cross-system prompting and evaluation of LLM systems and AI agents now live entirely under `[eval]`.
 
@@ -118,7 +118,7 @@ Optional label generation from a Python function.
 
 ```toml
 [labels]
-fn = "examples/label_fn.py:build_labels"
+fn = "path/to/label_fn.py:build_labels"
 bin_from_time_col = true
 ```
 

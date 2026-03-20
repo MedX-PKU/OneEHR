@@ -204,7 +204,7 @@ Use `[labels].fn` when labels should be computed from raw events instead of load
 
 ```toml
 [labels]
-fn = "examples/label_fn.py:build_labels"
+fn = "path/to/label_fn.py:build_labels"
 bin_from_time_col = true
 ```
 

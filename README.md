@@ -51,21 +51,20 @@ uv pip install -e ".[webui]"
 
 ## Quickstart
 
-Use the bundled example config at [`examples/experiment.toml`](examples/experiment.toml):
+Use the bundled TJH example at [`examples/tjh/experiment.toml`](examples/tjh/experiment.toml):
 
 ```bash
-uv run oneehr preprocess --config examples/experiment.toml --overview
-uv run oneehr train --config examples/experiment.toml
-uv run oneehr test --config examples/experiment.toml
-uv run oneehr analyze --config examples/experiment.toml
-uv run oneehr eval build --config examples/experiment.toml
-uv run oneehr eval run --config examples/experiment.toml
-uv run oneehr eval report --config examples/experiment.toml
-uv run oneehr query runs describe --config examples/experiment.toml
-uv run oneehr query eval report --run-dir logs/example
+# Convert source data (only needed once)
+uv run python examples/tjh/convert.py
+
+# Run the pipeline
+uv run oneehr preprocess --config examples/tjh/experiment.toml
+uv run oneehr train     --config examples/tjh/experiment.toml
+uv run oneehr test      --config examples/tjh/experiment.toml
+uv run oneehr analyze   --config examples/tjh/experiment.toml
 ```
 
-This writes the run under `logs/example/`, including `run_manifest.json`, `splits/`, model outputs, `analysis/`, and `eval/`.
+This writes the run under `runs/tjh/`, including `manifest.json`, `preprocess/`, `train/`, `test/`, and `analyze/`.
 
 The bundled example config ships with a trained-model reference system. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
 
@@ -148,6 +147,6 @@ Recommended checks:
 ```bash
 uv run oneehr --help
 uv run oneehr eval --help
-uv run oneehr preprocess --config examples/experiment.toml --overview
+uv run oneehr preprocess --config examples/tjh/experiment.toml
 uv run mkdocs build
 ```

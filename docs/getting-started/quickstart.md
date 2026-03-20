@@ -1,75 +1,48 @@
 # Quickstart
 
-This quickstart uses the bundled example config at `examples/experiment.toml`. It walks through the standard modeling path first, then runs the unified cross-system evaluation workflow on the resulting run artifacts.
+This quickstart uses the bundled TJH COVID-19 ICU example at `examples/tjh/experiment.toml`. It walks through the four core pipeline steps: preprocess, train, test, and analyze.
 
-## 1. Preprocess The Example Data
-
-```bash
-uv run oneehr preprocess --config examples/experiment.toml --overview
-```
-
-This creates `logs/example/`, writes `run_manifest.json`, saves `splits/`, and materializes the feature views used by every downstream command.
-
-## 2. Train The Configured Models
+## 0. Convert The Source Data (once)
 
 ```bash
-uv run oneehr train --config examples/experiment.toml
+uv run python examples/tjh/convert.py
 ```
 
-The example config trains multiple models, enables HPO, and writes model artifacts, predictions, and training summaries under the same run directory.
+This reads the raw Excel file and produces `dynamic.csv`, `static.csv`, and `label.csv` inside `examples/tjh/`.
 
-## 3. Evaluate On The Saved Test Splits
+## 1. Preprocess
 
 ```bash
-uv run oneehr test --config examples/experiment.toml
+uv run oneehr preprocess --config examples/tjh/experiment.toml
 ```
 
-By default, `oneehr test` evaluates the configured ML/DL models against the run's saved split contract. The output is written under `test_runs/` inside the run directory unless you override it.
+This creates `runs/tjh/preprocess/`, writes `manifest.json`, the split contract, and materializes binned feature views.
 
-## 4. Write Structured Analysis Outputs
+## 2. Train
 
 ```bash
-uv run oneehr analyze --config examples/experiment.toml
+uv run oneehr train --config examples/tjh/experiment.toml
 ```
 
-This writes module outputs under `analysis/`, including summaries, tables, optional plot specs, and case slices when the selected module emits them.
+The example config trains 6 models (xgboost, catboost, gru, lstm, tcn, transformer) and writes checkpoints under `runs/tjh/train/`.
 
-## 5. Freeze Evaluation Instances
+## 3. Test
 
 ```bash
-uv run oneehr eval build --config examples/experiment.toml
+uv run oneehr test --config examples/tjh/experiment.toml
 ```
 
-This materializes `eval/index.json`, `eval/instances/instances.parquet`, and, by default, saved evidence bundles under `eval/evidence/`.
+Evaluates all trained models on the held-out test split. Writes `runs/tjh/test/predictions.parquet` and `metrics.json`.
 
-## 6. Execute The Configured Evaluation Systems
+## 4. Analyze
 
 ```bash
-uv run oneehr eval run --config examples/experiment.toml
+uv run oneehr analyze --config examples/tjh/experiment.toml
 ```
 
-The bundled example config includes a trained-model reference system, so this step works without any external API keys. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` and more `[[eval.systems]]` entries to the config.
+Writes structured analysis outputs under `runs/tjh/analyze/`, including cross-system comparison and feature importance.
 
-## 7. Build The Comparison Report
-
-```bash
-uv run oneehr eval report --config examples/experiment.toml
-```
-
-This writes `eval/reports/leaderboard.csv`, `eval/reports/split_metrics.csv`, `eval/reports/pairwise.csv`, and `eval/reports/summary.json`.
-
-## 8. Query The Run Contract
-
-```bash
-uv run oneehr query runs describe --config examples/experiment.toml
-uv run oneehr query analysis summary --run-dir logs/example --module prediction_audit
-uv run oneehr query eval report --run-dir logs/example
-uv run oneehr query eval table --run-dir logs/example --table leaderboard
-```
-
-`query` is the structured read layer for automation, notebooks, and UI consumers. It emits JSON to stdout.
-
-## 9. Optional Web UI
+## Optional: Web UI
 
 Build the frontend once:
 
@@ -84,7 +57,7 @@ Then serve the API and built dashboard:
 ```bash
 cd ..
 uv pip install -e ".[webui]"
-uv run oneehr webui serve --root logs
+uv run oneehr webui serve --root runs
 ```
 
 Open `http://127.0.0.1:8000`.

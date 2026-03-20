@@ -1,7 +1,0 @@
-patient_id,label_time,label_code,label_value
-p001,2025-01-03 09:30:00,outcome,1
-p002,2025-01-04 07:40:00,outcome,0
-p003,2025-01-03 14:10:00,outcome,1
-p004,2025-01-05 09:00:00,outcome,0
-p005,2025-01-03 11:15:00,outcome,0
-p006,2025-01-04 08:35:00,outcome,0

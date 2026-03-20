@@ -308,7 +308,7 @@ run_name = "exp001"
 |------|--------------|
 | `analysis/__init__.py` | Cleared re-exports of deleted reporting functions |
 | `analysis/reporting.py` | Not deleted but now dead code (imports broken modules) |
-| `examples/experiment.toml` | Rewritten for new config schema |
+| `examples/tjh/experiment.toml` | Rewritten for new config schema (TJH dataset) |
 | `tests/test_cli_smoke.py` | Rewritten for new pipeline |
 | `tests/test_cli_end_to_end_simulated.py` | Rewritten for new pipeline |
 | `tests/test_train_cli_contract.py` | Rewritten for new pipeline |
