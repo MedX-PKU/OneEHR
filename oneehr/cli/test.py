@@ -177,6 +177,18 @@ def _predict_trained_model(
             )
             last.index = last.index.astype(str)
 
+            # Join static features (training joined them, so test must too)
+            run_dir = model_dir.parent.parent
+            static_path = run_dir / "preprocess" / "static.parquet"
+            if static_path.exists():
+                static_df = pd.read_parquet(static_path)
+                if "patient_id" in static_df.columns:
+                    static_df = static_df.set_index("patient_id")
+                static_df.index = static_df.index.astype(str)
+                overlap = [c for c in static_df.columns if c in last.columns]
+                static_use = static_df.drop(columns=overlap, errors="ignore")
+                last = last.join(static_use, how="left").fillna(0.0)
+
             # Get feature columns from meta
             stored_feat_cols = meta.get("feature_columns", feat_cols)
 
