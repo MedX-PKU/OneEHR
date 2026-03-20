@@ -1,36 +1,17 @@
 # OneEHR
 
-OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI, notebooks, query surfaces, and the web/API layer.
-
-You operate OneEHR through `preprocess`, `train`, `test`, `analyze`, and `eval`. Every stage reads and writes the same shared run contract, which stays the source of truth for automation and inspection.
+OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, testing, and analysis across conventional ML/DL models and LLM systems on one shared run contract.
 
 ## Workflow At A Glance
 
-The workflow is organized around one shared run contract:
-
-- `preprocess` materializes the binned and tabular views used by every downstream workflow and saves the split contract under `splits/`.
-- `train` and `test` run conventional ML or DL modeling from a TOML experiment config.
-- `analyze` writes structured module outputs under `analysis/`.
-- `eval build`, `eval run`, and `eval report` freeze evaluation instances, execute configured conventional ML/DL models, LLM systems, or AI agents on the same evidence, and write reproducible comparison outputs under `eval/`.
-- `query ...` and `webui serve` expose the same artifacts as JSON or a browser-backed API.
-
-The top-level CLI surface is:
-
-- `oneehr preprocess`
-- `oneehr train`
-- `oneehr test`
-- `oneehr analyze`
-- `oneehr eval ...`
-- `oneehr query ...`
-- `oneehr webui serve`
-
-Inspect the live interface with:
-
 ```bash
-uv run oneehr --help
-uv run oneehr eval --help
-uv run oneehr query --help
+uv run oneehr preprocess --config experiment.toml
+uv run oneehr train      --config experiment.toml
+uv run oneehr test       --config experiment.toml
+uv run oneehr analyze    --config experiment.toml
 ```
+
+All four commands operate on the same run directory under `{output.root}/{output.run_name}/`.
 
 ## Install
 
@@ -42,67 +23,55 @@ uv pip install -e .
 uv run oneehr --help
 ```
 
-Optional extras:
+Optional docs extras:
 
 ```bash
 uv pip install -e ".[docs]"
-uv pip install -e ".[webui]"
 ```
 
 ## Quickstart
 
-Use the bundled TJH example at [`examples/tjh/experiment.toml`](examples/tjh/experiment.toml):
+Use the bundled TJH example at [`examples/tjh/mortality_patient.toml`](examples/tjh/mortality_patient.toml):
 
 ```bash
 # Convert source data (only needed once)
 uv run python examples/tjh/convert.py
 
 # Run the pipeline
-uv run oneehr preprocess --config examples/tjh/experiment.toml
-uv run oneehr train     --config examples/tjh/experiment.toml
-uv run oneehr test      --config examples/tjh/experiment.toml
-uv run oneehr analyze   --config examples/tjh/experiment.toml
+uv run oneehr preprocess --config examples/tjh/mortality_patient.toml
+uv run oneehr train      --config examples/tjh/mortality_patient.toml
+uv run oneehr test       --config examples/tjh/mortality_patient.toml
+uv run oneehr analyze    --config examples/tjh/mortality_patient.toml
 ```
 
 This writes the run under `runs/tjh/`, including `manifest.json`, `preprocess/`, `train/`, `test/`, and `analyze/`.
 
-The bundled example config ships with a trained-model reference system. To compare LLM systems or AI agents on the same frozen instances, add `[[eval.backends]]` plus additional `[[eval.systems]]` entries and the corresponding API key environment variables.
+## Models
 
-Supported `framework_type` values in the current eval surface:
+OneEHR ships 15 models: 2 tabular and 13 deep learning.
 
-- `single_llm`
-- `healthcareagent`
-- `reconcile`
-- `mac`
-- `medagent`
-- `colacare`
-- `mdagents`
+**Tabular:** XGBoost, CatBoost
 
-Optional web/API workflow:
+**Recurrent:** GRU, LSTM, RNN
 
-```bash
-cd webui
-npm install
-npm run build
-cd ..
-uv run oneehr webui serve --root logs
-```
+**Non-recurrent:** TCN, Transformer, MLP
 
-Then open `http://127.0.0.1:8000`.
+**EHR-specialised:** AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent
+
+Models with static branches (ConCare, GRASP, MCGRU, DrAgent) automatically use patient-level static features when `static.csv` is provided.
 
 ## Configuration Model
 
-OneEHR uses TOML as the experiment contract. CLI flags are primarily for locating configs, run directories, and a small number of overrides. The main experiment sections are:
+OneEHR uses TOML as the experiment contract. The main sections are:
 
-- `[dataset]` or `[datasets]` for standardized input tables
-- `[preprocess]` for binning, vocabulary selection, and post-split feature transforms
-- `[task]`, `[labels]`, and `[split]` for task definition and leakage-safe evaluation setup
-- `[model]` or `[[models]]`, `[trainer]`, `[hpo]`, and `[calibration]` for training
-- `[analysis]` for structured reporting modules
-- `[eval]`, `[[eval.backends]]`, `[[eval.systems]]`, and `[[eval.suites]]` for unified evaluation
+- `[dataset]` for input table paths (`dynamic`, `static`, `label`)
+- `[preprocess]` for binning and feature building
+- `[task]` for task kind and prediction mode
+- `[split]` for patient-level train/val/test splitting
+- `[[models]]` for model selection with per-model `params`
+- `[trainer]` for DL training configuration
+- `[[systems]]` for LLM/agent system definitions
 - `[output]` for run root and run name
-
-Legacy `[cases]`, `[agent.predict]`, and `[agent.review]` sections are no longer supported.
 
 The standard input model is:
 
@@ -117,20 +86,14 @@ Prediction modes:
 
 ## Documentation
 
-Start with:
-
 - [`docs/getting-started/installation.md`](docs/getting-started/installation.md)
 - [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md)
 - [`docs/getting-started/data-model.md`](docs/getting-started/data-model.md)
 - [`docs/guide/core-workflows.md`](docs/guide/core-workflows.md)
-- [`docs/guide/eval-workflows.md`](docs/guide/eval-workflows.md)
-- [`docs/guide/webui.md`](docs/guide/webui.md)
 - [`docs/reference/cli.md`](docs/reference/cli.md)
 - [`docs/reference/configuration.md`](docs/reference/configuration.md)
+- [`docs/reference/models.md`](docs/reference/models.md)
 - [`docs/reference/artifacts.md`](docs/reference/artifacts.md)
-- [`docs/reference/positioning.md`](docs/reference/positioning.md)
-
-The canonical step-by-step walkthrough lives in [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md).
 
 Build the docs locally:
 
@@ -142,11 +105,9 @@ uv run mkdocs build
 
 ## Validation
 
-Recommended checks:
-
 ```bash
 uv run oneehr --help
-uv run oneehr eval --help
-uv run oneehr preprocess --config examples/tjh/experiment.toml
+uv run pytest tests/ -v
+uv run oneehr preprocess --config examples/tjh/mortality_patient.toml
 uv run mkdocs build
 ```

@@ -21,7 +21,7 @@ The TJH example ships three experiment configs:
 
 | Config | Task | Mode | Models |
 |--------|------|------|--------|
-| `mortality_patient.toml` | Binary mortality | Patient (N-1) | All 6 |
+| `mortality_patient.toml` | Binary mortality | Patient (N-1) | All 15 |
 | `mortality_time.toml` | Binary mortality | Time (N-N) | xgboost + gru |
 | `los_time.toml` | Remaining LOS regression | Time (N-N) | xgboost + gru |
 
@@ -39,7 +39,7 @@ This creates `runs/tjh/preprocess/`, writes `manifest.json`, the split contract,
 uv run oneehr train --config examples/tjh/mortality_patient.toml
 ```
 
-The default config trains 6 models (xgboost, catboost, gru, lstm, tcn, transformer) and writes checkpoints under `runs/tjh/train/`.
+The default config trains 15 models (xgboost, catboost, gru, lstm, rnn, tcn, transformer, mlp, adacare, stagenet, retain, concare, grasp, mcgru, dragent) and writes checkpoints under `runs/tjh/train/`.
 
 ## 3. Test
 

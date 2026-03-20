@@ -36,8 +36,8 @@
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">Models</span>
-        <strong>6 built-in</strong>
-        <span class="landing-stat-meta">xgboost, catboost, gru, lstm, tcn, transformer</span>
+        <strong>15 built-in</strong>
+        <span class="landing-stat-meta">xgboost, catboost, gru, lstm, rnn, tcn, transformer, mlp, adacare, stagenet, retain, concare, grasp, mcgru, dragent</span>
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">System layer</span>
