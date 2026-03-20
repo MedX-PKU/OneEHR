@@ -7,12 +7,9 @@ from pathlib import Path
 @dataclass(frozen=True)
 class CalibrationConfig:
     enabled: bool = False
-    # Only for binary tasks.
-    method: str = "temperature"  # temperature | platt
+    # Temperature scaling only (for binary tasks).
     source: str = "val"  # val
-    # Threshold selection on calibration set.
     threshold_strategy: str = "f1"  # f1
-    # Whether to use calibrated probs for threshold selection + downstream outputs.
     use_calibrated: bool = True
 
 
@@ -101,8 +98,6 @@ class SplitConfig:
     test_size: float = 0.2
     time_boundary: str | None = None  # datetime string used for time split
     fold_index: int | None = None
-    inner_kind: str | None = None  # for nested CV, e.g. time->kfold
-    inner_n_splits: int | None = None
 
 
 @dataclass(frozen=True)
@@ -126,8 +121,6 @@ class TrainerConfig:
 
     # Customization hooks
     loss_fn: str | None = None  # python callable ref: path/to.py:loss_fn
-    final_refit: str = "train_val"  # train_only | train_val
-    final_model_source: str = "refit"  # refit | best_split
     bootstrap_test: bool = False
     bootstrap_n: int = 200
     repeat: int = 1  # Number of training runs per split (different seeds)

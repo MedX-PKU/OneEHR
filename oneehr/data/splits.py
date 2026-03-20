@@ -163,31 +163,6 @@ def make_splits(
         test_patients = patients[:n_test]
         rem = patients[n_test:]
 
-        # Nested CV: fixed random test set, CV folds on remainder.
-        if split.inner_kind is not None:
-            inner_kind = split.inner_kind.lower()
-            if inner_kind != "kfold":
-                raise ValueError("split.random currently supports inner_kind='kfold' only")
-            n_splits = split.inner_n_splits or split.n_splits
-            from sklearn.model_selection import GroupKFold
-
-            gkf = GroupKFold(n_splits=int(n_splits))
-            X0 = np.zeros((len(rem), 1))
-            groups0 = rem
-            out: list[Split] = []
-            for fold, (train_idx, val_idx) in enumerate(gkf.split(X0, groups=groups0), start=0):
-                tr = rem[train_idx]
-                va = rem[val_idx]
-                out.append(Split(name=f"random0_fold{fold}", train_patients=tr, val_patients=va, test_patients=test_patients))
-            if split.fold_index is None:
-                return out
-            if split.fold_index < 0 or split.fold_index >= len(out):
-                raise ValueError(
-                    f"split.fold_index out of range: {split.fold_index}. "
-                    f"Expected 0..{len(out) - 1}"
-                )
-            return [out[int(split.fold_index)]]
-
         n_val = max(1, int(round(len(rem) * split.val_size))) if split.val_size > 0 else 0
         val_patients = rem[:n_val]
         train_patients = rem[n_val:]
@@ -213,31 +188,6 @@ def make_splits(
         post = pid[pid["max_time"] >= boundary]["patient_id"].to_numpy()
         pre = pre.astype(str)
         post = post.astype(str)
-
-        # Nested CV: fixed prospective test (post-boundary), and CV splits on pre-boundary pool.
-        if split.inner_kind is not None:
-            inner_kind = split.inner_kind.lower()
-            if inner_kind != "kfold":
-                raise ValueError("split.time currently supports inner_kind='kfold' only")
-            n_splits = split.inner_n_splits or split.n_splits
-            from sklearn.model_selection import GroupKFold
-
-            gkf = GroupKFold(n_splits=int(n_splits))
-            X0 = np.zeros((len(pre), 1))
-            groups0 = pre
-            out: list[Split] = []
-            for fold, (train_idx, val_idx) in enumerate(gkf.split(X0, groups=groups0), start=0):
-                tr = pre[train_idx]
-                va = pre[val_idx]
-                out.append(Split(name=f"time0_fold{fold}", train_patients=tr, val_patients=va, test_patients=post))
-            if split.fold_index is None:
-                return out
-            if split.fold_index < 0 or split.fold_index >= len(out):
-                raise ValueError(
-                    f"split.fold_index out of range: {split.fold_index}. "
-                    f"Expected 0..{len(out) - 1}"
-                )
-            return [out[int(split.fold_index)]]
 
         # Default time split: pre-boundary train/val, post-boundary test.
         rng.shuffle(pre)

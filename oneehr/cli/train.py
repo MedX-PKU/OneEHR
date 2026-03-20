@@ -372,7 +372,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
             "split": {"kind": str(cfg0.split.kind), "n_splits": int(cfg0.split.n_splits)},
             "calibration": {
                 "enabled": bool(cfg0.calibration.enabled),
-                "method": str(cfg0.calibration.method),
+                "method": "temperature",
                 "source": str(cfg0.calibration.source),
                 "threshold_strategy": str(cfg0.calibration.threshold_strategy),
                 "use_calibrated": bool(cfg0.calibration.use_calibrated),

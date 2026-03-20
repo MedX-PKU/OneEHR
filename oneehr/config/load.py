@@ -168,8 +168,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         test_size=float(split_raw.get("test_size", 0.2)),
         time_boundary=split_raw.get("time_boundary"),
         fold_index=split_raw.get("fold_index"),
-        inner_kind=split_raw.get("inner_kind"),
-        inner_n_splits=split_raw.get("inner_n_splits"),
     )
 
     import dataclasses as _dc
@@ -399,8 +397,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         monitor=str(trainer_raw.get("monitor", "val_loss")),
         monitor_mode=str(trainer_raw.get("monitor_mode", "min")),
         loss_fn=trainer_raw.get("loss_fn") or None,
-        final_refit=str(trainer_raw.get("final_refit", "train_val")),
-        final_model_source=str(trainer_raw.get("final_model_source", "refit")),
         bootstrap_test=bool(trainer_raw.get("bootstrap_test", False)),
         bootstrap_n=int(trainer_raw.get("bootstrap_n", 200)),
         repeat=int(trainer_raw.get("repeat", 1)),
@@ -431,7 +427,6 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     calibration = CalibrationConfig(
         enabled=bool(calibration_raw.get("enabled", False)),
-        method=str(calibration_raw.get("method", "temperature")),
         source=str(calibration_raw.get("source", "val")),
         threshold_strategy=str(calibration_raw.get("threshold_strategy", "f1")),
         use_calibrated=bool(calibration_raw.get("use_calibrated", True)),
