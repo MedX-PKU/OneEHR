@@ -14,12 +14,12 @@ from oneehr.analysis.feature_importance import (
     shap_importance,
     xgboost_native_importance,
 )
-from oneehr.artifacts.run_io import RunIO
+from oneehr.artifacts.store import RunIO
 from oneehr.data.overview_light import build_dataset_overview, build_feature_overview
 from oneehr.data.splits import load_splits
 from oneehr.eval.metrics import binary_metrics, regression_metrics
 from oneehr.eval.tables import summarize_metrics
-from oneehr.utils.io import ensure_dir, write_json
+from oneehr.utils import ensure_dir, write_json
 
 
 ANALYSIS_SCHEMA_VERSION = 1

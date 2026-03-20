@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from oneehr.config.schema import ExperimentConfig
-from oneehr.utils.io import as_jsonable, ensure_dir, sha256_lines, write_json
+from oneehr.utils import as_jsonable, ensure_dir, sha256_lines, write_json
 
 
 def write_dl_artifacts(

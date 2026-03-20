@@ -24,7 +24,7 @@ def run_preprocess(cfg_path: str, *, overview: bool, overview_top_k_codes: int) 
     if overview:
         import json
 
-        from oneehr.artifacts.read import read_run_manifest
+        from oneehr.artifacts.manifest import read_run_manifest
         from oneehr.data.overview_light import build_dataset_overview, build_feature_overview
 
         if dynamic is None:

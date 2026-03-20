@@ -6,7 +6,7 @@ from typing import Protocol
 import pandas as pd
 
 from oneehr.config.schema import ExperimentConfig
-from oneehr.utils.imports import load_callable
+from oneehr.utils import load_callable
 from oneehr.utils.time import parse_bin_size
 
 

@@ -5,7 +5,7 @@ import sys
 
 import numpy as np
 
-from oneehr.utils.io import ensure_dir, write_json
+from oneehr.utils import ensure_dir, write_json
 
 
 def run_single_hpo(

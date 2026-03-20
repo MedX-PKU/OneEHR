@@ -19,7 +19,7 @@ def require_manifest(run_root: Path):
 
     Returns an ``RunManifest`` instance.
     """
-    from oneehr.artifacts.read import read_run_manifest
+    from oneehr.artifacts.manifest import read_run_manifest
 
     manifest = read_run_manifest(run_root)
     if manifest is None:

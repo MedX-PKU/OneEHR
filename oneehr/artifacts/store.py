@@ -1,14 +1,168 @@
+"""RunIO, inference views, and label validation (merged from run_io.py + inference.py + labels.py)."""
+
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from oneehr.artifacts.read import RunManifest
+from oneehr.artifacts.manifest import RunManifest, read_run_manifest
 from oneehr.data.binning import bin_events
-from oneehr.data.tabular import FittedPostprocess, transform_postprocess_pipeline
-from oneehr.data.tabular import _encode_static_categoricals
+from oneehr.data.tabular import (
+    FittedPostprocess,
+    _encode_static_categoricals,
+    transform_postprocess_pipeline,
+)
+
+
+# ─── Label validation ────────────────────────────────────────────────────────
+
+
+def validate_patient_labels(df: pd.DataFrame) -> pd.DataFrame:
+    required = {"patient_id", "label"}
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"labels.parquet missing columns: {missing}")
+    out = df[["patient_id", "label"]].copy()
+    out["patient_id"] = out["patient_id"].astype(str)
+    return out
+
+
+def validate_time_labels(df: pd.DataFrame) -> pd.DataFrame:
+    required = {"patient_id", "bin_time", "label"}
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"labels.parquet missing columns: {missing}")
+    cols = ["patient_id", "bin_time", "label"]
+    if "mask" in df.columns:
+        cols.append("mask")
+    out = df[cols].copy()
+    out["patient_id"] = out["patient_id"].astype(str)
+    return out
+
+
+# ─── RunIO ────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class RunIO:
+    run_root: Path
+
+    @classmethod
+    def from_cfg(cls, *, root: Path, run_name: str) -> "RunIO":
+        return cls(run_root=Path(root) / run_name)
+
+    def require_manifest(self):
+        manifest = read_run_manifest(self.run_root)
+        if manifest is None:
+            raise SystemExit(
+                f"Missing run_manifest.json under {self.run_root}. "
+                "Run `oneehr preprocess` first."
+            )
+        return manifest
+
+    def load_binned(self, manifest) -> pd.DataFrame:
+        p = (manifest.data.get("artifacts") or {}).get("binned_parquet_path")
+        if not isinstance(p, str) or not p:
+            raise SystemExit("Missing binned_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
+        df = pd.read_parquet(self.run_root / p)
+        required = {"patient_id", "bin_time"}
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            raise SystemExit(f"Invalid binned.parquet: missing columns {missing}")
+
+        feat_cols = manifest.dynamic_feature_columns()
+        missing_feat = [c for c in feat_cols if c not in df.columns]
+        if missing_feat:
+            raise SystemExit(f"Invalid binned.parquet: missing feature columns {missing_feat}")
+
+        base = ["patient_id", "bin_time"]
+        if "label" in df.columns:
+            base.append("label")
+        df = df[base + feat_cols]
+        return df
+
+    def load_patient_view(self, manifest) -> tuple[pd.DataFrame, pd.Series]:
+        p = (manifest.data.get("artifacts") or {}).get("patient_tabular_parquet_path")
+        if not isinstance(p, str) or not p:
+            raise SystemExit("Missing patient_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
+        df = pd.read_parquet(self.run_root / p)
+        if "patient_id" not in df.columns or "label" not in df.columns:
+            raise SystemExit("Invalid patient_tabular.parquet: missing patient_id/label.")
+        df = df.dropna(subset=["label"]).reset_index(drop=True)
+        feat_cols = manifest.dynamic_feature_columns()
+        missing = [c for c in ["patient_id", "label", *feat_cols] if c not in df.columns]
+        if missing:
+            raise SystemExit(f"Invalid patient_tabular.parquet: missing columns {missing}")
+        df = df[["patient_id", "label", *feat_cols]]
+        X = df[["patient_id", *feat_cols]].set_index("patient_id")
+        y = df["label"]
+        return X, y
+
+    def load_time_view(self, manifest) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
+        p = (manifest.data.get("artifacts") or {}).get("time_tabular_parquet_path")
+        if not isinstance(p, str) or not p:
+            raise SystemExit("Missing time_tabular_parquet_path in run_manifest.json. Re-run `oneehr preprocess`.")
+        df = pd.read_parquet(self.run_root / p)
+        required = {"patient_id", "bin_time", "label"}
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            raise SystemExit(f"Invalid time_tabular.parquet: missing columns {missing}")
+        feat_cols = manifest.dynamic_feature_columns()
+        missing2 = [c for c in feat_cols if c not in df.columns]
+        if missing2:
+            raise SystemExit(f"Invalid time_tabular.parquet: missing feature columns {missing2}")
+        df = df[["patient_id", "bin_time", "label", *feat_cols]].reset_index(drop=True)
+        key = df[["patient_id", "bin_time"]]
+        y = df["label"]
+        X = df[feat_cols]
+        return X, y, key
+
+    def load_static_all(self, manifest) -> tuple[pd.DataFrame | None, list[str] | None]:
+        st_path = manifest.static_matrix_path()
+        if st_path is None:
+            return None, None
+        static_all = pd.read_parquet(self.run_root / st_path)
+        cols = manifest.static_feature_columns()
+        if list(static_all.columns) != list(cols):
+            raise SystemExit(
+                "Static feature_columns mismatch with run_manifest.json. "
+                "Re-run `oneehr preprocess`."
+            )
+        return static_all, cols
+
+    def load_labels(self, manifest) -> pd.DataFrame | None:
+        p = (manifest.data.get("artifacts") or {}).get("labels_parquet_path")
+        if p is None:
+            return None
+        if not isinstance(p, str) or not p:
+            raise SystemExit("Invalid labels_parquet_path in run_manifest.json.")
+        path = self.run_root / p
+        if not path.exists():
+            return None
+        df = pd.read_parquet(path)
+        mode = str((manifest.data.get("task") or {}).get("prediction_mode", "patient"))
+        if mode == "patient":
+            return validate_patient_labels(df)
+        if mode == "time":
+            return validate_time_labels(df)
+        raise ValueError(f"Unsupported prediction_mode in run_manifest.json: {mode!r}")
+
+    def load_fitted_postprocess(self, split_name: str):
+        pp_path = self.run_root / "preprocess" / split_name / "pipeline.json"
+        if not pp_path.exists():
+            return None
+        data = json.loads(pp_path.read_text(encoding="utf-8"))
+        pipeline = data.get("pipeline")
+        if not isinstance(pipeline, list):
+            return None
+        return FittedPostprocess(pipeline=pipeline)
+
+
+# ─── Test-time inference views ────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
@@ -45,7 +199,6 @@ def _transform_static_like_train(
         raise ValueError("static.csv missing required column: patient_id")
 
     raw = static_raw.set_index(static_raw["patient_id"].astype(str), drop=False)
-    # patient_id is a join key, not a model feature.
     id_like_cols = [c for c in raw.columns if str(c).lower() in {"patient_id", "patientid"}]
     raw = raw.drop(columns=id_like_cols, errors="ignore")
 
@@ -57,7 +210,6 @@ def _transform_static_like_train(
     if fitted is not None:
         X0 = transform_postprocess_pipeline(X0, fitted)
 
-    # Ensure stable column order.
     X0 = X0.reindex(columns=feat_cols)
     X0.index.name = "patient_id"
     return X0
@@ -105,18 +257,11 @@ def materialize_test_views(
     label: pd.DataFrame | None,
     labels_fn: str | None,
 ) -> MaterializedTestViews:
-    """Materialize test-time binned + tabular views using train-time schemas.
-
-    This supports 2 test scenarios:
-      1) Offline evaluation (labels available via `label` or `labels_fn`)
-      2) Online inference (no labels): returns `y=None`
-    """
+    """Materialize test-time binned + tabular views using train-time schemas."""
 
     mode = str((manifest.data.get("task") or {}).get("prediction_mode", "patient"))
     feat_cols = manifest.dynamic_feature_columns()
     preprocess_cfg = manifest.data.get("preprocess") or {}
-    # Build a minimal PreprocessConfig-like dict by reusing ExperimentConfig's schema via optional imports.
-    # We avoid depending on ExperimentConfig here to keep test-time logic run-manifest driven.
     from oneehr.config.schema import PreprocessConfig, DynamicTableConfig
 
     preprocess = PreprocessConfig(
@@ -129,15 +274,12 @@ def materialize_test_views(
         code_list=[],
         pipeline=list(preprocess_cfg.get("pipeline") or []),
     )
-    # Use dynamic feature columns as a stable schema for test-time alignment.
-    # Derive code_list from feature columns (supports num__/cat__).
     code_set: set[str] = set()
     for c in feat_cols:
         if c.startswith("num__"):
-            code_set.add(c[len("num__") :])
+            code_set.add(c[len("num__"):])
         elif c.startswith("cat__"):
-            # cat__{code}__{level}
-            rest = c[len("cat__") :]
+            rest = c[len("cat__"):]
             code = rest.split("__", 1)[0]
             if code:
                 code_set.add(code)
@@ -155,24 +297,20 @@ def materialize_test_views(
     binned_res = bin_events(dynamic, DynamicTableConfig(path=None), preprocess)
     binned = binned_res.table
 
-    # Align dynamic columns exactly to training feature columns.
     for c in feat_cols:
         if c not in binned.columns:
             binned[c] = 0.0
     binned = binned[["patient_id", "bin_time", "label", *feat_cols]].copy()
 
-    # Labels: if labels_fn provided, compute from (dynamic/static/label) even at test time.
     labels_df = None
     if labels_fn is not None:
         from oneehr.config.schema import (
             DatasetConfig,
-            DynamicTableConfig,
             ExperimentConfig,
             LabelTableConfig,
             LabelsConfig,
             ModelConfig,
             OutputConfig,
-            PreprocessConfig,
             SplitConfig,
             StaticTableConfig,
             TaskConfig,
@@ -180,7 +318,6 @@ def materialize_test_views(
         )
         from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
 
-        ds = manifest.data.get("dataset") or {}
         task = manifest.data.get("task") or {}
         split = manifest.data.get("split") or {}
         cfg = ExperimentConfig(
@@ -204,12 +341,7 @@ def materialize_test_views(
             else:
                 labels_df = normalize_time_labels(labels_res.df, cfg)
 
-    # If a user provided `label.csv` in the training-dataset schema
-    # (patient_id,label_time,label_code,label_value), treat it as raw labels input
-    # and rely on `labels_fn` to normalize it. Only accept already-normalized label
-    # tables when `labels_fn` is NOT provided.
     if labels_fn is None and label is not None and not label.empty:
-        # Normalize shape based on manifest prediction_mode.
         if mode == "patient":
             if "patient_id" not in label.columns or "label" not in label.columns:
                 raise ValueError("label.csv must contain columns: patient_id, label")
@@ -224,14 +356,11 @@ def materialize_test_views(
             labels_df = label[cols].copy()
             labels_df["patient_id"] = labels_df["patient_id"].astype(str)
 
-    # Static
     static_all = _transform_static_like_train(static_raw=static, manifest=manifest)
 
     if mode == "patient":
         X_dyn = _build_patient_tabular_from_binned(binned=binned, feat_cols=feat_cols)
         if static_all is not None:
-            # Join by patient_id.
-            # Avoid collisions when a feature exists in both dynamic and static spaces.
             overlap = [c for c in static_all.columns if c in X_dyn.columns]
             if overlap:
                 static_all = static_all.drop(columns=overlap)
@@ -243,7 +372,6 @@ def materialize_test_views(
         y = labels_df.set_index("patient_id")["label"].reindex(X.index).astype(float)
         return MaterializedTestViews(binned=binned, labels_df=labels_df, X=X, y=y, key_df=None)
 
-    # time mode
     X_dyn, key = _build_time_tabular_from_binned(binned=binned, feat_cols=feat_cols)
     if static_all is not None and not key.empty:
         static_join = static_all.reindex(key["patient_id"].astype(str)).reset_index(drop=True)

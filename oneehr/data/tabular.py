@@ -355,7 +355,7 @@ def fit_transform_static_features(
     pipeline: list[dict[str, object]],
 ) -> tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, StaticArtifacts]:
     """Fit static feature encoder + postprocess on train only, then transform all splits."""
-    from oneehr.utils.io import sha256_lines
+    from oneehr.utils import sha256_lines
 
     X_train0 = _encode_static_categoricals(raw_train)
     X_val0 = None if raw_val is None else _encode_static_categoricals(raw_val)

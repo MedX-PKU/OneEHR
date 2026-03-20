@@ -9,7 +9,7 @@ import torch
 from oneehr.config.schema import TaskConfig, TrainerConfig
 from oneehr.eval.calibration import sigmoid
 from oneehr.eval.metrics import binary_metrics, regression_metrics
-from oneehr.utils.imports import load_callable
+from oneehr.utils import load_callable
 
 
 def _select_device(cfg: TrainerConfig):

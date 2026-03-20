@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from oneehr.config.schema import DynamicTableConfig, PreprocessConfig
-from oneehr.utils.time import parse_bin_size
+from oneehr.utils import parse_bin_size
 
 
 @dataclass(frozen=True)

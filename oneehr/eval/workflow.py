@@ -16,14 +16,14 @@ from oneehr.agent.predict_schema import build_response_format, parse_prediction_
 from oneehr.agent.runtime import execute_agent_request, run_jobs
 from oneehr.agent.templates import safe_case_slug, select_events
 from oneehr.analysis.read import describe_patient_case, read_analysis_index
-from oneehr.artifacts.run_io import RunIO
+from oneehr.artifacts.store import RunIO
 from oneehr.config.schema import EvalBackendConfig, EvalSystemConfig, ExperimentConfig
 from oneehr.data.io import load_dynamic_table_optional, load_static_table
 from oneehr.data.splits import require_saved_splits
 from oneehr.data.test_samples import build_test_sample_frame
 from oneehr.eval.bootstrap import bootstrap_metric
 from oneehr.eval.metrics import binary_metrics, regression_metrics
-from oneehr.utils.io import as_jsonable, ensure_dir, write_json
+from oneehr.utils import as_jsonable, ensure_dir, write_json
 
 EVAL_SCHEMA_VERSION = 1
 FRAMEWORK_TYPES = {

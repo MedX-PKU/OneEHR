@@ -14,12 +14,12 @@ from oneehr.models import TABULAR_MODELS, DL_MODELS
 from oneehr.data.tabular import has_static_branch
 from oneehr.cli._train_eval import maybe_calibrate_and_threshold, warn_unused_hpo_overrides
 from oneehr.cli._train_dl import train_dl_patient_level, train_dl_time_level
-from oneehr.utils.io import ensure_dir, write_json
+from oneehr.utils import ensure_dir, write_json
 
 
 def run_train(cfg_path: str, force: bool) -> None:
     from oneehr.config.load import load_experiment_config
-    from oneehr.artifacts.run_io import RunIO
+    from oneehr.artifacts.store import RunIO
 
     cfg0 = load_experiment_config(cfg_path)
     _require_training_model(cfg0)
@@ -75,7 +75,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     )
     from oneehr.modeling.persistence import write_dl_artifacts
     from oneehr.modeling.trainer import fit_model
-    from oneehr.artifacts.run_io import RunIO
+    from oneehr.artifacts.store import RunIO
     from oneehr.cli._train_hpo import run_single_hpo, run_cv_mean_hpo, run_per_split_hpo
 
     cfg0 = load_experiment_config(cfg_path)

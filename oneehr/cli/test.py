@@ -10,7 +10,7 @@ import numpy as np
 
 from oneehr.eval.calibration import sigmoid
 import torch
-from oneehr.utils.io import ensure_dir, write_json
+from oneehr.utils import ensure_dir, write_json
 
 
 def run_test(
@@ -67,7 +67,7 @@ def _run_external_test(
 
     from oneehr.config.load import load_experiment_config
     from oneehr.data.io import load_dynamic_table, load_label_table, load_static_table
-    from oneehr.artifacts.inference import materialize_test_views
+    from oneehr.artifacts.store import materialize_test_views
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.models.tree import load_tabular_model, predict_tabular
     from oneehr.models import build_model
@@ -286,7 +286,7 @@ def _run_self_split_test(
     from oneehr.models import build_model
     from oneehr.data.tabular import transform_postprocess_pipeline
     from oneehr.data.splits import require_saved_splits
-    from oneehr.artifacts.run_io import RunIO
+    from oneehr.artifacts.store import RunIO
     from oneehr.cli._common import require_manifest
 
     manifest = require_manifest(run_root)
