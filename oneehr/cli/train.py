@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from oneehr.eval.calibration import sigmoid
-from oneehr.models.constants import TABULAR_MODELS, DL_MODELS
+from oneehr.models import TABULAR_MODELS, DL_MODELS
 from oneehr.data.features import has_static_branch
 from oneehr.cli._train_eval import maybe_calibrate_and_threshold, warn_unused_hpo_overrides
 from oneehr.cli._train_dl import train_dl_patient_level, train_dl_time_level
@@ -66,8 +66,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     from oneehr.data.postprocess import maybe_fit_transform_postprocess
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.hpo.grid import apply_overrides, iter_grid
-    from oneehr.models.registry import build_model
-    from oneehr.models.tabular import (
+    from oneehr.models import build_model
+    from oneehr.models.tree import (
         predict_tabular,
         predict_tabular_logits,
         save_tabular_model,

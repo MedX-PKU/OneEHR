@@ -26,7 +26,7 @@ def run_single_hpo(
     import torch
     from oneehr.hpo.grid import iter_grid
     from oneehr.hpo.runner import select_best_with_trials
-    from oneehr.models.tabular import predict_tabular, train_tabular_model
+    from oneehr.models.tree import predict_tabular, train_tabular_model
     from oneehr.eval.metrics import binary_metrics, regression_metrics
 
     if cfg_model.hpo.tune_split is not None:
@@ -99,7 +99,7 @@ def run_cv_mean_hpo(
     Returns the best overrides dict (empty if no best found).
     """
     from oneehr.hpo.grid import apply_overrides, iter_grid
-    from oneehr.models.tabular import predict_tabular, train_tabular_model
+    from oneehr.models.tree import predict_tabular, train_tabular_model
     from oneehr.eval.metrics import binary_metrics, regression_metrics
 
     trials = []
@@ -198,11 +198,11 @@ def run_per_split_hpo(
 
     from oneehr.hpo.runner import select_best_with_trials
     from oneehr.hpo.grid import iter_grid
-    from oneehr.models.tabular import predict_tabular, train_tabular_model
-    from oneehr.models.registry import build_model
+    from oneehr.models.tree import predict_tabular, train_tabular_model
+    from oneehr.models import build_model
     from oneehr.modeling.trainer import fit_model
     from oneehr.eval.metrics import binary_metrics, regression_metrics
-    from oneehr.models.constants import TABULAR_MODELS
+    from oneehr.models import TABULAR_MODELS
 
     def _eval_trial(cfg) -> tuple[float, dict[str, float]] | None:
         hpo_metric = cfg.hpo.metric

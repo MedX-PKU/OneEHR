@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from oneehr.models.utils import last_by_lengths
+from oneehr.models.recurrent import last_by_lengths
 
 
 class _Chomp1d(nn.Module):

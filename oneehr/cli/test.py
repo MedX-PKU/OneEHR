@@ -69,8 +69,8 @@ def _run_external_test(
     from oneehr.data.io import load_dynamic_table, load_label_table, load_static_table
     from oneehr.artifacts.inference import materialize_test_views
     from oneehr.eval.metrics import binary_metrics, regression_metrics
-    from oneehr.models.tabular import load_tabular_model, predict_tabular
-    from oneehr.models.registry import build_model
+    from oneehr.models.tree import load_tabular_model, predict_tabular
+    from oneehr.models import build_model
     from oneehr.cli._common import require_manifest
 
     manifest = require_manifest(run_root)
@@ -107,7 +107,7 @@ def _run_external_test(
         raise SystemExit(f"Output directory already exists: {output}. Use --force to overwrite.")
     ensure_dir(output)
 
-    from oneehr.models.constants import TABULAR_MODELS
+    from oneehr.models import TABULAR_MODELS
     models_dir = run_root / "models"
     if not models_dir.exists():
         print(f"No models directory found at {models_dir}. Nothing to test.", file=sys.stderr)
@@ -282,8 +282,8 @@ def _run_self_split_test(
     import pandas as pd
 
     from oneehr.eval.metrics import binary_metrics, regression_metrics
-    from oneehr.models.tabular import load_tabular_model, predict_tabular
-    from oneehr.models.registry import build_model
+    from oneehr.models.tree import load_tabular_model, predict_tabular
+    from oneehr.models import build_model
     from oneehr.data.postprocess import transform_postprocess_pipeline
     from oneehr.data.splits import require_saved_splits
     from oneehr.artifacts.run_io import RunIO
@@ -319,7 +319,7 @@ def _run_self_split_test(
 
     static_all, static_feature_columns = run.load_static_all(manifest)
 
-    from oneehr.models.constants import TABULAR_MODELS
+    from oneehr.models import TABULAR_MODELS
     models_dir = run_root / "models"
     if not models_dir.exists():
         print(f"No models directory found at {models_dir}. Nothing to test.", file=sys.stderr)

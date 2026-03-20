@@ -567,8 +567,8 @@ def _module_interpretability(
     save_plot_specs: bool,
 ) -> AnalysisModuleResult:
     del case_limit
-    from oneehr.models.constants import TABULAR_MODELS
-    from oneehr.models.tabular import load_tabular_model
+    from oneehr.models import TABULAR_MODELS
+    from oneehr.models.tree import load_tabular_model
     from oneehr.config.schema import TaskConfig
 
     module_dir = ensure_dir(analysis_root / "interpretability")
