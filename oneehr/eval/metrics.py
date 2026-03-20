@@ -10,6 +10,24 @@ class MetricResult:
     metrics: dict[str, float]
 
 
+def _ece_binary(y_true: np.ndarray, y_score: np.ndarray, n_bins: int = 15) -> float:
+    """Expected Calibration Error with equal-width binning."""
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    n = len(y_true)
+    for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
+        mask = (y_score > lo) & (y_score <= hi)
+        if lo == 0.0:
+            mask |= y_score == 0.0
+        count = mask.sum()
+        if count == 0:
+            continue
+        avg_conf = y_score[mask].mean()
+        avg_acc = y_true[mask].mean()
+        ece += (count / n) * abs(avg_acc - avg_conf)
+    return ece
+
+
 def binary_metrics(y_true: np.ndarray, y_score: np.ndarray) -> MetricResult:
     """Standard binary classification metrics.
 
@@ -42,8 +60,13 @@ def binary_metrics(y_true: np.ndarray, y_score: np.ndarray) -> MetricResult:
     out["recall"] = float(recall_score(y_true, y_hat, zero_division=0))
     out["f1"] = float(f1_score(y_true, y_hat, zero_division=0))
 
-    # Probabilistic metric.
+    # Probabilistic metrics.
     out["logloss"] = float(log_loss(y_true, y_score, labels=[0, 1]))
+
+    # Calibration metrics.
+    out["brier"] = float(np.mean((y_score - y_true) ** 2))
+    out["ece"] = float(_ece_binary(y_true, y_score))
+
     return MetricResult(metrics=out)
 
 
