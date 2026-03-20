@@ -45,8 +45,6 @@ val_size = 0.2
 # Prospective split example:
 # kind = "time"
 # time_boundary = "2012-01-01"
-# inner_kind = "kfold"        # optional: nested CV on pre-boundary pool
-# inner_n_splits = 5
 
 [[models]]
 name = "gru"
@@ -99,8 +97,6 @@ early_stopping = true
 early_stopping_patience = 5
 monitor = "val_loss"
 monitor_mode = "min"
-final_refit = "train_val" # train_only | train_val
-final_model_source = "refit" # refit | best_split
 bootstrap_test = false
 bootstrap_n = 200
 
@@ -108,9 +104,8 @@ bootstrap_n = 200
 # loss_fn = "examples/custom_loss.py:make_loss"
 
 [calibration]
-# Optional post-hoc probability calibration (binary only), fit on val split.
+# Optional post-hoc temperature scaling calibration (binary only), fit on val split.
 enabled = false
-method = "temperature" # temperature | platt
 source = "val"
 threshold_strategy = "f1"
 use_calibrated = true
@@ -213,8 +208,6 @@ source_model = "xgboost"
 # uv run oneehr eval build --config examples/experiment.toml
 # uv run oneehr eval run --config examples/experiment.toml
 # uv run oneehr eval report --config examples/experiment.toml
-# uv run oneehr query eval report --run-dir logs/example
-# uv run oneehr query eval table --run-dir logs/example --table leaderboard --limit 10
 
 [output]
 root = "logs"
