@@ -5,8 +5,12 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, TypeVar
 
-from oneehr.agent.client import AgentClientError
+import numpy as np
+import pandas as pd
+
+from oneehr.agent.client import AgentClientError, OpenAICompatibleAgentClient
 from oneehr.agent.contracts import AgentRequestSpec
+from oneehr.config.schema import SystemConfig
 
 ParsedT = TypeVar("ParsedT")
 JobT = TypeVar("JobT")
@@ -89,3 +93,91 @@ def execute_agent_request(
         error_code=error_code,
         error_message=error_message,
     )
+
+
+def _build_patient_context(
+    patient_id: str,
+    binned: pd.DataFrame,
+    feat_cols: list[str],
+    task_kind: str,
+) -> str:
+    """Build a text summary of a patient's clinical data for LLM consumption."""
+    pdf = binned[binned["patient_id"].astype(str) == patient_id].copy()
+    if pdf.empty:
+        return f"Patient ID: {patient_id}\nNo clinical data available."
+
+    pdf = pdf.sort_values("bin_time", kind="stable")
+    lines = [f"Patient ID: {patient_id}", ""]
+
+    # Latest values
+    last_row = pdf[feat_cols].iloc[-1]
+    lines.append("Latest clinical values:")
+    for col in feat_cols:
+        val = last_row[col]
+        if pd.notna(val):
+            clean_name = col.replace("num__", "").replace("cat__", "")
+            lines.append(f"  {clean_name}: {val}")
+
+    # Time series summary
+    n_visits = len(pdf)
+    lines.append(f"\nNumber of time points: {n_visits}")
+    if "bin_time" in pdf.columns:
+        lines.append(f"Time range: {pdf['bin_time'].iloc[0]} to {pdf['bin_time'].iloc[-1]}")
+
+    return "\n".join(lines)
+
+
+def run_system_on_patients(
+    *,
+    system_cfg: SystemConfig,
+    binned: pd.DataFrame,
+    labels_df: pd.DataFrame | None,
+    feat_cols: list[str],
+    test_pids: set[str],
+    task_kind: str,
+) -> list[dict]:
+    """Run an LLM agent framework on test patients and return prediction rows.
+
+    Returns list of dicts with keys: system, patient_id, y_true, y_pred.
+    """
+    from oneehr.agent.frameworks import get_framework
+
+    framework_runner = get_framework(system_cfg.framework)
+    client = OpenAICompatibleAgentClient()
+
+    # Build y_true map
+    y_true_map: dict[str, float] = {}
+    if labels_df is not None:
+        for _, row in labels_df.iterrows():
+            pid = str(row["patient_id"])
+            if pid in test_pids:
+                y_true_map[pid] = float(row["label"])
+
+    params = system_cfg.params or {}
+    concurrency = int(params.get("concurrency", 1))
+
+    def _predict_one(pid: str) -> dict:
+        context = _build_patient_context(pid, binned, feat_cols, task_kind)
+        try:
+            pred = framework_runner(client, system_cfg, context, task_kind)
+        except Exception as exc:
+            print(f"  Warning: framework error for {pid}: {exc}")
+            pred = None
+
+        if pred is not None and pred.parsed_ok:
+            if task_kind == "binary":
+                y_pred = float(pred.probability if pred.probability is not None else (pred.prediction or 0))
+            else:
+                y_pred = float(pred.value if pred.value is not None else (pred.prediction or 0))
+        else:
+            y_pred = float("nan")
+
+        return {
+            "system": system_cfg.name,
+            "patient_id": pid,
+            "y_true": y_true_map.get(pid, float("nan")),
+            "y_pred": y_pred,
+        }
+
+    pid_list = sorted(test_pids)
+    return run_jobs(pid_list, worker=_predict_one, concurrency=concurrency)
