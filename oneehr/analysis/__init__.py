@@ -4,7 +4,7 @@ This package contains post-hoc analysis tooling, report generation, and
 artifact readers for run-level audit workflows.
 """
 
-from oneehr.analysis.read import (
+from oneehr.analysis.reporting import (
     describe_patient_case,
     list_analysis_modules,
     list_failure_case_paths,

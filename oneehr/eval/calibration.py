@@ -33,16 +33,6 @@ class TemperatureCalibrator:
         return sigmoid(np.asarray(logits, dtype=float) / t)
 
 
-@dataclass(frozen=True)
-class PlattCalibrator:
-    a: float
-    b: float
-
-    def logits_to_proba(self, logits: np.ndarray) -> np.ndarray:
-        logits = np.asarray(logits, dtype=float)
-        return sigmoid(self.a * logits + self.b)
-
-
 def fit_temperature_scaling(
     y_true: np.ndarray,
     logits: np.ndarray,
@@ -81,40 +71,6 @@ def fit_temperature_scaling(
     return TemperatureCalibrator(temperature=t)
 
 
-def fit_platt_scaling(
-    y_true: np.ndarray,
-    logits: np.ndarray,
-    *,
-    max_iter: int = 400,
-    lr: float = 0.1,
-    l2: float = 0.0,
-) -> PlattCalibrator:
-    """Fit Platt scaling p=sigmoid(a*logit+b) by gradient descent."""
-
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    logits = np.asarray(logits, dtype=float).reshape(-1)
-    if y_true.shape != logits.shape:
-        raise ValueError("y_true and logits must have same shape")
-
-    if np.unique(y_true).size < 2:
-        return PlattCalibrator(a=1.0, b=0.0)
-
-    a = 1.0
-    b = 0.0
-    for _ in range(int(max_iter)):
-        z = a * logits + b
-        p = sigmoid(z)
-        # dL/dz = p - y
-        da = np.mean((p - y_true) * logits) + float(l2) * a
-        db = np.mean(p - y_true)
-        if not (np.isfinite(da) and np.isfinite(db)):
-            break
-        a -= float(lr) * float(da)
-        b -= float(lr) * float(db)
-
-    return PlattCalibrator(a=float(a), b=float(b))
-
-
 def calibrate_from_probs(
     y_true: np.ndarray,
     probs: np.ndarray,
@@ -143,23 +99,18 @@ def calibrate_from_logits(
     y_true: np.ndarray,
     logits: np.ndarray,
     *,
-    method: str,
+    method: str = "temperature",
     temperature_kwargs: dict[str, object] | None = None,
-    platt_kwargs: dict[str, object] | None = None,
+    **_kwargs,
 ) -> tuple[np.ndarray, dict[str, float]]:
     y_true = np.asarray(y_true, dtype=float).reshape(-1)
     logits = np.asarray(logits, dtype=float).reshape(-1)
-    if method == "temperature":
-        kw = {} if temperature_kwargs is None else dict(temperature_kwargs)
-        cal = fit_temperature_scaling(y_true, logits, **kw)
-        p_cal = cal.logits_to_proba(logits)
-        return p_cal, {"temperature": float(cal.temperature)}
-    if method == "platt":
-        kw = {} if platt_kwargs is None else dict(platt_kwargs)
-        cal = fit_platt_scaling(y_true, logits, **kw)
-        p_cal = cal.logits_to_proba(logits)
-        return p_cal, {"a": float(cal.a), "b": float(cal.b)}
-    raise ValueError(f"Unsupported calibration method={method!r}")
+    if method != "temperature":
+        raise ValueError(f"Unsupported calibration method={method!r}. Only 'temperature' is supported.")
+    kw = {} if temperature_kwargs is None else dict(temperature_kwargs)
+    cal = fit_temperature_scaling(y_true, logits, **kw)
+    p_cal = cal.logits_to_proba(logits)
+    return p_cal, {"temperature": float(cal.temperature)}
 
 
 def select_threshold_f1(y_true: np.ndarray, probs: np.ndarray) -> float:

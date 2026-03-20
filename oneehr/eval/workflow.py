@@ -12,10 +12,10 @@ import pandas as pd
 
 from oneehr.agent.client import OpenAICompatibleAgentClient
 from oneehr.agent.contracts import AgentRequestSpec, ParsedPrediction
-from oneehr.agent.predict_schema import build_response_format, parse_prediction_response, schema_prompt_text
+from oneehr.agent.schema import build_response_format, parse_prediction_response, schema_prompt_text
 from oneehr.agent.runtime import execute_agent_request, run_jobs
 from oneehr.agent.templates import safe_case_slug, select_events
-from oneehr.analysis.read import describe_patient_case, read_analysis_index
+from oneehr.analysis.reporting import describe_patient_case, read_analysis_index
 from oneehr.artifacts.store import RunIO
 from oneehr.config.schema import EvalBackendConfig, EvalSystemConfig, ExperimentConfig
 from oneehr.data.io import load_dynamic_table_optional, load_static_table

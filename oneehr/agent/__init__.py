@@ -1,6 +1,6 @@
 from oneehr.agent.client import AgentClientError, OpenAICompatibleAgentClient
 from oneehr.agent.contracts import AgentRequestSpec, AgentResponse, ParsedPrediction
-from oneehr.agent.predict_schema import build_response_format, parse_prediction_response, schema_prompt_text
+from oneehr.agent.schema import build_response_format, parse_prediction_response, schema_prompt_text
 from oneehr.agent.templates import (
     PromptTemplateSpec,
     describe_prompt_template,
