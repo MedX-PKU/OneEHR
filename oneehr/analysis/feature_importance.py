@@ -187,6 +187,77 @@ def shap_importance(
     )
 
 
+def integrated_gradients_importance(
+    model: "torch.nn.Module",
+    X: "torch.Tensor",
+    lengths: "np.ndarray",
+    *,
+    feature_names: list[str] | None = None,
+    n_steps: int = 50,
+    max_patients: int = 200,
+    seed: int = 0,
+) -> FeatureImportanceResult:
+    """Compute feature importance via Integrated Gradients for DL models.
+
+    Parameters
+    ----------
+    model : torch.nn.Module that accepts (X, lengths) -> logits
+    X : (N, T, D) padded input tensor
+    lengths : (N,) sequence lengths
+    feature_names : names for the D features
+    n_steps : number of interpolation steps
+    max_patients : subsample to this many patients for memory efficiency
+    """
+    import torch
+
+    model.eval()
+    device = next(model.parameters()).device
+
+    N, T, D = X.shape
+    feats = feature_names if feature_names is not None else [f"f{i}" for i in range(D)]
+
+    # Subsample if needed
+    if N > max_patients:
+        rng = np.random.default_rng(seed)
+        idx = rng.choice(N, size=max_patients, replace=False)
+        X = X[idx]
+        lengths = lengths[idx]
+        N = max_patients
+
+    X = X.to(device).float()
+    lengths_t = torch.from_numpy(np.asarray(lengths)).to(device)
+    baseline = torch.zeros_like(X)
+
+    # Accumulate gradients along interpolation path
+    total_grads = torch.zeros_like(X)
+    for step in range(1, n_steps + 1):
+        alpha = step / n_steps
+        interp = baseline + alpha * (X - baseline)
+        interp = interp.detach().requires_grad_(True)
+
+        logits = model(interp, lengths_t)
+        if logits.dim() > 1:
+            logits = logits[:, -1] if logits.shape[1] > 1 else logits.squeeze(-1)
+
+        logits.sum().backward()
+        total_grads += interp.grad.detach()
+
+    # IG = (input - baseline) * avg_gradient
+    avg_grads = total_grads / n_steps
+    ig = (X - baseline) * avg_grads  # (N, T, D)
+
+    # Aggregate: mean absolute IG across patients and time
+    importance = ig.abs().mean(dim=(0, 1)).cpu().numpy()  # (D,)
+
+    return FeatureImportanceResult(
+        method="integrated_gradients:mean_abs",
+        input_kind="sequence",
+        feature_names=feats,
+        importances=np.asarray(importance, dtype=float),
+        details=None,
+    )
+
+
 def attention_importance(
     attn_weights: np.ndarray,
     X: np.ndarray,
