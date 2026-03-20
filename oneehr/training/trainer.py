@@ -52,9 +52,10 @@ def fit_model(
     from oneehr.data.tabular import has_static_branch
     from oneehr.eval.metrics import binary_metrics, regression_metrics
 
+    from oneehr.utils import set_seed
+
     device = _select_device(cfg)
-    torch.manual_seed(cfg.seed)
-    np.random.seed(cfg.seed)
+    set_seed(cfg.seed)
 
     model_supports_static = has_static_branch(model)
     use_static = static is not None and model_supports_static
