@@ -4,12 +4,11 @@
 Reads:  examples/tjh/time_series_375_prerpocess_en.xlsx
 Writes: examples/tjh/{dynamic,static}.csv
         examples/tjh/label_mortality.csv       (patient-level binary)
-        examples/tjh/label_los.csv             (patient-level regression)
+        examples/tjh/label_los.csv             (time-level regression, remaining days)
         examples/tjh/label_mortality_time.csv  (time-level binary)
 """
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 SRC = Path(__file__).parent / "time_series_375_prerpocess_en.xlsx"
@@ -126,15 +125,17 @@ def main() -> None:
         "label_value": patient_agg["Outcome"],
     })
 
-    # --- label_los.csv: patient-level regression (length of stay in days) ---
-    admit = pd.to_datetime(patient_agg["AdmissionTime"])
-    discharge = pd.to_datetime(patient_agg["DischargeTime"])
-    los_days = (discharge - admit).dt.total_seconds() / 86400.0
+    # --- label_los.csv: time-level regression (remaining LOS at each observation) ---
+    discharge_map = dict(zip(patient_agg["PatientID"], pd.to_datetime(patient_agg["DischargeTime"])))
+    record_times_los = df[["PatientID", "RecordTime"]].drop_duplicates().copy()
+    record_dt = pd.to_datetime(record_times_los["RecordTime"])
+    discharge_dt = record_times_los["PatientID"].map(discharge_map)
+    remaining_days = (discharge_dt - record_dt).dt.total_seconds() / 86400.0
     label_los = pd.DataFrame({
-        "patient_id": patient_agg["PatientID"],
-        "label_time": patient_agg["DischargeTime"],
+        "patient_id": record_times_los["PatientID"].values,
+        "label_time": record_times_los["RecordTime"].values,
         "label_code": "los",
-        "label_value": los_days.round(1),
+        "label_value": remaining_days.round(1).values,
     })
 
     # --- label_mortality_time.csv: time-level binary (mortality at each observation) ---
@@ -158,7 +159,7 @@ def main() -> None:
 
     print(f"Wrote {len(dynamic)} dynamic rows, {len(static)} patients")
     print(f"  label_mortality.csv: {len(label_mortality)} rows (patient-level binary)")
-    print(f"  label_los.csv: {len(label_los)} rows (patient-level regression)")
+    print(f"  label_los.csv: {len(label_los)} rows (time-level regression)")
     print(f"  label_mortality_time.csv: {len(label_mortality_time)} rows (time-level binary)")
 
 

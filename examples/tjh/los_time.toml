@@ -1,4 +1,4 @@
-# TJH COVID-19 ICU length-of-stay prediction (375 patients, regression)
+# TJH COVID-19 ICU remaining-LOS prediction (time-level regression, N-N)
 
 [dataset]
 dynamic = "examples/tjh/dynamic.csv"
@@ -11,7 +11,7 @@ top_k_codes = 100
 
 [task]
 kind            = "regression"
-prediction_mode = "patient"
+prediction_mode = "time"
 
 [split]
 kind      = "random"

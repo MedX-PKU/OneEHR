@@ -2,7 +2,7 @@
 
 OneEHR experiments are driven by a single TOML config file. This page documents the public configuration contract for preprocessing, modeling, testing, and analysis.
 
-See `examples/tjh/experiment.toml` for a complete working example.
+See `examples/tjh/mortality_patient.toml` for a complete working example.
 
 ---
 
