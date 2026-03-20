@@ -4,6 +4,7 @@ Reads test/predictions.parquet and produces analyze/{module}.json files.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -32,6 +33,10 @@ def run_analyze(cfg_path: str, *, module: str | None = None) -> None:
     available = {
         "comparison": _run_comparison,
         "feature_importance": _run_feature_importance,
+        "fairness": _run_fairness,
+        "calibration": _run_calibration,
+        "statistical_tests": _run_statistical_tests,
+        "missing_data": _run_missing_data,
     }
 
     if module is not None:
@@ -47,13 +52,28 @@ def run_analyze(cfg_path: str, *, module: str | None = None) -> None:
     for name, fn in modules_to_run.items():
         print(f"Running analysis module: {name}")
         result = fn(preds=preds, cfg=cfg, run_dir=run_dir)
-        write_json(analyze_dir / f"{name}.json", result)
+        if isinstance(result, tuple):
+            # Modules that produce extra artifacts (e.g. calibration)
+            result_dict, extra_df = result
+            write_json(analyze_dir / f"{name}.json", result_dict)
+            if extra_df is not None and not extra_df.empty:
+                extra_df.to_parquet(analyze_dir / f"calibrated_predictions.parquet", index=False)
+                print(f"  Wrote {analyze_dir / 'calibrated_predictions.parquet'}")
+        else:
+            write_json(analyze_dir / f"{name}.json", result)
         print(f"  Wrote {analyze_dir / name}.json")
 
 
 def _run_comparison(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
-    """Cross-system comparison metrics."""
+    """Cross-system comparison metrics with bootstrap confidence intervals."""
+    from oneehr.eval.bootstrap import bootstrap_metric
     from oneehr.eval.metrics import binary_metrics, regression_metrics
+
+    # Key metrics to bootstrap per task kind
+    ci_metrics = {
+        "binary": ["auroc", "auprc", "f1"],
+        "regression": ["mae", "rmse", "r2"],
+    }
 
     systems = []
     for system_name in preds["system"].unique():
@@ -72,6 +92,21 @@ def _run_comparison(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
         else:
             metrics = regression_metrics(y_true, y_pred).metrics
 
+        # Bootstrap CIs for key metrics
+        for m in ci_metrics.get(cfg.task.kind, []):
+            if m not in metrics:
+                continue
+            try:
+                br = bootstrap_metric(
+                    y_true=y_true, y_pred=y_pred,
+                    task=cfg.task, metric=m,
+                    n=1000, seed=42, ci=0.95,
+                )
+                metrics[f"{m}_ci_low"] = br.ci_low
+                metrics[f"{m}_ci_high"] = br.ci_high
+            except Exception:
+                pass
+
         systems.append({
             "name": system_name,
             "n": int(y_true.size),
@@ -86,7 +121,7 @@ def _run_comparison(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
 
 
 def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
-    """Feature importance for trained models (native for tree models, SHAP fallback)."""
+    """Feature importance for trained models (native for tree, SHAP fallback, IG for DL)."""
     from oneehr.training.persistence import load_checkpoint
 
     train_dir = run_dir / "train"
@@ -139,7 +174,26 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
 
             import torch
             if isinstance(model, torch.nn.Module):
-                results[model_name] = {"skipped": "DL model — not supported yet"}
+                # Use Integrated Gradients for DL models
+                try:
+                    from oneehr.analysis.feature_importance import integrated_gradients_importance
+                    from oneehr.data.sequence import build_patient_sequences, pad_sequences
+
+                    patient_ids, seqs, lengths = build_patient_sequences(binned, stored_feat_cols)
+                    X_padded = pad_sequences(seqs, lengths)
+                    res = integrated_gradients_importance(
+                        model, X_padded, lengths,
+                        feature_names=stored_feat_cols,
+                        n_steps=50,
+                        max_patients=200,
+                    )
+                    results[model_name] = {
+                        "method": res.method,
+                        "features": res.feature_names,
+                        "importances": res.importances.tolist(),
+                    }
+                except Exception as e:
+                    results[model_name] = {"error": f"IG failed: {e}"}
                 continue
 
             # Try native importance first (XGBoost/CatBoost)
@@ -172,3 +226,56 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
             results[model_name] = {"error": str(e)}
 
     return {"module": "feature_importance", "models": results}
+
+
+def _run_fairness(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
+    """Fairness/bias analysis across sensitive attributes."""
+    if cfg.task.kind != "binary":
+        return {"module": "fairness", "note": "only supported for binary tasks"}
+
+    static_path = run_dir / "preprocess" / "static.parquet"
+    if not static_path.exists():
+        return {"module": "fairness", "note": "no static.parquet found"}
+
+    static = pd.read_parquet(static_path)
+    from oneehr.analysis.fairness import compute_fairness
+
+    result = compute_fairness(preds=preds, static=static)
+    return {"module": "fairness", **result}
+
+
+def _run_calibration(*, preds: pd.DataFrame, cfg, run_dir: Path) -> tuple[dict, pd.DataFrame | None]:
+    """Post-hoc calibration (temperature, Platt, isotonic)."""
+    if cfg.task.kind != "binary":
+        return {"module": "calibration", "note": "only supported for binary tasks"}, None
+
+    split_path = run_dir / "preprocess" / "split.json"
+    if not split_path.exists():
+        return {"module": "calibration", "note": "no split.json found"}, None
+
+    split_info = json.loads(split_path.read_text(encoding="utf-8"))
+    from oneehr.analysis.calibration import compute_calibration
+
+    return compute_calibration(preds=preds, split_info=split_info)
+
+
+def _run_statistical_tests(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
+    """Pairwise statistical tests (DeLong, McNemar) between systems."""
+    if cfg.task.kind != "binary":
+        return {"module": "statistical_tests", "note": "only supported for binary tasks"}
+
+    from oneehr.analysis.statistical_tests import compute_statistical_tests
+
+    return compute_statistical_tests(preds=preds)
+
+
+def _run_missing_data(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
+    """Missing data quality report from preprocessed data."""
+    binned_path = run_dir / "preprocess" / "binned.parquet"
+    if not binned_path.exists():
+        return {"module": "missing_data", "note": "no binned.parquet found"}
+
+    binned = pd.read_parquet(binned_path)
+    from oneehr.analysis.missing_data import compute_missing_data
+
+    return compute_missing_data(binned=binned)
