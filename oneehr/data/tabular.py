@@ -241,6 +241,60 @@ def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, obj
             X.loc[:, cols] = X[cols].clip(lower=lo, upper=hi, axis=1)
             continue
 
+        if op == "knn_impute":
+            from sklearn.impute import KNNImputer
+
+            _ensure_numeric_frame(X, cols)
+            n_neighbors = int(step.get("n_neighbors", 5))
+            imputer = KNNImputer(n_neighbors=n_neighbors)
+            X = X.copy()
+            X[cols] = imputer.fit_transform(X[cols])
+            fitted_steps.append({"op": "knn_impute", "cols": cols, "imputer": imputer})
+            continue
+
+        if op == "iterative_impute":
+            from sklearn.ensemble import RandomForestRegressor
+            from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+            from sklearn.impute import IterativeImputer
+
+            _ensure_numeric_frame(X, cols)
+            max_iter = int(step.get("max_iter", 10))
+            imputer = IterativeImputer(
+                estimator=RandomForestRegressor(n_estimators=100, random_state=0),
+                max_iter=max_iter,
+                random_state=0,
+            )
+            X = X.copy()
+            X[cols] = imputer.fit_transform(X[cols])
+            fitted_steps.append({"op": "iterative_impute", "cols": cols, "imputer": imputer})
+            continue
+
+        if op == "robust_scale":
+            from sklearn.preprocessing import RobustScaler
+
+            _ensure_numeric_frame(X, cols)
+            scaler = RobustScaler()
+            X = X.copy()
+            X[cols] = scaler.fit_transform(X[cols])
+            fitted_steps.append({"op": "robust_scale", "cols": cols, "scaler": scaler})
+            continue
+
+        if op == "quantile_norm":
+            from sklearn.preprocessing import QuantileTransformer
+
+            _ensure_numeric_frame(X, cols)
+            output_distribution = str(step.get("output_distribution", "normal"))
+            n_quantiles = int(step.get("n_quantiles", 1000))
+            transformer = QuantileTransformer(
+                n_quantiles=min(n_quantiles, X.shape[0]),
+                output_distribution=output_distribution,
+                random_state=0,
+            )
+            X = X.copy()
+            X[cols] = transformer.fit_transform(X[cols])
+            fitted_steps.append({"op": "quantile_norm", "cols": cols, "transformer": transformer})
+            continue
+
         raise ValueError(f"Unsupported preprocess.pipeline op={op!r}")
 
     return FittedPostprocess(pipeline=fitted_steps)
@@ -285,6 +339,22 @@ def transform_postprocess_pipeline(X: pd.DataFrame, fitted: FittedPostprocess) -
             X_out.loc[:, cols] = X_out[cols].clip(lower=step.get("lower"), upper=step.get("upper"))
         elif op == "winsorize":
             X_out.loc[:, cols] = X_out[cols].clip(lower=step["lo"], upper=step["hi"], axis=1)
+        elif op == "knn_impute":
+            imputer = step["imputer"]
+            X_out = X_out.copy()
+            X_out[cols] = imputer.transform(X_out[cols])
+        elif op == "iterative_impute":
+            imputer = step["imputer"]
+            X_out = X_out.copy()
+            X_out[cols] = imputer.transform(X_out[cols])
+        elif op == "robust_scale":
+            scaler = step["scaler"]
+            X_out = X_out.copy()
+            X_out[cols] = scaler.transform(X_out[cols])
+        elif op == "quantile_norm":
+            transformer = step["transformer"]
+            X_out = X_out.copy()
+            X_out[cols] = transformer.transform(X_out[cols])
         else:
             raise ValueError(f"Unsupported fitted op={op!r}")
     return X_out
