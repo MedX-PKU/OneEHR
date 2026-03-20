@@ -1,90 +1,36 @@
 [dataset]
 dynamic = "examples/dynamic.csv"
-static = "examples/static.csv"
-label = "examples/label.csv"
+static  = "examples/static.csv"
+label   = "examples/label.csv"
 
 [preprocess]
 bin_size = "1d"
 numeric_strategy = "mean"
-## categorical codes are represented as:
-## - "onehot": (code, value) one-hot per bin (0/1)
-## - "count":  per-bin counts
 categorical_strategy = "onehot"
-code_selection = "frequency" # frequency | all | list | importance
-top_k_codes = 100 # or "all"
-min_code_count = 1
-# Post-merge preprocessing on tabular features (fit on train split only).
-# The recommended order is standardization -> imputation.
-pipeline = [
-  { op = "standardize", cols = "num__*" },
-  { op = "impute", strategy = "mean", cols = "num__*" },
-]
-# For code_selection = "list"
-# code_list = ["A", "B", "C"]
-# For code_selection = "importance" (e.g., SHAP outputs)
-# importance_file = "examples/importance.csv"
-# importance_code_col = "code"
-# importance_value_col = "importance"
+code_selection = "frequency"
+top_k_codes = 100
 
 [task]
 kind = "binary"
-prediction_mode = "patient" # patient (N-1) | time (N-N)
-
-[labels]
-# Optional. If provided, used to generate labels from events.
-# Format: "path/to/label_fn.py:build_labels"
-fn = "examples/label_fn.py:build_labels"
-bin_from_time_col = true
+prediction_mode = "patient"
 
 [split]
-kind = "kfold"
-n_splits = 3
+kind = "random"
 seed = 42
-val_size = 0.2
-
-# Prospective split example:
-# kind = "time"
-# time_boundary = "2012-01-01"
-
-[[models]]
-name = "gru"
+val_size = 0.1
+test_size = 0.2
 
 [[models]]
 name = "xgboost"
+[models.params]
+max_depth = 6
+n_estimators = 500
 
-[hpo]
-enabled = true
-metric = "val_loss"
-mode = "min"
-scope = "single" # single | per_split | cv_mean
-# Paper-style CV selection:
-# scope = "cv_mean" # single | per_split | cv_mean
-# Optional: choose which metric to average across splits for cv_mean selection.
-# For binary: auroc or auprc; for regression: rmse or mae.
-# aggregate_metric = "auroc"
-# Optional: which split name to tune on (e.g. fold0 for kfold, split0 for random, time0 for time)
-# tune_split = "fold0"
-
-# Example DL HPO (grid over trainer hyperparameters). Benchmark selects best per split.
-grid = [
-  ["trainer.lr", [1e-3, 3e-4]],
-  ["trainer.batch_size", [16, 32]],
-]
-
-[hpo_models.xgboost]
-enabled = true
-metric = "val_auroc"
-mode = "max"
-grid = [
-  ["model.xgboost.max_depth", [4, 6, 8]],
-  ["model.xgboost.n_estimators", [200, 500]],
-]
-
-# If you switch to time-level tasks, set:
-# [task]
-# prediction_mode = "time"
-# and ensure `labels.fn` returns time-aligned labels.
-# For time-level HPO, use `trainer.monitor = "val_loss"` (default).
+[[models]]
+name = "gru"
+[models.params]
+hidden_dim = 128
+num_layers = 1
 
 [trainer]
 device = "auto"
@@ -93,123 +39,28 @@ max_epochs = 30
 batch_size = 64
 lr = 1e-3
 weight_decay = 0.0
+grad_clip = 1.0
+num_workers = 0
+precision = "fp32"
 early_stopping = true
-early_stopping_patience = 5
-monitor = "val_loss"
-monitor_mode = "min"
-bootstrap_test = false
-bootstrap_n = 200
+patience = 5
 
-# Optional: custom loss factory. Signature: loss_fn(task: TaskConfig) -> torch.nn.Module
-# loss_fn = "examples/custom_loss.py:make_loss"
-
-[calibration]
-# Optional post-hoc temperature scaling calibration (binary only), fit on val split.
-enabled = false
-source = "val"
-threshold_strategy = "f1"
-use_calibrated = true
-
-# Optional analysis/reporting workflow defaults for `oneehr analyze`.
-# The command always writes `analysis/index.json` and module summaries.
-#
-# [analysis]
-# default_modules = [
-#   "dataset_profile",
-#   "cohort_analysis",
-#   "prediction_audit",
-#   "test_audit",
-#   "temporal_analysis",
-#   "interpretability",
-# ]
-# top_k = 20
-# stratify_by = []
-# case_limit = 50
-# save_plot_specs = true
-# shap_max_samples = 500
-#
-# Example analysis commands:
-# uv run oneehr analyze --config examples/experiment.toml
-# uv run oneehr analyze --config examples/experiment.toml --module prediction_audit --module interpretability
-# uv run oneehr analyze --config examples/experiment.toml --compare-run logs/baseline_run
-
-# Unified evaluation workflow. The active block below gives you a reproducible
-# trained-model baseline that runs without any external API keys.
-[eval]
-instance_unit = "patient"
-max_instances = 100
-seed = 42
-include_static = true
-include_analysis_context = false
-max_events = 200
-time_order = "asc"
-primary_metric = "auroc"
-bootstrap_samples = 200
-save_evidence = true
-save_traces = true
-text_render_template = "summary_v1"
-
-[[eval.systems]]
-name = "xgboost_ref"
-kind = "trained_model"
-sample_unit = "patient"
-source_model = "xgboost"
-
-# Optional OpenAI-compatible backend for framework systems.
-#
-# [[eval.backends]]
-# name = "gpt4o-mini"
-# provider = "openai_compatible"
-# base_url = "https://api.openai.com/v1"
-# model = "gpt-4o-mini"
+# Uncomment to add LLM systems:
+# [[systems]]
+# name = "gpt4o_single_llm"
+# kind = "llm"
+# framework = "single_llm"
+# backend = "openai"
+# model = "gpt-4o"
 # api_key_env = "OPENAI_API_KEY"
-# supports_json_schema = true
-# prompt_token_cost_per_1k = 0.002
-# completion_token_cost_per_1k = 0.004
-# headers = {}
-#
-# Optional framework systems. Supported framework_type values:
-# - single_llm
-# - healthcareagent
-# - reconcile
-# - mac
-# - medagent
-# - colacare
-# - mdagents
-#
-# [[eval.systems]]
-# name = "single_llm_eval"
-# kind = "framework"
-# framework_type = "single_llm"
-# sample_unit = "patient"
-# backend_refs = ["gpt4o-mini"]
-# max_retries = 2
-# timeout_seconds = 60.0
-#
-# [[eval.systems]]
-# name = "mdagents_eval"
-# kind = "framework"
-# framework_type = "mdagents"
-# sample_unit = "patient"
-# backend_refs = ["gpt4o-mini"]
-# max_rounds = 2
-# framework_params = { num_teams_advanced = 2, num_agents_per_team_advanced = 2 }
-#
-# [[eval.suites]]
-# name = "core"
-# primary_metric = "auroc"
-# include_systems = ["xgboost_ref", "single_llm_eval", "mdagents_eval"]
-# compare_pairs = [
-#   ["xgboost_ref", "single_llm_eval"],
-#   ["xgboost_ref", "mdagents_eval"],
-# ]
-#
-# Eval commands:
-# uv run oneehr eval build --config examples/experiment.toml
-# uv run oneehr eval run --config examples/experiment.toml
-# uv run oneehr eval report --config examples/experiment.toml
+
+# [[systems]]
+# name = "mdagents_gpt4o"
+# kind = "agent"
+# framework = "mdagents"
+# backend = "openai"
+# model = "gpt-4o"
 
 [output]
-root = "logs"
-run_name = "example"
-save_preds = true
+root = "runs"
+run_name = "exp001"
