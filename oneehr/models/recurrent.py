@@ -6,11 +6,13 @@ import torch
 from torch import nn
 
 
-def _make_rnn(cell: str, **kwargs) -> nn.GRU | nn.LSTM:
+def _make_rnn(cell: str, **kwargs) -> nn.GRU | nn.LSTM | nn.RNN:
     if cell == "gru":
         return nn.GRU(**kwargs)
     if cell == "lstm":
         return nn.LSTM(**kwargs)
+    if cell == "rnn":
+        return nn.RNN(**kwargs)
     raise ValueError(f"Unsupported cell={cell!r}")
 
 
