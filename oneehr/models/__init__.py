@@ -7,8 +7,12 @@ from importlib import import_module
 
 from oneehr.config.schema import ModelConfig, TaskConfig
 
-TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost"})
-DL_MODELS: frozenset[str] = frozenset({"gru", "lstm", "tcn", "transformer"})
+TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt"})
+DL_MODELS: frozenset[str] = frozenset({
+    "gru", "lstm", "rnn", "tcn", "transformer",
+    "mlp", "adacare", "stagenet", "retain",
+    "concare", "grasp", "mcgru", "dragent",
+})
 
 
 @dataclass(frozen=True)
@@ -21,11 +25,20 @@ class BuiltModel:
 _DL_DEFAULTS: dict[str, dict] = {
     "gru": {"hidden_dim": 128, "num_layers": 1, "dropout": 0.0},
     "lstm": {"hidden_dim": 128, "num_layers": 1, "dropout": 0.0},
+    "rnn": {"hidden_dim": 128, "num_layers": 1, "dropout": 0.0},
     "tcn": {"hidden_dim": 128, "num_layers": 2, "kernel_size": 3, "dropout": 0.1},
     "transformer": {
         "d_model": 128, "nhead": 4, "num_layers": 2,
         "dim_feedforward": 256, "dropout": 0.1, "pooling": "last",
     },
+    "mlp": {"hidden_dim": 128, "dropout": 0.0},
+    "adacare": {"hidden_dim": 128, "kernel_size": 2, "kernel_num": 64, "dropout": 0.5},
+    "stagenet": {"chunk_size": 128, "levels": 3, "conv_size": 10, "dropout": 0.3},
+    "retain": {"hidden_dim": 128, "dropout": 0.5},
+    "concare": {"hidden_dim": 128, "num_heads": 4, "dropout": 0.5},
+    "grasp": {"hidden_dim": 128, "cluster_num": 12, "dropout": 0.5},
+    "mcgru": {"hidden_dim": 32, "feat_dim": 8, "dropout": 0.0},
+    "dragent": {"hidden_dim": 128, "n_actions": 10, "n_units": 64, "dropout": 0.5, "lamda": 0.5},
 }
 
 
@@ -36,7 +49,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
     params = {**defaults, **model_cfg.params}
     is_time = mode == "time"
 
-    if name in ("gru", "lstm"):
+    if name in ("gru", "lstm", "rnn"):
         mod = import_module("oneehr.models.recurrent")
         cls_name = "RecurrentTimeModel" if is_time else "RecurrentModel"
         cls = getattr(mod, cls_name)
@@ -77,6 +90,100 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             num_layers=int(params.get("num_layers", 2)),
             kernel_size=int(params.get("kernel_size", 3)),
             dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "mlp":
+        mod = import_module("oneehr.models.mlp")
+        cls_name = "MLPTimeModel" if is_time else "MLPModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            dropout=float(params.get("dropout", 0.0)),
+        )
+
+    if name == "adacare":
+        mod = import_module("oneehr.models.adacare")
+        cls_name = "AdaCareTimeModel" if is_time else "AdaCareModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            kernel_size=int(params.get("kernel_size", 2)),
+            kernel_num=int(params.get("kernel_num", 64)),
+            dropout=float(params.get("dropout", 0.5)),
+        )
+
+    if name == "stagenet":
+        mod = import_module("oneehr.models.stagenet")
+        cls_name = "StageNetTimeModel" if is_time else "StageNetModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            chunk_size=int(params.get("chunk_size", 128)),
+            levels=int(params.get("levels", 3)),
+            conv_size=int(params.get("conv_size", 10)),
+            out_dim=out_dim,
+            dropout=float(params.get("dropout", 0.3)),
+        )
+
+    if name == "retain":
+        mod = import_module("oneehr.models.retain")
+        cls_name = "RETAINTimeModel" if is_time else "RETAINModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            dropout=float(params.get("dropout", 0.5)),
+        )
+
+    if name == "concare":
+        mod = import_module("oneehr.models.concare")
+        cls_name = "ConCareTimeModel" if is_time else "ConCareModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            num_heads=int(params.get("num_heads", 4)),
+            out_dim=out_dim,
+            static_dim=int(params.get("static_dim", 0)),
+            dropout=float(params.get("dropout", 0.5)),
+        )
+
+    if name == "grasp":
+        mod = import_module("oneehr.models.grasp")
+        cls_name = "GRASPTimeModel" if is_time else "GRASPModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            cluster_num=int(params.get("cluster_num", 12)),
+            out_dim=out_dim,
+            static_dim=int(params.get("static_dim", 0)),
+            dropout=float(params.get("dropout", 0.5)),
+        )
+
+    if name == "mcgru":
+        mod = import_module("oneehr.models.mcgru")
+        cls_name = "MCGRUTimeModel" if is_time else "MCGRUModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 32)),
+            feat_dim=int(params.get("feat_dim", 8)),
+            out_dim=out_dim,
+            static_dim=int(params.get("static_dim", 0)),
+            dropout=float(params.get("dropout", 0.0)),
+        )
+
+    if name == "dragent":
+        mod = import_module("oneehr.models.dragent")
+        cls_name = "DrAgentTimeModel" if is_time else "DrAgentModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            static_dim=int(params.get("static_dim", 0)),
+            n_actions=int(params.get("n_actions", 10)),
+            n_units=int(params.get("n_units", 64)),
+            dropout=float(params.get("dropout", 0.5)),
+            lamda=float(params.get("lamda", 0.5)),
         )
 
     raise ValueError(f"Unsupported DL model: {name!r}")

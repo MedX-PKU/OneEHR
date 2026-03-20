@@ -29,6 +29,10 @@ def save_tabular_model(art: TabularArtifacts, model_dir: str | Path) -> None:
     if art.kind == "catboost":
         art.model.save_model(d / "model.cbm")
         return
+    if art.kind in ("rf", "dt", "gbdt"):
+        import joblib
+        joblib.dump(art.model, d / "model.joblib")
+        return
     raise ValueError(f"Unsupported tabular kind={art.kind!r}")
 
 
@@ -49,6 +53,11 @@ def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) ->
         model = CatBoostClassifier() if task.kind == "binary" else CatBoostRegressor()
         model.load_model(d / "model.cbm")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
+
+    if kind in ("rf", "dt", "gbdt"):
+        import joblib
+        model = joblib.load(d / "model.joblib")
+        return TabularArtifacts(feature_columns=feature_columns, model=model, kind=kind)
 
     raise ValueError(f"Unsupported tabular kind={kind!r}")
 
@@ -114,6 +123,57 @@ def train_tabular_model(
             model.fit(X_train, y_train)
 
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
+
+    if model_name == "rf":
+        from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+        defaults = dict(n_estimators=500, max_depth=None, min_samples_split=2, n_jobs=-1)
+        kw = {**defaults, **params, "random_state": seed}
+
+        if task.kind == "binary":
+            model = RandomForestClassifier(**kw)
+        elif task.kind == "regression":
+            model = RandomForestRegressor(**kw)
+        else:
+            raise ValueError(f"Unsupported task.kind={task.kind!r}")
+
+        model.fit(X_train, y_train)
+        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="rf")
+
+    if model_name == "dt":
+        from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+        defaults = dict(max_depth=10, min_samples_split=2)
+        kw = {**defaults, **params, "random_state": seed}
+
+        if task.kind == "binary":
+            model = DecisionTreeClassifier(**kw)
+        elif task.kind == "regression":
+            model = DecisionTreeRegressor(**kw)
+        else:
+            raise ValueError(f"Unsupported task.kind={task.kind!r}")
+
+        model.fit(X_train, y_train)
+        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="dt")
+
+    if model_name == "gbdt":
+        from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
+
+        defaults = dict(
+            n_estimators=500, max_depth=6, learning_rate=0.05,
+            subsample=0.8, min_samples_split=2,
+        )
+        kw = {**defaults, **params, "random_state": seed}
+
+        if task.kind == "binary":
+            model = GradientBoostingClassifier(**kw)
+        elif task.kind == "regression":
+            model = GradientBoostingRegressor(**kw)
+        else:
+            raise ValueError(f"Unsupported task.kind={task.kind!r}")
+
+        model.fit(X_train, y_train)
+        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="gbdt")
 
     raise ValueError(f"Unsupported tabular model_name={model_name!r}")
 
