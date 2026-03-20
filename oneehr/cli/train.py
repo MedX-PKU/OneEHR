@@ -65,7 +65,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     from oneehr.data.splits import require_saved_splits, _parse_repeat_index
     from oneehr.data.tabular import maybe_fit_transform_postprocess
     from oneehr.eval.metrics import binary_metrics, regression_metrics
-    from oneehr.hpo.grid import apply_overrides, iter_grid
+    from oneehr.training.hpo import apply_overrides, iter_grid
     from oneehr.models import build_model
     from oneehr.models.tree import (
         predict_tabular,
@@ -73,8 +73,8 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
         save_tabular_model,
         train_tabular_model,
     )
-    from oneehr.modeling.persistence import write_dl_artifacts
-    from oneehr.modeling.trainer import fit_model
+    from oneehr.training.persistence import write_dl_artifacts
+    from oneehr.training.trainer import fit_model
     from oneehr.artifacts.store import RunIO
     from oneehr.cli._train_hpo import run_single_hpo, run_cv_mean_hpo, run_per_split_hpo
 

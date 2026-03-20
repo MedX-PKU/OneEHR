@@ -24,8 +24,8 @@ def run_single_hpo(
     Returns the best overrides dict (empty if no best found).
     """
     import torch
-    from oneehr.hpo.grid import iter_grid
-    from oneehr.hpo.runner import select_best_with_trials
+    from oneehr.training.hpo import iter_grid
+    from oneehr.training.hpo import select_best_with_trials
     from oneehr.models.tree import predict_tabular, train_tabular_model
     from oneehr.eval.metrics import binary_metrics, regression_metrics
 
@@ -98,7 +98,7 @@ def run_cv_mean_hpo(
 
     Returns the best overrides dict (empty if no best found).
     """
-    from oneehr.hpo.grid import apply_overrides, iter_grid
+    from oneehr.training.hpo import apply_overrides, iter_grid
     from oneehr.models.tree import predict_tabular, train_tabular_model
     from oneehr.eval.metrics import binary_metrics, regression_metrics
 
@@ -196,11 +196,11 @@ def run_per_split_hpo(
     import torch
     from dataclasses import replace
 
-    from oneehr.hpo.runner import select_best_with_trials
-    from oneehr.hpo.grid import iter_grid
+    from oneehr.training.hpo import select_best_with_trials
+    from oneehr.training.hpo import iter_grid
     from oneehr.models.tree import predict_tabular, train_tabular_model
     from oneehr.models import build_model
-    from oneehr.modeling.trainer import fit_model
+    from oneehr.training.trainer import fit_model
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.models import TABULAR_MODELS
 

@@ -55,7 +55,7 @@ def train_dl_patient_level(
     Returns ``(y_score, y_true, test_pids, test_logits, val_score, val_logits, y_val_true)``.
     """
     from oneehr.data.sequence import build_patient_sequences, pad_sequences
-    from oneehr.modeling.trainer import fit_model
+    from oneehr.training.trainer import fit_model
 
     feat_cols = dynamic_feature_columns(binned)
     pids, seqs, lens = build_patient_sequences(binned, feat_cols)
@@ -140,7 +140,7 @@ def train_dl_time_level(
     Returns ``(y_score, y_true, key_rows, test_logits, val_score, val_logits, y_val_true)``.
     """
     from oneehr.data.sequence import build_time_sequences, pad_sequences
-    from oneehr.modeling.trainer import fit_model
+    from oneehr.training.trainer import fit_model
 
     feat_cols = dynamic_feature_columns(binned)
     pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
