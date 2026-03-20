@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 
 import pandas as pd
 
 from oneehr.config.schema import ExperimentConfig
-from oneehr.utils import load_callable
-from oneehr.utils.time import parse_bin_size
+from oneehr.utils import load_callable, parse_bin_size
 
 
-class LabelFn(Protocol):
+class LabelFn:
     def __call__(
         self,
         dynamic: pd.DataFrame,
@@ -30,10 +28,13 @@ def run_label_fn(
     static: pd.DataFrame | None,
     label: pd.DataFrame | None,
     cfg: ExperimentConfig,
+    *,
+    label_fn_ref: str | None = None,
 ) -> LabelsResult | None:
-    if cfg.labels.fn is None:
+    """Run a user-supplied label function, if provided."""
+    if label_fn_ref is None:
         return None
-    fn = load_callable(cfg.labels.fn)
+    fn = load_callable(label_fn_ref)
     out = fn(dynamic, static, label, cfg)
     if not isinstance(out, pd.DataFrame):
         raise TypeError("label_fn must return a pandas.DataFrame")
@@ -52,8 +53,6 @@ def normalize_patient_labels(labels: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalize_time_labels(labels: pd.DataFrame, cfg: ExperimentConfig) -> pd.DataFrame:
-    """Normalize N-N label table to columns: patient_id, bin_time, label, mask."""
-
     if "patient_id" not in labels.columns or "label" not in labels.columns:
         raise ValueError("N-N labels must contain patient_id and label")
 
@@ -61,12 +60,8 @@ def normalize_time_labels(labels: pd.DataFrame, cfg: ExperimentConfig) -> pd.Dat
     out["patient_id"] = out["patient_id"].astype(str)
 
     if "bin_time" not in out.columns:
-        if not cfg.labels.bin_from_time_col:
-            raise ValueError("N-N labels missing bin_time and bin_from_time_col is false")
         if "label_time" not in out.columns:
-            raise ValueError(
-                "N-N labels missing bin_time and required time column 'label_time' for binning"
-            )
+            raise ValueError("N-N labels missing bin_time and label_time")
         out["label_time"] = pd.to_datetime(out["label_time"], errors="raise")
         freq = parse_bin_size(cfg.preprocess.bin_size)
         out["bin_time"] = out["label_time"].dt.floor(freq)

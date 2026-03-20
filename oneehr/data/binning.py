@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from oneehr.config.schema import DynamicTableConfig, PreprocessConfig
+from oneehr.config.schema import PreprocessConfig
 from oneehr.utils import parse_bin_size
 
 
@@ -38,7 +38,6 @@ def _select_code_vocab(
     preprocess: PreprocessConfig,
 ) -> list[str]:
     code_counts = df["code"].value_counts()
-    code_counts = code_counts[code_counts >= preprocess.min_code_count]
 
     selection = preprocess.code_selection
     if selection == "all":
@@ -49,25 +48,10 @@ def _select_code_vocab(
             return list(code_counts.index.astype(str))
         return list(code_counts.head(top_k).index.astype(str))
     if selection == "list":
-        if not preprocess.code_list:
+        code_list = getattr(preprocess, "code_list", [])
+        if not code_list:
             raise ValueError("preprocess.code_list must be provided when code_selection='list'.")
-        return [str(c) for c in preprocess.code_list]
-    if selection == "importance":
-        if preprocess.importance_file is None:
-            raise ValueError("preprocess.importance_file is required for code_selection='importance'.")
-        imp = _load_importance_table(preprocess.importance_file)
-        code_col = preprocess.importance_code_col
-        val_col = preprocess.importance_value_col
-        if code_col not in imp.columns or val_col not in imp.columns:
-            raise ValueError(
-                f"importance_file must contain columns {code_col!r} and {val_col!r}."
-            )
-        top_k = preprocess.top_k_codes
-        imp = imp[[code_col, val_col]].copy()
-        imp = imp.sort_values(val_col, ascending=False)
-        if top_k is not None:
-            imp = imp.head(top_k)
-        return [str(c) for c in imp[code_col].tolist()]
+        return [str(c) for c in code_list]
     raise ValueError(f"Unsupported preprocess.code_selection={selection!r}")
 
 
@@ -80,7 +64,7 @@ def _normalize_cat_value(v: object) -> str:
 
 def bin_events(
     events: pd.DataFrame,
-    dataset: DynamicTableConfig,
+    dataset: object,
     preprocess: PreprocessConfig,
 ) -> BinnedTable:
     """Convert event-level table into bin-level table.
@@ -107,9 +91,7 @@ def bin_events(
     # Build code vocab based on selection strategy.
     code_vocab = _select_code_vocab(df, preprocess)
     if preprocess.code_selection != "list":
-        # ensure min count filter still applied for non-list strategies
         code_counts = df["code"].value_counts()
-        code_counts = code_counts[code_counts >= preprocess.min_code_count]
         code_vocab = [c for c in code_vocab if c in code_counts.index.astype(str)]
     df = df[df["code"].isin(code_vocab)].copy()
 

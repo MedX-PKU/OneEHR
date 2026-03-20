@@ -4,13 +4,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from oneehr.config.schema import DynamicTableConfig, LabelTableConfig, StaticTableConfig
 
-
-def load_dynamic_table(cfg: DynamicTableConfig) -> pd.DataFrame:
-    if cfg.path is None:
-        raise ValueError("dataset.dynamic.path is required.")
-    path = Path(cfg.path)
+def load_dynamic_table(path: Path) -> pd.DataFrame:
+    path = Path(path)
     if path.suffix.lower() != ".csv":
         raise ValueError(f"dynamic must be a .csv file. Got: {path}")
     df = pd.read_csv(path).copy()
@@ -26,16 +22,16 @@ def load_dynamic_table(cfg: DynamicTableConfig) -> pd.DataFrame:
     return df[required]
 
 
-def load_dynamic_table_optional(cfg: DynamicTableConfig | None) -> pd.DataFrame | None:
-    if cfg is None or cfg.path is None:
+def load_dynamic_table_optional(path: Path | None) -> pd.DataFrame | None:
+    if path is None:
         return None
-    return load_dynamic_table(cfg)
+    return load_dynamic_table(path)
 
 
-def load_static_table(cfg: StaticTableConfig | None) -> pd.DataFrame | None:
-    if cfg is None or cfg.path is None:
+def load_static_table(path: Path | None) -> pd.DataFrame | None:
+    if path is None:
         return None
-    path = Path(cfg.path)
+    path = Path(path)
     if path.suffix.lower() != ".csv":
         raise ValueError(f"static must be a .csv file. Got: {path}")
     df = pd.read_csv(path).copy()
@@ -45,10 +41,10 @@ def load_static_table(cfg: StaticTableConfig | None) -> pd.DataFrame | None:
     return df
 
 
-def load_label_table(cfg: LabelTableConfig | None) -> pd.DataFrame | None:
-    if cfg is None or cfg.path is None:
+def load_label_table(path: Path | None) -> pd.DataFrame | None:
+    if path is None:
         return None
-    path = Path(cfg.path)
+    path = Path(path)
     if path.suffix.lower() != ".csv":
         raise ValueError(f"label must be a .csv file. Got: {path}")
     df = pd.read_csv(path).copy()
