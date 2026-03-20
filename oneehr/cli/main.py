@@ -4,8 +4,6 @@ import argparse
 import sys
 
 from oneehr.cli.eval import register_eval_parser
-from oneehr.cli.query import register_query_parser
-from oneehr.cli.webui import register_webui_parser
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -49,8 +47,6 @@ def _build_parser() -> argparse.ArgumentParser:
     an.add_argument("--method", default=None, choices=["xgboost", "shap", "attention"])
 
     register_eval_parser(sub)
-    register_query_parser(sub)
-    register_webui_parser(sub)
 
     return parser
 

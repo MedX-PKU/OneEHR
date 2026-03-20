@@ -26,12 +26,6 @@ oneehr = "oneehr.cli.main:main"
 
 [project.optional-dependencies]
 docs = ["mkdocs @ git+https://github.com/encode/mkdocs.git"]
-webui = [
-  "fastapi>=0.115",
-  "uvicorn>=0.34",
-  "pydantic>=2.8",
-  "orjson>=3.10",
-]
 
 [tool.setuptools.packages.find]
 where = ["."]
