@@ -33,6 +33,7 @@ run_name = "tjh"
 
 # --- Models ---
 
+# Tree-based
 [[models]]
 name = "xgboost"
 [models.params]
@@ -46,6 +47,7 @@ name = "catboost"
 n_estimators = 100
 depth        = 4
 
+# Recurrent
 [[models]]
 name = "gru"
 [models.params]
@@ -58,6 +60,13 @@ name = "lstm"
 hidden_dim = 64
 num_layers = 1
 
+[[models]]
+name = "rnn"
+[models.params]
+hidden_dim = 64
+num_layers = 1
+
+# Non-recurrent
 [[models]]
 name = "tcn"
 [models.params]
@@ -72,3 +81,53 @@ d_model         = 64
 nhead           = 4
 num_layers      = 2
 dim_feedforward = 128
+
+[[models]]
+name = "mlp"
+[models.params]
+hidden_dim = 64
+
+# EHR-specialised
+[[models]]
+name = "adacare"
+[models.params]
+hidden_dim = 64
+kernel_size = 2
+kernel_num  = 32
+
+[[models]]
+name = "stagenet"
+[models.params]
+chunk_size = 64
+levels     = 3
+conv_size  = 10
+
+[[models]]
+name = "retain"
+[models.params]
+hidden_dim = 64
+
+[[models]]
+name = "concare"
+[models.params]
+hidden_dim = 64
+num_heads  = 4
+
+[[models]]
+name = "grasp"
+[models.params]
+hidden_dim   = 64
+cluster_num  = 8
+
+[[models]]
+name = "mcgru"
+[models.params]
+hidden_dim = 32
+feat_dim   = 8
+
+[[models]]
+name = "dragent"
+[models.params]
+hidden_dim = 64
+n_actions  = 10
+n_units    = 32

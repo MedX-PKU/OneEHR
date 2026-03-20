@@ -145,14 +145,33 @@ def _predict_trained_model(
         # DL model
         model.eval()
         from oneehr.data.sequence import build_patient_sequences, pad_sequences
+        from oneehr.data.tabular import has_static_branch
+
+        # Load static features for models with a static branch
+        run_dir = model_dir.parent.parent
+        static_path = run_dir / "preprocess" / "static.parquet"
+        static_tensor = None
+        if has_static_branch(model) and static_path.exists():
+            static_df = pd.read_parquet(static_path)
+            if "patient_id" in static_df.columns:
+                static_df = static_df.set_index("patient_id")
+            static_df.index = static_df.index.astype(str)
 
         if mode == "patient":
             pids, seqs, lens = build_patient_sequences(binned_test, feat_cols)
             X_seq = pad_sequences(seqs, lens)
             lens_t = torch.from_numpy(lens)
 
+            # Build static tensor aligned with pids
+            if has_static_branch(model) and static_path.exists():
+                s_vals = static_df.reindex(pids).fillna(0.0).to_numpy(dtype=np.float32)
+                static_tensor = torch.from_numpy(s_vals)
+
             with torch.no_grad():
-                logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                if static_tensor is not None:
+                    logits = model(X_seq, lens_t, static_tensor).squeeze(-1).detach().cpu().numpy()
+                else:
+                    logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
 
             if task_kind == "binary":
                 y_pred_all = sigmoid(logits)
@@ -178,8 +197,17 @@ def _predict_trained_model(
             X_seq = pad_sequences(seqs, lens)
             lens_t = torch.from_numpy(lens)
 
+            # Build static tensor for time-mode if needed
+            time_static = None
+            if has_static_branch(model) and static_path.exists():
+                s_vals = static_df.reindex(pids).fillna(0.0).to_numpy(dtype=np.float32)
+                time_static = torch.from_numpy(s_vals)
+
             with torch.no_grad():
-                logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+                if time_static is not None:
+                    logits = model(X_seq, lens_t, time_static).squeeze(-1).detach().cpu().numpy()
+                else:
+                    logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
 
             for i, (pid, l) in enumerate(zip(pids, lens)):
                 for t in range(l):

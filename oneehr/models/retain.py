@@ -36,6 +36,11 @@ class RETAINLayer(nn.Module):
     def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         """Returns context vector of shape (B, input_dim)."""
         x = self.dropout(x)
+
+        # Trim to max actual length to avoid dimension mismatch after pad_packed_sequence
+        max_len = int(lengths.max().item())
+        x = x[:, :max_len, :]
+
         rx = self._reverse(x, lengths)
 
         packed = rnn_utils.pack_padded_sequence(rx, lengths.cpu(), batch_first=True, enforce_sorted=False)
