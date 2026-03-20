@@ -7,7 +7,7 @@ Use this section when you need precise interface details rather than a walkthrou
 - The CLI command tree and flag surface
 - The TOML configuration model
 - Supported model families
-- The on-disk artifact contract shared by automation, notebooks, and the Web UI
+- The on-disk artifact contract
 - The canonical product positioning language for public-facing copy
 
 ## Reference Pages

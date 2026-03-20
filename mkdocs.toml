@@ -8,8 +8,6 @@ nav = [
   ] },
   { title = "Workflows", path = "guide/index.md", children = [
     { title = "Core Workflows", path = "guide/core-workflows.md" },
-    { title = "Evaluation Workflows", path = "guide/eval-workflows.md" },
-    { title = "Web UI", path = "guide/webui.md" },
   ] },
   { title = "Reference", path = "reference/index.md", children = [
     { title = "CLI", path = "reference/cli.md" },

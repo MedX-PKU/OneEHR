@@ -3,19 +3,17 @@
     <p class="landing-eyebrow">EHR AI platform</p>
     <h1>OneEHR</h1>
     <p class="landing-lede">
-      From standardized EHR tables to reproducible runs, structured analysis, and fair cross-system
-      evaluation across AI agents, LLM systems, and conventional ML/DL models.
+      From standardized EHR tables to reproducible runs, structured analysis, and cross-system
+      comparison across ML/DL models and LLM systems.
     </p>
     <p class="landing-body">
       OneEHR is a Python platform for longitudinal EHR experiments. It provides shared
-      infrastructure for preprocessing, modeling, analysis, and evaluation on one shared run contract so
-      the CLI, notebooks, and web/API layer all read the same saved artifacts instead of inventing
-      parallel formats for evaluation or review.
+      infrastructure for preprocessing, modeling, testing, and analysis on one shared run contract so
+      the CLI and notebooks all read the same saved artifacts.
     </p>
     <div class="landing-actions">
       <a class="landing-button landing-button-primary" href="./getting-started/quickstart/">Run the quickstart</a>
-      <a class="landing-button landing-button-secondary" href="./guide/eval-workflows/">Inspect evaluation workflows</a>
-      <a class="landing-button landing-button-secondary" href="./guide/webui/">Open the web/API guide</a>
+      <a class="landing-button landing-button-secondary" href="./guide/core-workflows/">Core workflows guide</a>
     </div>
   </div>
   <div class="landing-hero-panel">
@@ -34,12 +32,12 @@
       <article class="landing-stat-card">
         <span class="landing-stat-label">Run outputs</span>
         <strong>Structured artifacts</strong>
-        <span class="landing-stat-meta">JSON, CSV, JSONL, parquet</span>
+        <span class="landing-stat-meta">Parquet + JSON</span>
       </article>
       <article class="landing-stat-card">
-        <span class="landing-stat-label">Eval units</span>
-        <strong>Frozen instances</strong>
-        <span class="landing-stat-meta">Evidence, outputs, traces, reports</span>
+        <span class="landing-stat-label">Models</span>
+        <strong>6 built-in</strong>
+        <span class="landing-stat-meta">xgboost, catboost, gru, lstm, tcn, transformer</span>
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">System layer</span>
@@ -52,28 +50,28 @@
 
 ## Why OneEHR
 
-Most EHR projects do not fail because a model cannot be trained. They fail because preprocessing, splits, evaluation, dashboards, and prompting all drift into different formats owned by different scripts. OneEHR keeps those stages on one shared run contract so that a run remains reproducible, queryable, and inspectable long after training finishes.
+Most EHR projects do not fail because a model cannot be trained. They fail because preprocessing, splits, and analysis all drift into different formats owned by different scripts. OneEHR keeps those stages on one shared run contract so that a run remains reproducible and inspectable long after training finishes.
 
 <div class="feature-grid">
   <article class="feature-card">
     <p class="feature-kicker">Standardize first</p>
     <h3>Event-table in, not dataset magic</h3>
-    <p>Prepare normalized EHR tables once, then reuse the same inputs across preprocess, training, testing, analysis, and evaluation.</p>
+    <p>Prepare normalized EHR tables once, then reuse the same inputs across preprocess, training, testing, and analysis.</p>
   </article>
   <article class="feature-card">
     <p class="feature-kicker">Shared contract</p>
     <h3>One shared run contract across every interface</h3>
-    <p>The CLI, notebooks, query endpoints, and Web UI all read the same run directory instead of parallel export formats.</p>
+    <p>The CLI and notebooks all read the same run directory instead of parallel export formats.</p>
   </article>
   <article class="feature-card">
     <p class="feature-kicker">Comparable outputs</p>
-    <h3>Frozen instances and structured analysis</h3>
-    <p>Saved evidence bundles, analysis modules, leaderboard tables, and pairwise deltas stay explorable after the experiment is over.</p>
+    <h3>Unified predictions and structured analysis</h3>
+    <p>A single predictions.parquet with a system column enables cross-system comparison. Analysis modules produce JSON artifacts that stay explorable after the experiment is over.</p>
   </article>
   <article class="feature-card">
-    <p class="feature-kicker">Cross-system evaluation</p>
+    <p class="feature-kicker">Cross-system comparison</p>
     <h3>Unified scoring across systems</h3>
-    <p>Evaluate conventional ML/DL models, LLM systems, and AI agents on the same frozen instances with saved traces and metrics.</p>
+    <p>ML/DL models and LLM systems are tested on the same split with the same metrics, so comparisons stay fair and reproducible.</p>
   </article>
 </div>
 
@@ -83,42 +81,22 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   <article class="workflow-step">
     <span class="workflow-step-no">01</span>
     <h3>Preprocess</h3>
-    <p>Materialize binned and tabular views from standardized EHR tables.</p>
+    <p>Materialize binned features and labels from standardized EHR tables.</p>
   </article>
   <article class="workflow-step">
     <span class="workflow-step-no">02</span>
     <h3>Train</h3>
-    <p>Fit conventional ML or DL models from a TOML experiment contract.</p>
+    <p>Fit tabular and deep learning models from a TOML experiment contract.</p>
   </article>
   <article class="workflow-step">
     <span class="workflow-step-no">03</span>
     <h3>Test</h3>
-    <p>Evaluate on saved splits or external datasets without losing schema alignment.</p>
+    <p>Evaluate all trained models and configured systems on the held-out test split.</p>
   </article>
   <article class="workflow-step">
     <span class="workflow-step-no">04</span>
     <h3>Analyze</h3>
-    <p>Write structured module outputs for profiling, audits, temporal views, and interpretability.</p>
-  </article>
-  <article class="workflow-step">
-    <span class="workflow-step-no">05</span>
-    <h3>Eval Build</h3>
-    <p>Freeze evaluation instances and evidence bundles from the saved run contract.</p>
-  </article>
-  <article class="workflow-step">
-    <span class="workflow-step-no">06</span>
-    <h3>Eval Run</h3>
-    <p>Execute conventional ML/DL models, LLM systems, and AI agents over the same instances.</p>
-  </article>
-  <article class="workflow-step">
-    <span class="workflow-step-no">07</span>
-    <h3>Eval Report</h3>
-    <p>Write leaderboard, split metrics, and paired comparisons as stable artifacts.</p>
-  </article>
-  <article class="workflow-step">
-    <span class="workflow-step-no">08</span>
-    <h3>Web UI</h3>
-    <p>Browse runs, evaluation summaries, analysis dashboards, and comparison artifacts from one read-only interface.</p>
+    <p>Write structured analysis outputs for cross-system comparison and feature importance.</p>
   </article>
 </div>
 
@@ -127,19 +105,15 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
 <div class="entry-grid">
   <article class="entry-card">
     <h3><a href="./getting-started/quickstart/">Quickstart</a></h3>
-    <p>Use the bundled example config if you want the shortest path from raw tables to a complete run directory.</p>
+    <p>Use the bundled TJH example config for the shortest path from raw tables to a complete run directory.</p>
   </article>
   <article class="entry-card">
     <h3><a href="./guide/core-workflows/">Core Workflows</a></h3>
-    <p>Understand the standard preprocess, train, test, analyze, and artifact-production path in detail.</p>
+    <p>Understand the standard preprocess, train, test, and analyze path in detail.</p>
   </article>
   <article class="entry-card">
-    <h3><a href="./guide/eval-workflows/">Evaluation Workflows</a></h3>
-    <p>Configure frozen instances, compare conventional ML/DL models with LLM systems and AI agents, and inspect saved traces and paired deltas.</p>
-  </article>
-  <article class="entry-card">
-    <h3><a href="./guide/webui/">Web UI</a></h3>
-    <p>Serve the browser/API layer for run discovery, module dashboards, evaluation summaries, and comparison drill-down.</p>
+    <h3><a href="./reference/configuration/">Configuration Reference</a></h3>
+    <p>Full TOML option tables for dataset, preprocessing, split, models, trainer, systems, and output.</p>
   </article>
 </div>
 
@@ -156,11 +130,11 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
   </article>
   <article class="principle-card">
     <h3>Structured outputs over notebook state</h3>
-    <p>Saved artifacts are machine-readable and UI-readable, so downstream automation does not depend on hidden cells.</p>
+    <p>Saved artifacts are machine-readable (Parquet + JSON), so downstream automation does not depend on hidden cells.</p>
   </article>
   <article class="principle-card">
-    <h3>Evaluation is first-class</h3>
-    <p>AI agents and LLM systems are scored on the same frozen samples and evidence bundles as conventional ML/DL models, so comparisons stay fair and reproducible.</p>
+    <h3>Cross-system comparison is built in</h3>
+    <p>ML/DL models and LLM systems produce predictions in the same format, enabling fair comparison via the test and analyze commands.</p>
   </article>
 </div>
 
@@ -169,4 +143,4 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
 - Use [Installation](getting-started/installation.md) to set up Python 3.12, `uv`, and optional extras.
 - Use [Quickstart](getting-started/quickstart.md) for a runnable end-to-end example.
 - Use [Configuration Reference](reference/configuration.md) if you are authoring experiment TOML files.
-- Use [Artifacts Reference](reference/artifacts.md) if you need the precise on-disk contract for tooling or UI work.
+- Use [Artifacts Reference](reference/artifacts.md) if you need the precise on-disk contract for tooling.

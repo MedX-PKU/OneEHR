@@ -20,23 +20,12 @@ uv pip install -e .
 uv run oneehr --help
 ```
 
-You should see these top-level command groups:
+You should see these top-level commands:
 
 - `preprocess`
 - `train`
 - `test`
 - `analyze`
-- `eval`
-- `query`
-- `webui`
-
-Check a few common entrypoints:
-
-```bash
-uv run oneehr eval --help
-uv run oneehr query --help
-uv run oneehr webui serve --help
-```
 
 ## Optional Extras
 
@@ -46,19 +35,6 @@ Docs build dependencies:
 uv pip install -e ".[docs]"
 uv run mkdocs serve
 uv run mkdocs build
-```
-
-Web UI backend dependencies:
-
-```bash
-uv pip install -e ".[webui]"
-```
-
-If you also want the browser frontend, install Node dependencies under `webui/`:
-
-```bash
-cd webui
-npm install
 ```
 
 ## GPU Support

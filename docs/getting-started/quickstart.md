@@ -1,6 +1,6 @@
 # Quickstart
 
-This quickstart uses the bundled TJH COVID-19 ICU example at `examples/tjh/experiment.toml`. It walks through the four core pipeline steps: preprocess, train, test, and analyze.
+This quickstart uses the bundled TJH COVID-19 ICU example. It walks through the four core pipeline steps: preprocess, train, test, and analyze.
 
 ## 0. Convert The Source Data (once)
 
@@ -8,7 +8,22 @@ This quickstart uses the bundled TJH COVID-19 ICU example at `examples/tjh/exper
 uv run python examples/tjh/convert.py
 ```
 
-This reads the raw Excel file and produces `dynamic.csv`, `static.csv`, and `label.csv` inside `examples/tjh/`.
+This reads the raw Excel file and produces inside `examples/tjh/`:
+
+- `dynamic.csv`, `static.csv` -- shared across all tasks
+- `label_mortality.csv` -- patient-level binary mortality
+- `label_los.csv` -- patient-level regression (length of stay)
+- `label_mortality_time.csv` -- time-level binary mortality
+
+## Example Configs
+
+The TJH example ships three experiment configs:
+
+| Config | Task | Mode | Models |
+|--------|------|------|--------|
+| `experiment.toml` | Binary mortality | Patient (N-1) | All 6 |
+| `experiment_los.toml` | LOS regression | Patient (N-1) | xgboost + gru |
+| `experiment_time.toml` | Binary mortality | Time (N-N) | xgboost + gru |
 
 ## 1. Preprocess
 
@@ -24,7 +39,7 @@ This creates `runs/tjh/preprocess/`, writes `manifest.json`, the split contract,
 uv run oneehr train --config examples/tjh/experiment.toml
 ```
 
-The example config trains 6 models (xgboost, catboost, gru, lstm, tcn, transformer) and writes checkpoints under `runs/tjh/train/`.
+The default config trains 6 models (xgboost, catboost, gru, lstm, tcn, transformer) and writes checkpoints under `runs/tjh/train/`.
 
 ## 3. Test
 
@@ -42,22 +57,22 @@ uv run oneehr analyze --config examples/tjh/experiment.toml
 
 Writes structured analysis outputs under `runs/tjh/analyze/`, including cross-system comparison and feature importance.
 
-## Optional: Web UI
+## Try Other Tasks
 
-Build the frontend once:
-
-```bash
-cd webui
-npm install
-npm run build
-```
-
-Then serve the API and built dashboard:
+Run the LOS regression task:
 
 ```bash
-cd ..
-uv pip install -e ".[webui]"
-uv run oneehr webui serve --root runs
+uv run oneehr preprocess --config examples/tjh/experiment_los.toml
+uv run oneehr train      --config examples/tjh/experiment_los.toml
+uv run oneehr test       --config examples/tjh/experiment_los.toml
+uv run oneehr analyze    --config examples/tjh/experiment_los.toml
 ```
 
-Open `http://127.0.0.1:8000`.
+Run the time-level mortality task:
+
+```bash
+uv run oneehr preprocess --config examples/tjh/experiment_time.toml
+uv run oneehr train      --config examples/tjh/experiment_time.toml
+uv run oneehr test       --config examples/tjh/experiment_time.toml
+uv run oneehr analyze    --config examples/tjh/experiment_time.toml
+```

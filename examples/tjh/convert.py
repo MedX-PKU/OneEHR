@@ -2,7 +2,10 @@
 """Convert TJH COVID-19 ICU dataset (Excel) to OneEHR input CSVs.
 
 Reads:  examples/tjh/time_series_375_prerpocess_en.xlsx
-Writes: examples/tjh/{dynamic,static,label}.csv
+Writes: examples/tjh/{dynamic,static}.csv
+        examples/tjh/label_mortality.csv       (patient-level binary)
+        examples/tjh/label_los.csv             (patient-level regression)
+        examples/tjh/label_mortality_time.csv  (time-level binary)
 """
 from pathlib import Path
 
@@ -104,26 +107,59 @@ def main() -> None:
         .rename(columns={"PatientID": "patient_id", "Age": "age", "Sex": "gender"})
     )
 
-    # --- label.csv: outcome per patient ---
-    label = (
+    # --- Patient-level aggregates for labels ---
+    patient_agg = (
         df.groupby("PatientID", as_index=False)
-        .agg({"DischargeTime": "first", "Outcome": "first"})
-        .rename(columns={
-            "PatientID": "patient_id",
-            "DischargeTime": "label_time",
-            "Outcome": "label_value",
+        .agg({
+            "DischargeTime": "first",
+            "AdmissionTime": "first",
+            "Outcome": "first",
         })
     )
-    label["label_code"] = "outcome"
-    label = label[["patient_id", "label_time", "label_code", "label_value"]]
+    patient_agg["PatientID"] = patient_agg["PatientID"].astype(str)
+
+    # --- label_mortality.csv: patient-level binary (mortality) ---
+    label_mortality = pd.DataFrame({
+        "patient_id": patient_agg["PatientID"],
+        "label_time": patient_agg["DischargeTime"],
+        "label_code": "outcome",
+        "label_value": patient_agg["Outcome"],
+    })
+
+    # --- label_los.csv: patient-level regression (length of stay in days) ---
+    admit = pd.to_datetime(patient_agg["AdmissionTime"])
+    discharge = pd.to_datetime(patient_agg["DischargeTime"])
+    los_days = (discharge - admit).dt.total_seconds() / 86400.0
+    label_los = pd.DataFrame({
+        "patient_id": patient_agg["PatientID"],
+        "label_time": patient_agg["DischargeTime"],
+        "label_code": "los",
+        "label_value": los_days.round(1),
+    })
+
+    # --- label_mortality_time.csv: time-level binary (mortality at each observation) ---
+    # Each (patient, record_time) gets the patient's final outcome as the label.
+    outcome_map = dict(zip(patient_agg["PatientID"], patient_agg["Outcome"]))
+    record_times = df[["PatientID", "RecordTime"]].drop_duplicates()
+    label_mortality_time = pd.DataFrame({
+        "patient_id": record_times["PatientID"].values,
+        "label_time": record_times["RecordTime"].values,
+        "label_code": "outcome",
+        "label_value": record_times["PatientID"].map(outcome_map).values,
+    })
 
     # Write outputs
     OUT.mkdir(parents=True, exist_ok=True)
     dynamic.to_csv(OUT / "dynamic.csv", index=False)
     static.to_csv(OUT / "static.csv", index=False)
-    label.to_csv(OUT / "label.csv", index=False)
+    label_mortality.to_csv(OUT / "label_mortality.csv", index=False)
+    label_los.to_csv(OUT / "label_los.csv", index=False)
+    label_mortality_time.to_csv(OUT / "label_mortality_time.csv", index=False)
 
-    print(f"Wrote {len(dynamic)} dynamic rows, {len(static)} patients, {len(label)} labels to {OUT}/")
+    print(f"Wrote {len(dynamic)} dynamic rows, {len(static)} patients")
+    print(f"  label_mortality.csv: {len(label_mortality)} rows (patient-level binary)")
+    print(f"  label_los.csv: {len(label_los)} rows (patient-level regression)")
+    print(f"  label_mortality_time.csv: {len(label_mortality_time)} rows (time-level binary)")
 
 
 if __name__ == "__main__":

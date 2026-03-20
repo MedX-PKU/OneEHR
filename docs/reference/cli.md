@@ -1,36 +1,31 @@
 # CLI Reference
 
-OneEHR exposes seven top-level command groups:
+OneEHR exposes four top-level commands:
 
 - `preprocess`
 - `train`
 - `test`
 - `analyze`
-- `eval`
-- `query`
-- `webui`
-
-Use them as three layers:
-
-- run-building: `preprocess`, `train`, `test`, `analyze`
-- unified evaluation: `eval`
-- read-only consumption: `query`, `webui`
 
 View the live interface with:
 
 ```bash
 uv run oneehr --help
-uv run oneehr eval --help
-uv run oneehr query --help
 ```
 
 ## `oneehr preprocess`
 
 ```bash
-uv run oneehr preprocess --config <toml> [--overview] [--overview-top-k-codes N]
+uv run oneehr preprocess --config <toml>
 ```
 
-Runs preprocessing and, optionally, prints a dataset overview JSON payload.
+Bins dynamic events, generates labels, splits patients, and writes the run manifest. This is the required first step for every run.
+
+| Flag | Required | Description |
+|------|:---:|-------------|
+| `--config` | Yes | Path to TOML experiment config |
+
+Outputs are written to `{output.root}/{output.run_name}/preprocess/`.
 
 ## `oneehr train`
 
@@ -38,130 +33,40 @@ Runs preprocessing and, optionally, prints a dataset overview JSON payload.
 uv run oneehr train --config <toml> [--force]
 ```
 
-Trains configured models and writes model artifacts, predictions, and `summary.json`.
+Trains all models defined in `[[models]]` and writes checkpoints under `{run_dir}/train/{model_name}/`.
+
+| Flag | Required | Description |
+|------|:---:|-------------|
+| `--config` | Yes | Path to TOML experiment config |
+| `--force` | No | Overwrite existing train directory |
 
 ## `oneehr test`
 
 ```bash
-uv run oneehr test --config <toml> [--run-dir DIR] [--test-dataset PATH] [--force] [--out-dir DIR]
+uv run oneehr test --config <toml> [--force]
 ```
 
-Evaluates configured ML/DL models on held-out or external test data.
+Runs all trained models and configured `[[systems]]` on the held-out test split. Writes `predictions.parquet` and `metrics.json` under `{run_dir}/test/`.
+
+| Flag | Required | Description |
+|------|:---:|-------------|
+| `--config` | Yes | Path to TOML experiment config |
+| `--force` | No | Overwrite existing test directory |
 
 ## `oneehr analyze`
 
 ```bash
-uv run oneehr analyze --config <toml> [--run-dir DIR] [--module NAME] [--compare-run DIR] [--case-limit N] [--method xgboost|shap|attention]
+uv run oneehr analyze --config <toml> [--module NAME]
 ```
 
-Writes structured analysis outputs under `analysis/`.
+Reads `test/predictions.parquet` and writes structured analysis outputs under `{run_dir}/analyze/`.
 
-Supported modules in the current implementation:
+| Flag | Required | Description |
+|------|:---:|-------------|
+| `--config` | Yes | Path to TOML experiment config |
+| `--module` | No | Run a single analysis module instead of all |
 
-- `dataset_profile`
-- `cohort_analysis`
-- `prediction_audit`
-- `test_audit`
-- `temporal_analysis`
-- `interpretability`
+Available modules:
 
-## `oneehr eval`
-
-`eval` is the public evaluation surface for freezing comparable instances, executing configured systems, and building reproducible reports.
-
-Build frozen instances:
-
-```bash
-uv run oneehr eval build --config <toml> [--run-dir DIR] [--force]
-```
-
-Run configured systems:
-
-```bash
-uv run oneehr eval run --config <toml> [--run-dir DIR] [--force]
-```
-
-Build leaderboard and pairwise reports:
-
-```bash
-uv run oneehr eval report --config <toml> [--run-dir DIR] [--force]
-```
-
-Inspect saved trace rows for one system:
-
-```bash
-uv run oneehr eval trace --config <toml> [--run-dir DIR] --system NAME [--limit N] [--offset N] [--stage NAME] [--role NAME] [--round N]
-```
-
-Inspect one eval instance with aligned outputs:
-
-```bash
-uv run oneehr eval instance --config <toml> [--run-dir DIR] --instance-id ID
-```
-
-## `oneehr query`
-
-`query` is the structured read layer over existing artifacts. It returns JSON to stdout.
-
-### Runs
-
-```bash
-uv run oneehr query runs list [--root DIR]
-uv run oneehr query runs describe [--config <toml> | --run-dir DIR]
-```
-
-### Prompts
-
-```bash
-uv run oneehr query prompts list [--family FAMILY]
-uv run oneehr query prompts describe --template NAME
-```
-
-### Eval
-
-```bash
-uv run oneehr query eval index [--config <toml> | --run-dir DIR]
-uv run oneehr query eval summary [--config <toml> | --run-dir DIR]
-uv run oneehr query eval report [--config <toml> | --run-dir DIR]
-uv run oneehr query eval table [--config <toml> | --run-dir DIR] --table leaderboard|split_metrics|pairwise [--limit N] [--offset N]
-uv run oneehr query eval instance [--config <toml> | --run-dir DIR] --instance-id ID
-uv run oneehr query eval trace [--config <toml> | --run-dir DIR] --system NAME [--limit N] [--offset N] [--stage NAME] [--role NAME] [--round N]
-```
-
-### Analysis
-
-```bash
-uv run oneehr query analysis modules [--config <toml> | --run-dir DIR]
-uv run oneehr query analysis index [--config <toml> | --run-dir DIR]
-uv run oneehr query analysis summary [--config <toml> | --run-dir DIR] --module NAME
-uv run oneehr query analysis table [--config <toml> | --run-dir DIR] --module NAME --table NAME [--limit N]
-uv run oneehr query analysis plot [--config <toml> | --run-dir DIR] --module NAME --plot NAME
-uv run oneehr query analysis failures [--config <toml> | --run-dir DIR] [--module NAME]
-uv run oneehr query analysis failure-cases [--config <toml> | --run-dir DIR] [--module NAME] [--name NAME] [--limit N]
-uv run oneehr query analysis patient-case [--config <toml> | --run-dir DIR] --patient-id ID [--module NAME] [--limit N]
-```
-
-### Cohorts
-
-```bash
-uv run oneehr query cohorts compare [--config <toml> | --run-dir DIR] [--split NAME] [--left-role train|val|test] [--right-role train|val|test] [--top-k N]
-```
-
-## `oneehr webui`
-
-```bash
-uv run oneehr webui serve [--root DIR] [--host HOST] [--port PORT] [--frontend-dist DIR] [--reload]
-```
-
-Serves the FastAPI backend and, when `webui/dist` exists, the built frontend bundle.
-
-Typical workflow:
-
-```bash
-uv pip install -e ".[webui]"
-cd webui
-npm install
-npm run build
-cd ..
-uv run oneehr webui serve --root logs
-```
+- `comparison` -- cross-system metrics comparison
+- `feature_importance` -- native importance for tree models, SHAP fallback for others
