@@ -8,6 +8,7 @@ import tomllib
 from oneehr.config.schema import (
     AnalysisConfig,
     CalibrationConfig,
+    CatBoostConfig,
     DynamicTableConfig,
     DatasetConfig,
     DatasetsConfig,
@@ -16,34 +17,21 @@ from oneehr.config.schema import (
     EvalSuiteConfig,
     EvalSystemConfig,
     ExperimentConfig,
+    GRUConfig,
     HPOConfig,
     LabelTableConfig,
     LabelsConfig,
+    LSTMConfig,
     ModelConfig,
     OutputConfig,
     PreprocessConfig,
     StaticTableConfig,
     SplitConfig,
     TaskConfig,
+    TCNConfig,
     TrainerConfig,
-    GRUConfig,
-    LSTMConfig,
-    RNNConfig,
     TransformerConfig,
     XGBoostConfig,
-    AdaCareConfig,
-    DrAgentConfig,
-    CatBoostConfig,
-    ConCareConfig,
-    DTConfig,
-    GBDTConfig,
-    GRASPConfig,
-    MCGRUConfig,
-    MLPConfig,
-    RETAINConfig,
-    RFConfig,
-    StageNetConfig,
-    TCNConfig,
 )
 
 
@@ -186,47 +174,21 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
 
     import dataclasses as _dc
 
-    # Fields whose ``None`` default needs special TOML handling (empty string / "null").
-    _NULLABLE_INT_FIELDS = frozenset({
-        ("rf", "max_depth"),
-        ("dt", "max_depth"),
-    })
-
     _MODEL_CONFIG_MAP: dict[str, type] = {
         "xgboost": XGBoostConfig,
         "catboost": CatBoostConfig,
-        "rf": RFConfig,
-        "dt": DTConfig,
-        "gbdt": GBDTConfig,
         "gru": GRUConfig,
-        "rnn": RNNConfig,
         "lstm": LSTMConfig,
-        "mlp": MLPConfig,
         "tcn": TCNConfig,
         "transformer": TransformerConfig,
-        "adacare": AdaCareConfig,
-        "stagenet": StageNetConfig,
-        "retain": RETAINConfig,
-        "concare": ConCareConfig,
-        "grasp": GRASPConfig,
-        "mcgru": MCGRUConfig,
-        "dragent": DrAgentConfig,
     }
 
-    def _parse_dataclass(section_name: str, cls: type, raw: dict[str, Any]) -> Any:
+    def _parse_dataclass(cls: type, raw: dict[str, Any]) -> Any:
         kwargs = {}
         for f in _dc.fields(cls):
             if f.name not in raw:
                 continue
             val = raw[f.name]
-            # Special handling for nullable int fields.
-            if (section_name, f.name) in _NULLABLE_INT_FIELDS:
-                if val in {None, "", "null"}:
-                    kwargs[f.name] = None
-                    continue
-                kwargs[f.name] = int(val)
-                continue
-            # Coerce to the field's declared type.
             if f.type in ("int", int):
                 kwargs[f.name] = int(val)
             elif f.type in ("float", float):
@@ -242,7 +204,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     def _load_model(model_raw_in: dict[str, Any]) -> ModelConfig:
         sub = {}
         for key, cls in _MODEL_CONFIG_MAP.items():
-            sub[key] = _parse_dataclass(key, cls, model_raw_in.get(key, {}))
+            sub[key] = _parse_dataclass(cls, model_raw_in.get(key, {}))
         return ModelConfig(name=_require(model_raw_in, "name"), **sub)
 
     model = None

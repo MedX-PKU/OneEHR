@@ -10,9 +10,6 @@ from pathlib import Path
 
 from oneehr.config.schema import (
     CatBoostConfig,
-    DTConfig,
-    GBDTConfig,
-    RFConfig,
     TaskConfig,
     XGBoostConfig,
 )
@@ -22,7 +19,7 @@ from oneehr.config.schema import (
 class TabularArtifacts:
     feature_columns: list[str]
     model: object
-    kind: str  # xgboost | catboost | rf | dt | gbdt
+    kind: str  # xgboost | catboost
 
 
 def save_tabular_model(art: TabularArtifacts, model_dir: str | Path) -> None:
@@ -39,9 +36,7 @@ def save_tabular_model(art: TabularArtifacts, model_dir: str | Path) -> None:
         art.model.save_model(d / "model.cbm")
         return
 
-    import joblib
-
-    joblib.dump(art.model, d / "model.joblib")
+    raise ValueError(f"Unsupported tabular kind={art.kind!r}")
 
 
 def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) -> TabularArtifacts:
@@ -70,10 +65,7 @@ def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) ->
         model.load_model(d / "model.cbm")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
 
-    import joblib
-
-    model = joblib.load(d / "model.joblib")
-    return TabularArtifacts(feature_columns=feature_columns, model=model, kind=kind)
+    raise ValueError(f"Unsupported tabular kind={kind!r}")
 
 
 def train_tabular_model(
@@ -87,12 +79,7 @@ def train_tabular_model(
     model_cfg: Any,
     seed: int = 0,
 ) -> TabularArtifacts:
-    """Train a 2D tabular model.
-
-    Notes:
-    - `X_val/y_val` are optional; some models can use them for early stopping.
-    - `model_cfg` type depends on `model_name`.
-    """
+    """Train a 2D tabular model (XGBoost or CatBoost)."""
 
     X_train = X_train.copy()
     feature_columns = list(X_train.columns)
@@ -180,74 +167,6 @@ def train_tabular_model(
 
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
 
-    if model_name == "rf":
-        from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-
-        cfg = model_cfg
-        assert isinstance(cfg, RFConfig)
-
-        if task.kind == "binary":
-            model = RandomForestClassifier(
-                n_estimators=cfg.n_estimators,
-                max_depth=cfg.max_depth,
-                random_state=seed,
-                n_jobs=-1,
-            )
-        elif task.kind == "regression":
-            model = RandomForestRegressor(
-                n_estimators=cfg.n_estimators,
-                max_depth=cfg.max_depth,
-                random_state=seed,
-                n_jobs=-1,
-            )
-        else:
-            raise ValueError(f"Unsupported task.kind={task.kind!r}")
-
-        model.fit(X_train, y_train)
-        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="rf")
-
-    if model_name == "dt":
-        from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-
-        cfg = model_cfg
-        assert isinstance(cfg, DTConfig)
-
-        if task.kind == "binary":
-            model = DecisionTreeClassifier(max_depth=cfg.max_depth, random_state=seed)
-        elif task.kind == "regression":
-            model = DecisionTreeRegressor(max_depth=cfg.max_depth, random_state=seed)
-        else:
-            raise ValueError(f"Unsupported task.kind={task.kind!r}")
-
-        model.fit(X_train, y_train)
-        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="dt")
-
-    if model_name == "gbdt":
-        from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
-
-        cfg = model_cfg
-        assert isinstance(cfg, GBDTConfig)
-
-        if task.kind == "binary":
-            model = GradientBoostingClassifier(
-                n_estimators=cfg.n_estimators,
-                learning_rate=cfg.learning_rate,
-                max_depth=cfg.max_depth,
-                random_state=seed,
-            )
-        elif task.kind == "regression":
-            model = GradientBoostingRegressor(
-                n_estimators=cfg.n_estimators,
-                learning_rate=cfg.learning_rate,
-                max_depth=cfg.max_depth,
-                random_state=seed,
-            )
-        else:
-            raise ValueError(f"Unsupported task.kind={task.kind!r}")
-
-        model.fit(X_train, y_train)
-        return TabularArtifacts(feature_columns=feature_columns, model=model, kind="gbdt")
-
     raise ValueError(f"Unsupported tabular model_name={model_name!r}")
 
 
@@ -261,10 +180,7 @@ def predict_tabular(art: TabularArtifacts, X: pd.DataFrame, task: TaskConfig) ->
 
 
 def predict_tabular_logits(art: TabularArtifacts, X: pd.DataFrame, task: TaskConfig) -> np.ndarray | None:
-    """Return decision values (log-odds) when available.
-
-    Used for post-hoc calibration (temperature/platt) on logits.
-    """
+    """Return decision values (log-odds) when available."""
 
     if art.kind != "xgboost":
         return None

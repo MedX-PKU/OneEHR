@@ -164,15 +164,13 @@ def _run_external_test(
                     model=model_cfg_obj,
                     _dynamic_dim=input_dim,
                 )
-                st_cols = manifest.static_feature_columns()
-                if st_cols:
-                    cfg_use = replace(cfg_use, _static_dim=len(st_cols))
                 built = build_model(cfg_use)
                 model = built.model
                 model.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
                 model.eval()
                 from oneehr.data.features import has_static_branch
                 model_supports_static_branch = has_static_branch(model)
+                st_cols = manifest.static_feature_columns()
 
                 if mode == "patient":
                     pids, seqs, lens = build_patient_sequences(views.binned, stored_feat_cols)
@@ -416,15 +414,13 @@ def _run_self_split_test(
                     model=model_cfg_obj,
                     _dynamic_dim=input_dim,
                 )
-                st_cols = manifest.static_feature_columns()
-                if st_cols:
-                    cfg_use = replace(cfg_use, _static_dim=len(st_cols))
                 built = build_model(cfg_use)
                 model_nn = built.model
                 model_nn.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
                 model_nn.eval()
                 from oneehr.data.features import has_static_branch
                 model_supports_static_branch = has_static_branch(model_nn)
+                st_cols = manifest.static_feature_columns()
 
                 # Filter binned to test patients for sequence building.
                 binned_test = binned_all[binned_all["patient_id"].astype(str).isin(test_pids)].copy()
