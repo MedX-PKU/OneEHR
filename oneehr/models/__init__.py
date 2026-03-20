@@ -12,6 +12,7 @@ DL_MODELS: frozenset[str] = frozenset({
     "gru", "lstm", "rnn", "tcn", "transformer",
     "mlp", "adacare", "stagenet", "retain",
     "concare", "grasp", "mcgru", "dragent",
+    "deepr", "mamba", "jamba",
 })
 
 
@@ -39,6 +40,12 @@ _DL_DEFAULTS: dict[str, dict] = {
     "grasp": {"hidden_dim": 128, "cluster_num": 12, "dropout": 0.5},
     "mcgru": {"hidden_dim": 32, "feat_dim": 8, "dropout": 0.0},
     "dragent": {"hidden_dim": 128, "n_actions": 10, "n_units": 64, "dropout": 0.5, "lamda": 0.5},
+    "deepr": {"hidden_dim": 128, "window": 1, "dropout": 0.0},
+    "mamba": {"hidden_dim": 128, "num_layers": 2, "state_size": 16, "conv_kernel": 4, "dropout": 0.1},
+    "jamba": {
+        "hidden_dim": 128, "num_transformer_layers": 2, "num_mamba_layers": 6,
+        "heads": 4, "state_size": 16, "conv_kernel": 4, "dropout": 0.3,
+    },
 }
 
 
@@ -184,6 +191,45 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             n_units=int(params.get("n_units", 64)),
             dropout=float(params.get("dropout", 0.5)),
             lamda=float(params.get("lamda", 0.5)),
+        )
+
+    if name == "deepr":
+        mod = import_module("oneehr.models.deepr")
+        cls_name = "DeeprTimeModel" if is_time else "DeeprModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            window=int(params.get("window", 1)),
+            dropout=float(params.get("dropout", 0.0)),
+        )
+
+    if name == "mamba":
+        mod = import_module("oneehr.models.mamba")
+        cls_name = "EHRMambaTimeModel" if is_time else "EHRMambaModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_layers=int(params.get("num_layers", 2)),
+            state_size=int(params.get("state_size", 16)),
+            conv_kernel=int(params.get("conv_kernel", 4)),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "jamba":
+        mod = import_module("oneehr.models.jamba")
+        cls_name = "JambaTimeModel" if is_time else "JambaModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_transformer_layers=int(params.get("num_transformer_layers", 2)),
+            num_mamba_layers=int(params.get("num_mamba_layers", 6)),
+            heads=int(params.get("heads", 4)),
+            state_size=int(params.get("state_size", 16)),
+            conv_kernel=int(params.get("conv_kernel", 4)),
+            dropout=float(params.get("dropout", 0.3)),
         )
 
     raise ValueError(f"Unsupported DL model: {name!r}")
