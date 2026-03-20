@@ -229,6 +229,18 @@ def _train_dl(
     from oneehr.data.sequence import build_patient_sequences, build_time_sequences, pad_sequences
     from oneehr.data.tabular import has_static_branch
 
+    # Auto-detect static_dim for models that support it
+    _STATIC_MODELS = {"concare", "grasp", "mcgru", "dragent"}
+    if (
+        model_name in _STATIC_MODELS
+        and static_all is not None
+        and "static_dim" not in model_cfg.params
+    ):
+        model_cfg = type(model_cfg)(
+            name=model_cfg.name,
+            params={**model_cfg.params, "static_dim": static_all.shape[1]},
+        )
+
     input_dim = len(feat_cols)
     model = build_dl_model(model_cfg, input_dim=input_dim, mode=cfg.task.prediction_mode)
     model_supports_static = has_static_branch(model)
