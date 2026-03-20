@@ -1,0 +1,74 @@
+# TJH COVID-19 ICU mortality prediction (375 patients)
+
+[dataset]
+dynamic = "examples/tjh/dynamic.csv"
+static  = "examples/tjh/static.csv"
+label   = "examples/tjh/label.csv"
+
+[preprocess]
+bin_size   = "1d"
+top_k_codes = 100   # 73 lab codes — all retained
+
+[task]
+kind            = "binary"
+prediction_mode = "patient"
+
+[split]
+kind      = "random"
+seed      = 42
+val_size  = 0.1
+test_size = 0.2
+
+[trainer]
+seed           = 42
+max_epochs     = 30
+batch_size     = 32
+lr             = 1e-3
+patience       = 5
+early_stopping = true
+
+[output]
+root     = "runs"
+run_name = "tjh"
+
+# --- Models ---
+
+[[models]]
+name = "xgboost"
+[models.params]
+n_estimators = 100
+max_depth    = 4
+learning_rate = 0.1
+
+[[models]]
+name = "catboost"
+[models.params]
+n_estimators = 100
+depth        = 4
+
+[[models]]
+name = "gru"
+[models.params]
+hidden_dim = 64
+num_layers = 1
+
+[[models]]
+name = "lstm"
+[models.params]
+hidden_dim = 64
+num_layers = 1
+
+[[models]]
+name = "tcn"
+[models.params]
+hidden_dim = 64
+num_layers = 2
+kernel_size = 3
+
+[[models]]
+name = "transformer"
+[models.params]
+d_model         = 64
+nhead           = 4
+num_layers      = 2
+dim_feedforward = 128
