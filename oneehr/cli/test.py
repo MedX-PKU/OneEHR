@@ -127,12 +127,17 @@ def _predict_trained_model(
     binned_test = binned[binned["patient_id"].astype(str).isin(test_pids)].copy()
 
     # Build y_true map
-    y_true_map: dict[str, float] = {}
+    y_true_map: dict[str, float] = {}  # patient-level
+    y_true_time_map: dict[tuple[str, str], float] = {}  # (patient_id, bin_time) -> label
     if labels_df is not None:
         for _, row in labels_df.iterrows():
             pid = str(row["patient_id"])
             if pid in test_pids:
-                y_true_map[pid] = float(row["label"])
+                if "bin_time" in labels_df.columns:
+                    bt = str(row["bin_time"])
+                    y_true_time_map[(pid, bt)] = float(row["label"])
+                else:
+                    y_true_map[pid] = float(row["label"])
 
     rows: list[dict] = []
 
@@ -162,44 +167,66 @@ def _predict_trained_model(
                     "y_pred": float(yp),
                 })
         else:
-            # Time mode — more complex, skip for now
-            pass
+            # Time mode DL
+            from oneehr.data.sequence import build_time_sequences, pad_sequences
+
+            if labels_df is None:
+                return rows
+            pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
+                binned_test, labels_df, feat_cols,
+            )
+            X_seq = pad_sequences(seqs, lens)
+            lens_t = torch.from_numpy(lens)
+
+            with torch.no_grad():
+                logits = model(X_seq, lens_t).squeeze(-1).detach().cpu().numpy()
+
+            for i, (pid, l) in enumerate(zip(pids, lens)):
+                for t in range(l):
+                    val = logits[i, t] if logits.ndim > 1 else logits[i]
+                    yp = float(sigmoid(val)) if task_kind == "binary" else float(val)
+                    bt = str(time_seqs[i][t])
+                    rows.append({
+                        "system": model_name,
+                        "patient_id": str(pid),
+                        "y_true": y_true_time_map.get((str(pid), bt), float("nan")),
+                        "y_pred": yp,
+                    })
     else:
         # ML model (XGBoost, CatBoost etc.) — loaded via torch.save
-        # Build patient-level tabular view
+        if binned_test.empty:
+            return rows
+
+        run_dir = model_dir.parent.parent
+        static_path = run_dir / "preprocess" / "static.parquet"
+        stored_feat_cols = meta.get("feature_columns", feat_cols)
+
+        def _join_static(df: pd.DataFrame) -> pd.DataFrame:
+            if static_path.exists():
+                static_df = pd.read_parquet(static_path)
+                if "patient_id" in static_df.columns:
+                    static_df = static_df.set_index("patient_id")
+                static_df.index = static_df.index.astype(str)
+                overlap = [c for c in static_df.columns if c in df.columns]
+                static_use = static_df.drop(columns=overlap, errors="ignore")
+                df = df.join(static_use, how="left").fillna(0.0)
+            return df
+
         if mode == "patient":
-            if binned_test.empty:
-                return rows
             last = (
                 binned_test.sort_values(["patient_id", "bin_time"], kind="stable")
                 .groupby("patient_id", sort=False)[feat_cols]
                 .last()
             )
             last.index = last.index.astype(str)
+            last = _join_static(last)
 
-            # Join static features (training joined them, so test must too)
-            run_dir = model_dir.parent.parent
-            static_path = run_dir / "preprocess" / "static.parquet"
-            if static_path.exists():
-                static_df = pd.read_parquet(static_path)
-                if "patient_id" in static_df.columns:
-                    static_df = static_df.set_index("patient_id")
-                static_df.index = static_df.index.astype(str)
-                overlap = [c for c in static_df.columns if c in last.columns]
-                static_use = static_df.drop(columns=overlap, errors="ignore")
-                last = last.join(static_use, how="left").fillna(0.0)
-
-            # Get feature columns from meta
-            stored_feat_cols = meta.get("feature_columns", feat_cols)
-
-            # Predict
             try:
                 if task_kind == "binary":
                     y_pred = model.predict_proba(last[stored_feat_cols])[:, 1]
                 else:
                     y_pred = model.predict(last[stored_feat_cols])
             except Exception:
-                # Fallback: might be a wrapped model
                 y_pred = model.predict(last[stored_feat_cols])
 
             for pid, yp in zip(last.index.tolist(), y_pred.tolist()):
@@ -207,6 +234,35 @@ def _predict_trained_model(
                     "system": model_name,
                     "patient_id": str(pid),
                     "y_true": y_true_map.get(str(pid), float("nan")),
+                    "y_pred": float(yp),
+                })
+        else:
+            # Time-level ML prediction
+            df = binned_test[["patient_id", "bin_time", *feat_cols]].copy()
+            df["patient_id"] = df["patient_id"].astype(str)
+            key = df[["patient_id", "bin_time"]].reset_index(drop=True)
+            X_test = df[feat_cols].reset_index(drop=True)
+
+            # Join static via patient_id index
+            X_test.index = df["patient_id"].values
+            X_test = _join_static(X_test)
+            X_test = X_test.reset_index(drop=True)
+
+            try:
+                if task_kind == "binary":
+                    y_pred = model.predict_proba(X_test[stored_feat_cols])[:, 1]
+                else:
+                    y_pred = model.predict(X_test[stored_feat_cols])
+            except Exception:
+                y_pred = model.predict(X_test[stored_feat_cols])
+
+            for i, yp in enumerate(y_pred.tolist()):
+                pid = str(key.iloc[i]["patient_id"])
+                bt = str(key.iloc[i]["bin_time"])
+                rows.append({
+                    "system": model_name,
+                    "patient_id": pid,
+                    "y_true": y_true_time_map.get((pid, bt), float("nan")),
                     "y_pred": float(yp),
                 })
 

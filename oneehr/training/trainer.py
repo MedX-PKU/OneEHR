@@ -137,7 +137,13 @@ def fit_model(
 
     y_val_np = y_val.detach().cpu().numpy()
     if mask_val is not None:
-        m = mask_val.detach().cpu().numpy().reshape(-1).astype(bool)
+        # Align time dimensions (same as training loop)
+        m_np = mask_val.detach().cpu().numpy()
+        if y_pred.ndim > 1 and y_val_np.ndim > 1 and y_pred.shape[-1] != y_val_np.shape[-1]:
+            t = y_pred.shape[-1]
+            y_val_np = y_val_np[:, :t]
+            m_np = m_np[:, :t]
+        m = m_np.reshape(-1).astype(bool)
         y_val_flat = y_val_np.reshape(-1)[m]
         y_pred_flat = y_pred.reshape(-1)[m]
     else:
@@ -168,10 +174,16 @@ def _run_epoch(model, X, L, y, S, mask, loss_fn, optim, cfg, device, *, train: b
 
         logits = model(xb, lb) if sb is None else model(xb, lb, sb)
         logits = logits.squeeze(-1)
+        # Align time dimensions: pack/unpack may return shorter sequences
+        mb = mask[b].to(device) if mask is not None else None
+        if logits.ndim > 1 and yb.ndim > 1 and logits.shape[-1] != yb.shape[-1]:
+            t = logits.shape[-1]
+            yb = yb[:, :t]
+            if mb is not None:
+                mb = mb[:, :t]
         losses = loss_fn(logits, yb)
 
-        if mask is not None:
-            mb = mask[b].to(device)
+        if mb is not None:
             losses = losses * mb
             denom = mb.sum().clamp_min(1.0)
             loss = losses.sum() / denom

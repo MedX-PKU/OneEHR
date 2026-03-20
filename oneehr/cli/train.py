@@ -45,11 +45,12 @@ def run_train(cfg_path: str, force: bool) -> None:
     labels_path = run_dir / "preprocess" / "labels.parquet"
     labels_df = pd.read_parquet(labels_path) if labels_path.exists() else None
 
-    # Build tabular view for patient-level
+    # Build tabular view
+    time_key: pd.DataFrame | None = None
     if cfg.task.prediction_mode == "patient":
         X, y = _build_patient_tabular(binned, labels_df, feat_cols)
     else:
-        X, y, key = _build_time_tabular(binned, labels_df, feat_cols)
+        X, y, time_key = _build_time_tabular(binned, labels_df, feat_cols)
 
     # Load static features if available
     static_path = run_dir / "preprocess" / "static.parquet"
@@ -69,6 +70,7 @@ def run_train(cfg_path: str, force: bool) -> None:
                 cfg=cfg, model_out=model_out,
                 feat_cols=feat_cols,
                 static_all=static_all,
+                time_key=time_key,
             )
         elif model_name in DL_MODELS:
             _train_dl(
@@ -150,14 +152,20 @@ def _train_tabular(
     model_out: Path,
     feat_cols: list[str],
     static_all: pd.DataFrame | None,
+    time_key: pd.DataFrame | None = None,
 ) -> None:
     from oneehr.models.tree import train_tabular_model, predict_tabular
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.training.persistence import save_checkpoint
 
-    # Split data
-    train_mask = X.index.astype(str).isin(split.train)
-    val_mask = X.index.astype(str).isin(split.val)
+    # Split data — for time-level, use the key's patient_id column
+    if time_key is not None:
+        pids = time_key["patient_id"].astype(str)
+        train_mask = pids.isin(split.train).values
+        val_mask = pids.isin(split.val).values
+    else:
+        train_mask = X.index.astype(str).isin(split.train)
+        val_mask = X.index.astype(str).isin(split.val)
 
     X_train, y_train = X.loc[train_mask].copy(), y.loc[train_mask].to_numpy()
     X_val, y_val = X.loc[val_mask].copy(), y.loc[val_mask].to_numpy()
