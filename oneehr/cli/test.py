@@ -168,7 +168,7 @@ def _run_external_test(
                 model = built.model
                 model.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
                 model.eval()
-                from oneehr.data.features import has_static_branch
+                from oneehr.data.tabular import has_static_branch
                 model_supports_static_branch = has_static_branch(model)
                 st_cols = manifest.static_feature_columns()
 
@@ -284,7 +284,7 @@ def _run_self_split_test(
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.models.tree import load_tabular_model, predict_tabular
     from oneehr.models import build_model
-    from oneehr.data.postprocess import transform_postprocess_pipeline
+    from oneehr.data.tabular import transform_postprocess_pipeline
     from oneehr.data.splits import require_saved_splits
     from oneehr.artifacts.run_io import RunIO
     from oneehr.cli._common import require_manifest
@@ -418,7 +418,7 @@ def _run_self_split_test(
                 model_nn = built.model
                 model_nn.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
                 model_nn.eval()
-                from oneehr.data.features import has_static_branch
+                from oneehr.data.tabular import has_static_branch
                 model_supports_static_branch = has_static_branch(model_nn)
                 st_cols = manifest.static_feature_columns()
 

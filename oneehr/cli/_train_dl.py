@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from oneehr.eval.calibration import sigmoid
-from oneehr.data.features import dynamic_feature_columns, has_static_branch
+from oneehr.data.tabular import dynamic_feature_columns, has_static_branch
 
 
 def _align_static(pids, static, model_supports_static_branch, X_seq):

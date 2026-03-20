@@ -7,8 +7,8 @@ import pandas as pd
 
 from oneehr.artifacts.read import RunManifest
 from oneehr.data.binning import bin_events
-from oneehr.data.postprocess import FittedPostprocess, transform_postprocess_pipeline
-from oneehr.data.static_postprocess import _encode_static_categoricals
+from oneehr.data.tabular import FittedPostprocess, transform_postprocess_pipeline
+from oneehr.data.tabular import _encode_static_categoricals
 
 
 @dataclass(frozen=True)

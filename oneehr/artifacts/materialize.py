@@ -8,7 +8,7 @@ from oneehr.artifacts.run_manifest import write_run_manifest
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels, run_label_fn
-from oneehr.data.static_postprocess import fit_transform_static_features
+from oneehr.data.tabular import fit_transform_static_features
 from oneehr.data.tabular import make_patient_tabular, make_time_tabular
 from oneehr.utils.io import ensure_dir
 

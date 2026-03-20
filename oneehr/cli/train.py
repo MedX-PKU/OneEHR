@@ -11,7 +11,7 @@ import torch
 
 from oneehr.eval.calibration import sigmoid
 from oneehr.models import TABULAR_MODELS, DL_MODELS
-from oneehr.data.features import has_static_branch
+from oneehr.data.tabular import has_static_branch
 from oneehr.cli._train_eval import maybe_calibrate_and_threshold, warn_unused_hpo_overrides
 from oneehr.cli._train_dl import train_dl_patient_level, train_dl_time_level
 from oneehr.utils.io import ensure_dir, write_json
@@ -63,7 +63,7 @@ def _run_benchmark(cfg_path: str, *, force: bool = False) -> None:
     from oneehr.config.load import load_experiment_config
     from oneehr.data.io import load_dynamic_table_optional, load_static_table
     from oneehr.data.splits import require_saved_splits, _parse_repeat_index
-    from oneehr.data.postprocess import maybe_fit_transform_postprocess
+    from oneehr.data.tabular import maybe_fit_transform_postprocess
     from oneehr.eval.metrics import binary_metrics, regression_metrics
     from oneehr.hpo.grid import apply_overrides, iter_grid
     from oneehr.models import build_model

@@ -125,7 +125,7 @@ class RunIO:
         pp_path = self.run_root / "preprocess" / split_name / "pipeline.json"
         if not pp_path.exists():
             return None
-        from oneehr.data.postprocess import FittedPostprocess
+        from oneehr.data.tabular import FittedPostprocess
 
         data = json.loads(pp_path.read_text(encoding="utf-8"))
         pipeline = data.get("pipeline")
