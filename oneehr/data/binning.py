@@ -14,6 +14,8 @@ from oneehr.utils import parse_bin_size
 class BinnedTable:
     table: pd.DataFrame
     code_vocab: list[str]
+    feature_schema: list[dict]  # [{"name": code, "cols": [...], "dim": int}, ...]
+    obs_mask: pd.DataFrame  # boolean mask (same shape as feature cols), pre-fillna
 
 
 def _infer_value_type(series: pd.Series) -> str:
@@ -188,12 +190,25 @@ def bin_events(
     else:
         out["label"] = np.nan
 
-    # Fill missing numeric features with nan, categorical with 0.
+    # Build feature_schema: map each original code to its encoded columns.
+    feat_cols = [c for c in out.columns if c.startswith("num__") or c.startswith("cat__")]
+    feature_schema: list[dict] = []
+    for code in code_vocab:
+        cols = [c for c in feat_cols if c == f"num__{code}" or c.startswith(f"cat__{code}__")]
+        if cols:
+            feature_schema.append({"name": code, "cols": cols, "dim": len(cols)})
+
+    # Compute observation mask BEFORE filling NaN — captures true missingness.
+    obs_mask = out[feat_cols].notna().astype(np.float32)
+    # Keep patient_id + bin_time alongside for alignment.
+    id_cols = [c for c in ["patient_id", "bin_time"] if c in out.columns]
+    obs_mask = pd.concat([out[id_cols].reset_index(drop=True), obs_mask.reset_index(drop=True)], axis=1)
+
+    # Fill missing numeric features with 0, categorical with 0.
     for col in out.columns:
         if col.startswith("cat__"):
             out[col] = out[col].fillna(0.0)
         elif col.startswith("num__"):
-            # For DL sequence models, NaNs will poison training. Default to 0.
             out[col] = out[col].fillna(0.0)
 
-    return BinnedTable(table=out, code_vocab=code_vocab)
+    return BinnedTable(table=out, code_vocab=code_vocab, feature_schema=feature_schema, obs_mask=obs_mask)

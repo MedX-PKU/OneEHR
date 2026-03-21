@@ -10,6 +10,7 @@ Output structure:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -47,6 +48,13 @@ def materialize_preprocess_artifacts(
         binned_df = pd.DataFrame(columns=["patient_id", "bin_time", "label"])
 
     binned_df.to_parquet(pp_dir / "binned.parquet", index=False)
+
+    # Save feature schema and observation mask from binning.
+    if dynamic is not None:
+        (pp_dir / "feature_schema.json").write_text(
+            json.dumps(binned_res.feature_schema, indent=2), encoding="utf-8",
+        )
+        binned_res.obs_mask.to_parquet(pp_dir / "obs_mask.parquet", index=False)
 
     # --- Labels ---
     if label is not None and not label.empty:

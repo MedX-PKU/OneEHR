@@ -18,6 +18,7 @@ def save_checkpoint(
     params: dict,
     train_metrics: dict,
     feature_columns: list[str],
+    extra_meta: dict | None = None,
 ) -> None:
     """Save checkpoint.ckpt + meta.json for any model type."""
     out_dir = ensure_dir(out_dir)
@@ -31,6 +32,8 @@ def save_checkpoint(
         "train_metrics": train_metrics,
         "feature_columns": feature_columns,
     }
+    if extra_meta:
+        meta["extra"] = extra_meta
     write_json(out_dir / "meta.json", meta)
 
 

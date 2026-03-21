@@ -28,6 +28,8 @@ def write_manifest(
             "labels": "preprocess/labels.parquet",
             "split": "preprocess/split.json",
             "static": "preprocess/static.parquet" if static_feature_columns else None,
+            "feature_schema": "preprocess/feature_schema.json",
+            "obs_mask": "preprocess/obs_mask.parquet",
         },
     }
     write_json(out_dir / "manifest.json", manifest)

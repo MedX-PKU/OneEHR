@@ -12,7 +12,7 @@ DL_MODELS: frozenset[str] = frozenset({
     "gru", "lstm", "rnn", "tcn", "transformer",
     "mlp", "adacare", "stagenet", "retain",
     "concare", "grasp", "mcgru", "dragent",
-    "deepr", "mamba", "jamba",
+    "deepr", "mamba", "jamba", "prism",
 })
 
 
@@ -45,6 +45,9 @@ _DL_DEFAULTS: dict[str, dict] = {
     "jamba": {
         "hidden_dim": 128, "num_transformer_layers": 2, "num_mamba_layers": 6,
         "heads": 4, "state_size": 16, "conv_kernel": 4, "dropout": 0.3,
+    },
+    "prism": {
+        "hidden_dim": 32, "feat_dim": 8, "n_clusters": 10, "calib": True, "dropout": 0.0,
     },
 }
 
@@ -230,6 +233,23 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             state_size=int(params.get("state_size", 16)),
             conv_kernel=int(params.get("conv_kernel", 4)),
             dropout=float(params.get("dropout", 0.3)),
+        )
+
+    if name == "prism":
+        mod = import_module("oneehr.models.prism")
+        cls_name = "PRISMTimeModel" if is_time else "PRISMModel"
+        cls = getattr(mod, cls_name)
+        return cls(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 32)),
+            feat_dim=int(params.get("feat_dim", 8)),
+            out_dim=out_dim,
+            static_dim=int(params.get("static_dim", 0)),
+            dim_list=params.get("dim_list"),
+            centers=params.get("centers"),
+            n_clusters=int(params.get("n_clusters", 10)),
+            calib=bool(params.get("calib", True)),
+            dropout=float(params.get("dropout", 0.0)),
         )
 
     raise ValueError(f"Unsupported DL model: {name!r}")
