@@ -14,6 +14,7 @@ DL_MODELS: frozenset[str] = frozenset({
     "concare", "grasp", "mcgru", "dragent",
     "deepr", "mamba", "jamba", "prism",
     "m3care", "safari", "pai",
+    "deepsurv", "deephit",
 })
 
 
@@ -58,6 +59,12 @@ _DL_DEFAULTS: dict[str, dict] = {
     },
     "pai": {
         "hidden_dim": 128, "num_layers": 1, "dropout": 0.0, "prompt_init": "median",
+    },
+    "deepsurv": {
+        "hidden_dim": 128, "num_layers": 2, "dropout": 0.1,
+    },
+    "deephit": {
+        "hidden_dim": 128, "num_time_bins": 10, "num_layers": 2, "dropout": 0.1,
     },
 }
 
@@ -298,6 +305,27 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             num_layers=int(params.get("num_layers", 1)),
             dropout=float(params.get("dropout", 0.0)),
             prompt_init_values=params.get("prompt_init_values"),
+        )
+
+    if name == "deepsurv":
+        mod = import_module("oneehr.models.survival")
+        return mod.DeepSurv(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            num_layers=int(params.get("num_layers", 2)),
+            dropout=float(params.get("dropout", 0.1)),
+            out_dim=out_dim,
+        )
+
+    if name == "deephit":
+        mod = import_module("oneehr.models.survival")
+        return mod.DeepHit(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            num_time_bins=int(params.get("num_time_bins", 10)),
+            num_layers=int(params.get("num_layers", 2)),
+            dropout=float(params.get("dropout", 0.1)),
+            out_dim=out_dim,
         )
 
     raise ValueError(f"Unsupported DL model: {name!r}")

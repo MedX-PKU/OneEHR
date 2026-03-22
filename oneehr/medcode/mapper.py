@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from oneehr.medcode.icd import ICD9, ICD10, normalize_icd
+from oneehr.medcode.icd import ICD9, ICD10
 from oneehr.medcode.ccs import CCSGrouper
 from oneehr.medcode.atc import ATCHierarchy
 

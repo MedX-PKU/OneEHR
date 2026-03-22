@@ -26,7 +26,7 @@ class PreprocessConfig:
 
 @dataclass(frozen=True)
 class TaskConfig:
-    kind: str = "binary"  # binary | regression | multiclass
+    kind: str = "binary"  # binary | regression | multiclass | survival | multilabel
     prediction_mode: str = "patient"  # patient | time
     num_classes: int | None = None  # required when kind="multiclass"
     loss: str = "default"  # default | focal
