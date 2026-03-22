@@ -10,6 +10,10 @@ OneEHR ships a growing mix of tabular and deep learning models. All models are c
 |-------|-----------|------|:---:|:---:|:---:|
 | XGBoost | `xgboost` | Tabular | Yes | Yes | N/A |
 | CatBoost | `catboost` | Tabular | Yes | Yes | N/A |
+| Random Forest | `rf` | Tabular | Yes | Yes | N/A |
+| Decision Tree | `dt` | Tabular | Yes | Yes | N/A |
+| Gradient Boosting | `gbdt` | Tabular | Yes | Yes | N/A |
+| Logistic Regression | `lr` | Tabular | Yes | Yes | N/A |
 | GRU | `gru` | DL | Yes | Yes | No |
 | LSTM | `lstm` | DL | Yes | Yes | No |
 | RNN | `rnn` | DL | Yes | Yes | No |
@@ -80,6 +84,68 @@ learning_rate = 0.05
 | `depth` | `int` | `6` | Maximum tree depth |
 | `n_estimators` | `int` | `500` | Number of boosting iterations |
 | `learning_rate` | `float` | `0.05` | Step size shrinkage |
+
+### Random Forest
+
+```toml
+[[models]]
+name = "rf"
+[models.params]
+n_estimators = 100
+max_depth = 6
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_estimators` | `int` | `100` | Number of trees |
+| `max_depth` | `int` | `None` | Maximum tree depth (`None` for unlimited) |
+
+### Decision Tree
+
+```toml
+[[models]]
+name = "dt"
+[models.params]
+max_depth = 6
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_depth` | `int` | `None` | Maximum tree depth (`None` for unlimited) |
+
+### Gradient Boosting (GBDT)
+
+Scikit-learn's `GradientBoostingClassifier` / `GradientBoostingRegressor`.
+
+```toml
+[[models]]
+name = "gbdt"
+[models.params]
+n_estimators = 100
+max_depth = 3
+learning_rate = 0.1
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_estimators` | `int` | `100` | Number of boosting stages |
+| `max_depth` | `int` | `3` | Maximum tree depth |
+| `learning_rate` | `float` | `0.1` | Step size shrinkage |
+
+### Logistic Regression
+
+Scikit-learn's `LogisticRegression` (binary) or `Ridge` (regression).
+
+```toml
+[[models]]
+name = "lr"
+[models.params]
+max_iter = 1000
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_iter` | `int` | `1000` | Maximum iterations for solver convergence |
 
 ---
 
@@ -202,6 +268,75 @@ dropout = 0.0
 |-----------|------|---------|-------------|
 | `hidden_dim` | `int` | `128` | Hidden layer size |
 | `dropout` | `float` | `0.0` | Dropout rate |
+
+### Deepr
+
+Embedding + CNN-based sequence model over discrete time windows.
+
+```toml
+[[models]]
+name = "deepr"
+[models.params]
+hidden_dim = 128
+window = 1
+dropout = 0.0
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | Embedding and hidden dimension |
+| `window` | `int` | `1` | Convolution window size |
+| `dropout` | `float` | `0.0` | Dropout rate |
+
+### EHR-Mamba
+
+Selective state-space model (Mamba) adapted for EHR sequences.
+
+```toml
+[[models]]
+name = "mamba"
+[models.params]
+hidden_dim = 128
+num_layers = 2
+state_size = 16
+conv_kernel = 4
+dropout = 0.1
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | Model dimension |
+| `num_layers` | `int` | `2` | Number of Mamba layers |
+| `state_size` | `int` | `16` | SSM state dimension |
+| `conv_kernel` | `int` | `4` | 1D convolution kernel size |
+| `dropout` | `float` | `0.1` | Dropout rate |
+
+### Jamba
+
+Hybrid architecture combining Transformer attention and Mamba SSM layers.
+
+```toml
+[[models]]
+name = "jamba"
+[models.params]
+hidden_dim = 128
+num_transformer_layers = 2
+num_mamba_layers = 6
+heads = 4
+state_size = 16
+conv_kernel = 4
+dropout = 0.3
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | Model dimension |
+| `num_transformer_layers` | `int` | `2` | Number of Transformer layers |
+| `num_mamba_layers` | `int` | `6` | Number of Mamba layers |
+| `heads` | `int` | `4` | Attention heads in Transformer layers |
+| `state_size` | `int` | `16` | Mamba SSM state dimension |
+| `conv_kernel` | `int` | `4` | Mamba 1D convolution kernel size |
+| `dropout` | `float` | `0.3` | Dropout rate |
 
 ---
 
