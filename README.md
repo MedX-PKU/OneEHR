@@ -7,112 +7,177 @@
 
 OneEHR is a unified Python platform for longitudinal EHR experiments across ML, DL, and LLM agents. It provides shared infrastructure for preprocessing, modeling, testing, and analysis on one shared run contract — the first toolkit bridging classical machine learning, deep learning, and agentic AI for clinical prediction.
 
+## Key Features
+
+- **25 model architectures** — tabular ML, recurrent/non-recurrent DL, EHR-specialised, and survival models
+- **Unified ML/DL/LLM comparison** — all predictions in one `predictions.parquet` with bootstrap CI and statistical tests
+- **Dataset converters** — built-in support for MIMIC-III, MIMIC-IV, and eICU
+- **Medical code ontologies** — ICD-9/10 mapping, CCS grouping, ATC drug hierarchy
+- **Survival analysis** — DeepSurv, DeepHit, concordance index, Kaplan-Meier visualization
+- **Fairness & interpretability** — demographic parity, equalized odds, SHAP, LIME, integrated gradients, attention visualization
+- **Publication-quality figures** — ROC, PR, calibration, DCA, forest plots, KM curves with Nature/Lancet style presets
+- **Reproducibility by design** — single TOML config = complete experiment specification
+
 ## Workflow At A Glance
 
 ```bash
-uv run oneehr preprocess --config experiment.toml
-uv run oneehr train      --config experiment.toml
-uv run oneehr test       --config experiment.toml
-uv run oneehr analyze    --config experiment.toml
+oneehr preprocess --config experiment.toml   # Bin features, split patients
+oneehr train      --config experiment.toml   # Train ML/DL models
+oneehr test       --config experiment.toml   # Evaluate on test set
+oneehr analyze    --config experiment.toml   # Cross-system comparison
+oneehr plot       --config experiment.toml   # Publication figures
 ```
 
-All four commands operate on the same run directory under `{output.root}/{output.run_name}/`.
+All commands operate on the same run directory under `{output.root}/{output.run_name}/`.
 
 ## Install
 
-OneEHR requires Python 3.12 and `uv`.
+OneEHR requires Python 3.12+.
 
 ```bash
+pip install oneehr
+
+# Or from source:
 uv venv .venv --python 3.12
 uv pip install -e .
-uv run oneehr --help
-```
-
-Optional docs extras:
-
-```bash
-uv pip install -e ".[docs]"
+oneehr --help
 ```
 
 ## Quickstart
 
-Use the bundled TJH example at [`examples/tjh/mortality_patient.toml`](examples/tjh/mortality_patient.toml):
+Use the bundled TJH COVID-19 ICU example:
 
 ```bash
 # Convert source data (only needed once)
-uv run python examples/tjh/convert.py
+python examples/tjh/convert.py
 
-# Run the pipeline
-uv run oneehr preprocess --config examples/tjh/mortality_patient.toml
-uv run oneehr train      --config examples/tjh/mortality_patient.toml
-uv run oneehr test       --config examples/tjh/mortality_patient.toml
-uv run oneehr analyze    --config examples/tjh/mortality_patient.toml
+# Run the full pipeline
+oneehr preprocess --config examples/tjh/mortality_patient.toml
+oneehr train      --config examples/tjh/mortality_patient.toml
+oneehr test       --config examples/tjh/mortality_patient.toml
+oneehr analyze    --config examples/tjh/mortality_patient.toml
 ```
 
-This writes the run under `runs/tjh/`, including `manifest.json`, `preprocess/`, `train/`, `test/`, and `analyze/`.
+Or use the Python API:
+
+```python
+import oneehr
+
+config = oneehr.load_config("examples/tjh/mortality_patient.toml")
+oneehr.preprocess(config)
+oneehr.train(config)
+oneehr.test(config)
+oneehr.analyze(config)
+```
+
+## Dataset Converters
+
+Convert standard clinical datasets into OneEHR's three-table format:
+
+```bash
+# MIMIC-III
+oneehr convert --dataset mimic3 --raw-dir /path/to/mimic3 --output-dir data/mimic3/ --task mortality
+
+# MIMIC-IV
+oneehr convert --dataset mimic4 --raw-dir /path/to/mimic4 --output-dir data/mimic4/ --task mortality
+
+# eICU
+oneehr convert --dataset eicu --raw-dir /path/to/eicu --output-dir data/eicu/ --task mortality
+```
+
+Each converter produces labels for mortality, readmission, and length-of-stay tasks.
 
 ## Models
 
-OneEHR ships a growing model zoo across tabular and deep learning baselines.
+OneEHR ships 25 model architectures:
 
-**Tabular:** XGBoost, CatBoost, Random Forest, Decision Tree, GBDT, Logistic Regression
-
-**Recurrent / sequence:** GRU, LSTM, RNN, M3Care, PAI (GRU + pseudo-imputation plugin)
-
-**Non-recurrent:** TCN, Transformer, MLP, Deepr, EHR-Mamba, Jamba
-
-**EHR-specialised:** AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI
+| Category | Models |
+|----------|--------|
+| **Tabular ML** | XGBoost, CatBoost, Random Forest, Decision Tree, GBDT, Logistic Regression |
+| **Recurrent** | GRU, LSTM, RNN, M3Care, PAI |
+| **Non-recurrent** | TCN, Transformer, MLP, Deepr, EHR-Mamba, Jamba |
+| **EHR-specialised** | AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI |
+| **Survival** | DeepSurv, DeepHit |
 
 Models with static branches (ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI) automatically use patient-level static features when `static.csv` is provided.
 
-## Configuration Model
+## Task Types
 
-OneEHR uses TOML as the experiment contract. The main sections are:
+| Task | Config | Description |
+|------|--------|-------------|
+| Binary classification | `kind = "binary"` | Mortality, readmission, etc. |
+| Multiclass | `kind = "multiclass"` | Phenotyping, diagnosis groups |
+| Regression | `kind = "regression"` | Length of stay, lab value prediction |
+| Survival | `kind = "survival"` | Time-to-event with censoring |
+| Multi-label | `kind = "multilabel"` | ICD coding, multi-diagnosis |
 
-- `[dataset]` for input table paths (`dynamic`, `static`, `label`)
-- `[preprocess]` for binning, feature building, and preprocessing pipeline
-- `[task]` for task kind and prediction mode
-- `[split]` for patient-level train/val/test splitting
-- `[[models]]` for model selection with per-model `params`
-- `[trainer]` for DL training configuration (including configurable early stopping metric)
-- `[[systems]]` for LLM/agent system definitions
-- `[output]` for run root and run name
+## Medical Code Ontologies
 
-The standard input model is:
+```python
+from oneehr.medcode import ICD9, ICD10, CodeMapper, CCSGrouper, ATCHierarchy
 
-- `dynamic.csv` required: long-form event table with `patient_id`, `event_time`, `code`, and `value`
-- `static.csv` optional: patient-level covariates keyed by `patient_id`
-- `label.csv` optional: label events keyed by `patient_id` and `label_time`
+# ICD code utilities
+ICD9.chapter("401.9")    # → "Circulatory system"
+ICD10.category("I10.0")  # → "I10"
 
-Prediction modes:
+# Aggregate codes by ontology for dimensionality reduction
+mapper = CodeMapper()
+mapper.add_icd_chapter_mapping(version=9)
+mapped_events = mapper.apply(events_df)
+```
 
-- `patient`: patient-level N-1 prediction
-- `time`: time-window N-N prediction
+## Configuration
+
+OneEHR uses TOML as the experiment contract:
+
+- `[dataset]` — input table paths (`dynamic`, `static`, `label`)
+- `[preprocess]` — binning, feature engineering, preprocessing pipeline
+- `[task]` — task kind and prediction mode (`patient` or `time`)
+- `[split]` — patient-level train/val/test splitting
+- `[[models]]` — model selection with per-model `params`
+- `[trainer]` — DL training config (mixed precision, LR schedulers, early stopping)
+- `[[systems]]` — LLM/agent system definitions
+- `[output]` — run root and run name
+
+## Tutorials
+
+| Tutorial | Description |
+|----------|-------------|
+| [01 Quickstart](tutorials/01_quickstart.ipynb) | End-to-end TJH mortality prediction |
+| [02 Custom Dataset](tutorials/02_custom_dataset.ipynb) | Bring your own data + medical code mapping |
+| [03 Model Comparison](tutorials/03_model_comparison.ipynb) | ML vs DL with bootstrap CI and statistical tests |
+| [04 Fairness & Explainability](tutorials/04_fairness_analysis.ipynb) | Bias detection + feature importance |
+| [05 Survival Analysis](tutorials/05_survival_analysis.ipynb) | DeepSurv, C-index, Kaplan-Meier curves |
 
 ## Documentation
 
-- [`docs/getting-started/installation.md`](docs/getting-started/installation.md)
-- [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md)
-- [`docs/getting-started/data-model.md`](docs/getting-started/data-model.md)
-- [`docs/guide/core-workflows.md`](docs/guide/core-workflows.md)
-- [`docs/reference/cli.md`](docs/reference/cli.md)
-- [`docs/reference/configuration.md`](docs/reference/configuration.md)
-- [`docs/reference/models.md`](docs/reference/models.md)
-- [`docs/reference/artifacts.md`](docs/reference/artifacts.md)
+Full documentation: [medxlab.github.io/OneEHR](https://medxlab.github.io/OneEHR)
 
-Build the docs locally:
+- [Installation](docs/getting-started/installation.md)
+- [Quickstart](docs/getting-started/quickstart.md)
+- [Data Model](docs/getting-started/data-model.md)
+- [Core Workflows](docs/guide/core-workflows.md)
+- [CLI Reference](docs/reference/cli.md)
+- [Configuration](docs/reference/configuration.md)
+- [Models](docs/reference/models.md)
+- [Artifacts](docs/reference/artifacts.md)
+- [Dataset Converters](docs/reference/datasets.md)
+- [Medical Codes](docs/reference/medcode.md)
+
+Build docs locally:
 
 ```bash
 uv pip install -e ".[docs]"
 uv run mkdocs serve
-uv run mkdocs build
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## Validation
 
 ```bash
-uv run oneehr --help
-uv run pytest tests/ -v
-uv run oneehr preprocess --config examples/tjh/mortality_patient.toml
-uv run mkdocs build
+pytest tests/ -v                                                    # 114 tests
+oneehr preprocess --config examples/tjh/mortality_patient.toml      # End-to-end
 ```

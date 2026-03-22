@@ -11,10 +11,11 @@ Each command reads and writes the same shared run directory contract, so persist
 For a typical experiment, the command sequence is:
 
 ```bash
-uv run oneehr preprocess --config experiment.toml
-uv run oneehr train --config experiment.toml
-uv run oneehr test --config experiment.toml
-uv run oneehr analyze --config experiment.toml
+oneehr preprocess --config experiment.toml
+oneehr train      --config experiment.toml
+oneehr test       --config experiment.toml
+oneehr analyze    --config experiment.toml
+oneehr plot       --config experiment.toml    # optional
 ```
 
 All of these commands operate on the same run root, usually `{output.root}/{output.run_name}`.
@@ -90,10 +91,24 @@ uv run oneehr analyze --config experiment.toml --module comparison
 
 Available modules:
 
-- `comparison` -- cross-system metrics comparison
-- `feature_importance` -- native importance for tree models, SHAP fallback for others
+- `comparison` — cross-system metrics comparison with bootstrap CI
+- `feature_importance` — native importance for tree models, SHAP, permutation importance
+- `fairness` — demographic parity, equalized odds, predictive parity, SMD
+- `calibration` — temperature scaling, isotonic regression, ECE
+- `statistical_tests` — DeLong, McNemar, BH FDR correction
+- `missing_data` — missingness analysis per feature
 
 When `--module` is not specified, all available modules are run.
+
+## Plot
+
+```bash
+oneehr plot --config experiment.toml --style nature
+```
+
+Renders publication-quality figures from test and analyze results. Supported figures: ROC curves, PR curves, confusion matrices, calibration plots, decision curve analysis, forest plots, fairness plots, training curves, significance plots, missing data heatmaps, cohort flow diagrams, Kaplan-Meier curves, and attribution heatmaps.
+
+Style presets: `default`, `nature`, `lancet`, `wide`.
 
 ## Split Strategies
 

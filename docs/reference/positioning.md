@@ -10,21 +10,26 @@ Preferred short label:
 
 Preferred one-sentence description:
 
-> OneEHR is a Python platform for longitudinal EHR experiments.
+> OneEHR is a unified Python platform for longitudinal EHR experiments across ML, DL, and LLM agents.
 
 Preferred expanded description:
 
-> OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI and notebooks.
+> OneEHR is a unified Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract — the first toolkit bridging classical machine learning, deep learning, and agentic AI for clinical prediction.
 
 ## Core Claims
 
 Use these ideas repeatedly and consistently:
 
-- One platform across preprocessing, modeling, analysis, and evaluation.
-- One shared run contract across CLI and notebooks.
-- One evaluation workflow across AI agents, LLM systems, and conventional ML/DL models.
-- Standardized EHR tables in, reproducible artifacts out.
-- Fair cross-system comparison on frozen instances and saved evidence.
+- **Unified ML/DL/LLM comparison** — the first platform that evaluates classical models, deep learning, and LLM agents on the same contract.
+- **25 model architectures** — tabular ML, recurrent, transformer, Mamba, EHR-specialised, and survival models.
+- **Built-in dataset support** — converters for MIMIC-III, MIMIC-IV, and eICU with standard clinical tasks.
+- **Medical code ontologies** — ICD-9/10 mapping, CCS grouping, ATC drug classification for dimensionality reduction.
+- **Survival analysis** — Cox PH and discrete-time models with concordance index and Kaplan-Meier visualization.
+- **Statistical rigor** — bootstrap confidence intervals, DeLong test, McNemar test, BH FDR correction as defaults, not afterthoughts.
+- **Fairness-aware** — demographic parity, equalized odds, predictive parity, SMD integrated into the standard workflow.
+- **Interpretability** — SHAP, LIME, integrated gradients, permutation importance, attention visualization.
+- **Publication-ready outputs** — ROC, PR, calibration, DCA, forest plots, KM curves with Nature/Lancet style presets.
+- **Reproducibility by design** — TOML config = complete experiment specification, Parquet + JSON artifacts.
 
 ## Preferred Terms
 
@@ -34,44 +39,41 @@ Use these ideas repeatedly and consistently:
 - `conventional ML/DL models`
 - `shared run contract`
 - `cross-system evaluation`
-- `CLI and notebooks`
+- `dataset converters`
+- `medical code ontologies`
+- `survival analysis`
 - `standardized EHR tables`
 - `reproducible artifacts`
-- `conventional ML/DL models`
 
 ## Terms To Avoid
 
 Do not use these as top-level positioning language:
 
-- `toolkit`
+- `toolkit` (use `platform`)
 - `library`
 - `all-in-one`
 - `task-first`
 - `artifact-first`
-- `eval-first`
-- `workflow-first`
 - `single-LLM`
 - `multi-agent medical framework`
 - `infra platform`
-- `AI agent systems`
 - `ML/DL baselines`
 
-If a page needs to mention implementation details, describe them directly instead of turning them into slogans.
+## Competitive Positioning
 
-## Technical Terms That Are Still Valid
-
-These terms are valid when you are talking about the implementation or config surface, not the product identity:
-
-- `kind = "framework"`
-- `framework_type`
-- `backend_refs`
-- `TOML config`
-- `run contract`
-- `artifact`
-
-Use `framework` only for config/runtime details. For user-facing product copy, prefer `AI agents`, `LLM systems`, and `conventional ML/DL models`.
-
-Use `TOML` to describe the experiment contract or configuration model, not the product identity.
+| Dimension | OneEHR | PyHealth | ehrapy |
+|-----------|--------|----------|--------|
+| Focus | Unified ML/DL/LLM evaluation | DL model breadth | Statistical EHR analysis |
+| Models | 25 (ML + DL + survival) | 33+ (DL-focused) | ~0 DL |
+| LLM support | Native (unified contract) | None | None |
+| Datasets | MIMIC-III/IV, eICU converters | 10+ built-in loaders | MIMIC via ehrdata |
+| Medical codes | ICD-9/10, CCS, ATC | ICD, ATC, NDC, RxNorm, UMLS | FHIR |
+| Survival | DeepSurv, DeepHit, KM | None | KM, Cox PH, AFT |
+| Statistical tests | DeLong, McNemar, bootstrap CI | None | GLM, ANOVA |
+| Fairness | 4 metrics + auto-detect | None | Bias detection + SMD |
+| Interpretability | SHAP, LIME, IG, attention | 15+ methods | Feature ranking |
+| Causal inference | Not in scope | None | DoWhy integration |
+| Config | TOML (complete contract) | Python code | Python code |
 
 ## Reusable Copy Blocks
 
@@ -81,15 +83,15 @@ Homepage or hero eyebrow:
 
 Short intro:
 
-- `OneEHR is a Python platform for longitudinal EHR experiments.`
+- `OneEHR is a unified Python platform for longitudinal EHR experiments across ML, DL, and LLM agents.`
 
 Medium intro:
 
-- `OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models.`
+- `OneEHR is a unified Python platform for longitudinal EHR experiments. It provides 25 model architectures, built-in dataset converters for MIMIC and eICU, medical code ontologies, survival analysis, and publication-quality visualization — all on one shared run contract.`
 
 Long intro:
 
-- `OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation across AI agents, LLM systems, and conventional ML/DL models on one shared run contract consumed by the CLI and notebooks.`
+- `OneEHR is a unified Python platform for longitudinal EHR experiments across ML, DL, and LLM agents. It provides shared infrastructure for preprocessing, modeling, analysis, and reproducible evaluation on one shared run contract — the first toolkit bridging classical machine learning, deep learning, and agentic AI for clinical prediction. With 25 model architectures, built-in converters for MIMIC-III/IV and eICU, ICD/CCS/ATC ontologies, survival analysis, fairness analysis, and publication-quality visualization with Nature/Lancet style presets.`
 
 ## Scope Boundaries
 
@@ -97,14 +99,9 @@ Prefer:
 
 - `AI agents, LLM systems, and conventional ML/DL models`
 
-Avoid mixing parallel category systems such as:
-
-- `models, frameworks, agents, LLMs`
-- `ML, DL, single-LLM, multi-agent`
-- `toolkit, platform, library`
-
-Pick one abstraction level and stay there. The canonical level for OneEHR is:
+The canonical abstraction levels for OneEHR:
 
 - product identity: `platform`
 - system scope: `AI agents`, `LLM systems`, `conventional ML/DL models`
 - architecture: `shared run contract`
+- data: `MIMIC-III/IV`, `eICU`, `ICD-9/10`, `CCS`, `ATC`

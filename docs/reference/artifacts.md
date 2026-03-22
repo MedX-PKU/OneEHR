@@ -27,6 +27,14 @@ OneEHR writes all experiment outputs to a structured run directory under `{outpu
     analyze/
         comparison.json
         feature_importance.json
+        fairness.json
+        calibration.json
+        statistical_tests.json
+        missing_data.json
+    figures/                        (when `oneehr plot` is run)
+        roc.png / roc.pdf
+        pr.png / pr.pdf
+        ...
 ```
 
 ---

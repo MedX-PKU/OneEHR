@@ -18,10 +18,11 @@
   </div>
   <div class="landing-hero-panel">
     <div class="landing-badge-row">
-      <span class="landing-badge">Python 3.12</span>
+      <span class="landing-badge">Python 3.12+</span>
       <span class="landing-badge">TOML config</span>
+      <span class="landing-badge">MIMIC / eICU</span>
+      <span class="landing-badge">ICD / CCS / ATC</span>
       <span class="landing-badge">Reproducible</span>
-      <span class="landing-badge">OpenAI-compatible</span>
     </div>
     <div class="landing-stats">
       <article class="landing-stat-card">
@@ -36,8 +37,8 @@
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">Models</span>
-        <strong>15 built-in</strong>
-        <span class="landing-stat-meta">xgboost, catboost, gru, lstm, rnn, tcn, transformer, mlp, adacare, stagenet, retain, concare, grasp, mcgru, dragent</span>
+        <strong>25 built-in</strong>
+        <span class="landing-stat-meta">Tabular ML, recurrent, transformer, Mamba, EHR-specialised, survival</span>
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">System layer</span>
@@ -140,7 +141,10 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
 
 ## Start Here
 
-- Use [Installation](getting-started/installation.md) to set up Python 3.12, `uv`, and optional extras.
+- Use [Installation](getting-started/installation.md) to set up Python 3.12+ and install OneEHR.
 - Use [Quickstart](getting-started/quickstart.md) for a runnable end-to-end example.
+- Use [Tutorials](tutorials.md) for step-by-step Jupyter notebooks covering all features.
+- Use [Dataset Converters](reference/datasets.md) to convert MIMIC-III/IV or eICU data.
 - Use [Configuration Reference](reference/configuration.md) if you are authoring experiment TOML files.
+- Use [Models Reference](reference/models.md) for all 25 model architectures and their hyperparameters.
 - Use [Artifacts Reference](reference/artifacts.md) if you need the precise on-disk contract for tooling.

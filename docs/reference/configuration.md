@@ -32,11 +32,13 @@ Controls how irregular events are binned and features are built.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `bin_size` | `str` | `"1d"` | Time bin width, for example `"1h"`, `"6h"`, or `"1d"` |
-| `numeric_strategy` | `str` | `"mean"` | Aggregation for numeric values: `mean` or `last` |
+| `numeric_strategy` | `str` | `"mean"` | Aggregation for numeric values: `mean`, `last`, `median`, `min`, `max`, `std`, or `count` |
 | `categorical_strategy` | `str` | `"onehot"` | Encoding for categorical values: `onehot` or `count` |
 | `code_selection` | `str` | `"frequency"` | Code vocabulary strategy: `frequency`, `all`, or `list` |
 | `top_k_codes` | `int` | `100` | Number of top codes for `frequency` selection |
 | `min_code_count` | `int` | `1` | Minimum event count for a code to be included in the vocabulary |
+| `max_seq_length` | `int` | `None` | Truncate sequences to most recent N time bins |
+| `min_events_per_patient` | `int` | `1` | Exclude patients with fewer events |
 | `pipeline` | `list[dict]` | `[]` | Ordered list of preprocessing ops applied after binning (see below) |
 
 ```toml
@@ -99,12 +101,38 @@ Defines the prediction task.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `kind` | `str` | `"binary"` | Task type: `binary` or `regression` |
+| `kind` | `str` | `"binary"` | Task type: `binary`, `regression`, `multiclass`, `survival`, or `multilabel` |
 | `prediction_mode` | `str` | `"patient"` | Prediction granularity: `patient` or `time` |
+| `num_classes` | `int` | `None` | Number of classes (required when `kind = "multiclass"`) |
+| `loss` | `str` | `"default"` | Loss function: `default` or `focal` |
+| `focal_gamma` | `float` | `2.0` | Gamma for focal loss |
 
 ```toml
+# Binary classification
 [task]
 kind = "binary"
+prediction_mode = "patient"
+```
+
+```toml
+# Multiclass classification
+[task]
+kind = "multiclass"
+prediction_mode = "patient"
+num_classes = 5
+```
+
+```toml
+# Survival analysis (time-to-event with censoring)
+[task]
+kind = "survival"
+prediction_mode = "patient"
+```
+
+```toml
+# Multi-label classification (e.g., ICD coding)
+[task]
+kind = "multilabel"
 prediction_mode = "patient"
 ```
 
@@ -178,7 +206,10 @@ Training loop configuration for deep learning models.
 | `weight_decay` | `float` | `0.0` | AdamW weight decay |
 | `grad_clip` | `float` | `1.0` | Gradient clipping max norm |
 | `num_workers` | `int` | `0` | DataLoader workers |
-| `precision` | `str` | `"fp32"` | `fp32` or `bf16` |
+| `precision` | `str` | `"fp32"` | `fp32`, `fp16`, or `bf16` |
+| `scheduler` | `str` | `"none"` | LR scheduler: `none`, `cosine`, `step`, or `plateau` |
+| `scheduler_params` | `dict` | `{}` | Scheduler-specific params (e.g., `T_max`, `step_size`, `gamma`) |
+| `class_weight` | `str` | `"none"` | Class weighting: `none` or `balanced` |
 | `early_stopping` | `bool` | `true` | Enable early stopping |
 | `patience` | `int` | `5` | Epochs without improvement before stopping |
 | `monitor` | `str` | `"val_loss"` | Metric for early stopping: `val_loss`, `val_auroc`, `val_auprc`, `val_rmse`, `val_mae` |

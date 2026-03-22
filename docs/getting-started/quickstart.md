@@ -1,6 +1,8 @@
 # Quickstart
 
-This quickstart uses the bundled TJH COVID-19 ICU example. It walks through the four core pipeline steps: preprocess, train, test, and analyze.
+This quickstart uses the bundled TJH COVID-19 ICU example. It walks through the core pipeline steps: preprocess, train, test, analyze, and plot.
+
+For more detailed tutorials with Jupyter notebooks, see [Tutorials](../tutorials.md).
 
 ## 0. Convert The Source Data (once)
 
@@ -21,7 +23,7 @@ The TJH example ships three experiment configs:
 
 | Config | Task | Mode | Models |
 |--------|------|------|--------|
-| `mortality_patient.toml` | Binary mortality | Patient (N-1) | 15 DL + tabular |
+| `mortality_patient.toml` | Binary mortality | Patient (N-1) | 25 DL + tabular |
 | `mortality_time.toml` | Binary mortality | Time (N-N) | xgboost + gru |
 | `los_time.toml` | Remaining LOS regression | Time (N-N) | xgboost + gru |
 
@@ -39,7 +41,7 @@ This creates `runs/tjh/preprocess/`, writes `manifest.json`, the split contract,
 uv run oneehr train --config examples/tjh/mortality_patient.toml
 ```
 
-The default config trains 15 models (xgboost, catboost, gru, lstm, rnn, tcn, transformer, mlp, adacare, stagenet, retain, concare, grasp, mcgru, dragent) and writes checkpoints under `runs/tjh/train/`.
+Trains all models configured in `[[models]]` and writes checkpoints under `runs/tjh/train/`.
 
 ## 3. Test
 
@@ -55,7 +57,25 @@ Evaluates all trained models on the held-out test split. Writes `runs/tjh/test/p
 uv run oneehr analyze --config examples/tjh/mortality_patient.toml
 ```
 
-Writes structured analysis outputs under `runs/tjh/analyze/`, including cross-system comparison and feature importance.
+Writes structured analysis outputs under `runs/tjh/analyze/`, including cross-system comparison, feature importance, fairness metrics, and statistical tests.
+
+## 5. Plot (Optional)
+
+```bash
+oneehr plot --config examples/tjh/mortality_patient.toml --style nature
+```
+
+Renders publication-quality figures (ROC, PR, calibration, forest plot, etc.) under `runs/tjh/figures/`.
+
+## Using Standard Datasets
+
+Convert MIMIC-III, MIMIC-IV, or eICU data before running the pipeline:
+
+```bash
+oneehr convert --dataset mimic3 --raw-dir ~/data/mimic-iii/ --output-dir data/mimic3/ --task mortality
+```
+
+Then update your TOML config to point to the converted files. See [Dataset Converters](../reference/datasets.md) for details.
 
 ## Try Other Tasks
 

@@ -1,6 +1,6 @@
 # Models Reference
 
-OneEHR ships a growing mix of tabular and deep learning models. All models are configured via `[[models]]` entries with a `name` and `params` dict.
+OneEHR ships 25 model architectures across tabular ML, deep learning, EHR-specialised, and survival analysis. All models are configured via `[[models]]` entries with a `name` and `params` dict.
 
 ---
 
@@ -34,6 +34,8 @@ OneEHR ships a growing mix of tabular and deep learning models. All models are c
 | M3Care | `m3care` | DL | Yes | Yes | No |
 | SAFARI | `safari` | DL | Yes | Yes | Yes |
 | PAI (GRU) | `pai` | DL | Yes | Yes | No |
+| DeepSurv | `deepsurv` | DL / Survival | Yes | No | No |
+| DeepHit | `deephit` | DL / Survival | Yes | No | No |
 
 Models with a **static branch** automatically receive patient-level static features as a separate input tensor when `static.csv` is provided. The `static_dim` parameter is auto-detected from the static feature count.
 
@@ -567,3 +569,49 @@ prompt_init = "median"
 | `num_layers` | `int` | `1` | Number of stacked GRU layers |
 | `dropout` | `float` | `0.0` | Dropout between GRU layers |
 | `prompt_init` | `str` | `"median"` | Prompt initialisation: `median`, `zero`, or `random` |
+
+---
+
+## Survival models
+
+Survival models predict time-to-event outcomes with censoring support. Use with `task.kind = "survival"`.
+
+### DeepSurv
+
+Cox proportional hazards deep neural network (Katzman et al., 2018). Outputs a single log-risk score per patient. Trained with the Cox partial likelihood loss.
+
+```toml
+[[models]]
+name = "deepsurv"
+[models.params]
+hidden_dim = 128
+num_layers = 2
+dropout = 0.1
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | Hidden layer dimension |
+| `num_layers` | `int` | `2` | Number of hidden layers |
+| `dropout` | `float` | `0.1` | Dropout rate |
+
+### DeepHit
+
+Discrete-time competing risks survival model (Lee et al., 2018). Outputs a probability mass function over time bins.
+
+```toml
+[[models]]
+name = "deephit"
+[models.params]
+hidden_dim = 128
+num_time_bins = 20
+num_layers = 2
+dropout = 0.1
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | Hidden layer dimension |
+| `num_time_bins` | `int` | `10` | Number of discrete time bins |
+| `num_layers` | `int` | `2` | Number of hidden layers |
+| `dropout` | `float` | `0.1` | Dropout rate |

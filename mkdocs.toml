@@ -6,6 +6,7 @@ nav = [
     { title = "Quickstart", path = "getting-started/quickstart.md" },
     { title = "Data Model", path = "getting-started/data-model.md" },
   ] },
+  { title = "Tutorials", path = "tutorials.md" },
   { title = "Workflows", path = "guide/index.md", children = [
     { title = "Core Workflows", path = "guide/core-workflows.md" },
   ] },
@@ -13,6 +14,8 @@ nav = [
     { title = "CLI", path = "reference/cli.md" },
     { title = "Configuration", path = "reference/configuration.md" },
     { title = "Models", path = "reference/models.md" },
+    { title = "Dataset Converters", path = "reference/datasets.md" },
+    { title = "Medical Codes", path = "reference/medcode.md" },
     { title = "Artifacts", path = "reference/artifacts.md" },
     { title = "Positioning", path = "reference/positioning.md" },
   ] },
