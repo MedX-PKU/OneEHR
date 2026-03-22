@@ -31,9 +31,10 @@ What preprocessing decides:
 
 - Bin size and time alignment via `[preprocess].bin_size`
 - Numeric and categorical aggregation strategies
-- Code vocabulary selection via `[preprocess].code_selection` and `top_k_codes`
+- Code vocabulary selection via `[preprocess].code_selection`, `top_k_codes`, and `min_code_count`
 - Patient-level or time-level prediction mode from `[task].prediction_mode`
 - Patient-level saved split under `preprocess/split.json`
+- Preprocessing pipeline fitted on train split only (saved as `fitted_pipeline.pt`)
 
 Inputs come from `[dataset]`. The required raw shape is:
 
@@ -55,7 +56,10 @@ Key behaviors:
 - `[[models]]` selects the training targets
 - Each model gets a `name` and optional `params` dict for hyperparameters
 - Tabular and deep learning models use the same shared run contract
+- The preprocessing pipeline (`fitted_pipeline.pt`) is automatically applied to feature data before training
 - Checkpoints and metadata are written under `train/{model_name}/`
+- DL models track per-epoch training history (loss, monitored metric) in `meta.json`
+- Early stopping can monitor `val_loss`, `val_auroc`, `val_auprc`, `val_rmse`, or `val_mae` via `[trainer].monitor`
 
 In OneEHR, the TOML file is the experiment contract: if the config changes, the experiment changed.
 
