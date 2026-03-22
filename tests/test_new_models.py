@@ -1,4 +1,4 @@
-"""Tests for Deepr, EHR-Mamba, and Jamba models."""
+"""Tests for newly added DL models."""
 
 from __future__ import annotations
 
@@ -62,3 +62,93 @@ def test_jamba(mode, expected_shape):
     assert out.shape == expected_shape
     loss = out.sum()
     loss.backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_m3care(mode, expected_shape):
+    from oneehr.models.m3care import M3CareModel, M3CareTimeModel
+
+    cls = M3CareTimeModel if mode == "time" else M3CareModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        num_heads=4,
+        dim_feedforward=32,
+        num_layers=1,
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    out = m(x, lengths)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+@pytest.mark.parametrize("use_static", [False, True])
+def test_safari(mode, expected_shape, use_static):
+    from oneehr.models.safari import SafariModel, SafariTimeModel
+
+    cls = SafariTimeModel if mode == "time" else SafariModel
+    kwargs = {
+        "input_dim": INPUT_DIM,
+        "hidden_dim": HIDDEN,
+        "out_dim": OUT_DIM,
+        "dim_list": [1] * INPUT_DIM,
+    }
+    if use_static:
+        kwargs["static_dim"] = 3
+    m = cls(**kwargs)
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    static = torch.randn(B, 3) if use_static else None
+    out = m(x, lengths, static=static)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_pai(mode, expected_shape):
+    from oneehr.models.pai import PAIModel, PAITimeModel
+
+    cls = PAITimeModel if mode == "time" else PAIModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        prompt_init_values=torch.tensor([0.1, 0.2, 0.3, 0.4]),
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    missing_mask = torch.zeros(B, T, INPUT_DIM)
+    missing_mask[:, 1:, 0] = 1.0
+    out = m(x, lengths, missing_mask=missing_mask)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+def test_pai_prompt_only_replaces_true_missing_positions():
+    from oneehr.models.pai import PAIModel
+
+    m = PAIModel(
+        input_dim=2,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        prompt_init_values=torch.tensor([5.0, 7.0]),
+    )
+    x = torch.tensor([[[0.0, 0.0], [1.0, 2.0]]])
+    missing_mask = torch.tensor([[[1.0, 0.0], [0.0, 1.0]]])
+    prompted = m.encoder.apply_prompt(x, missing_mask)
+    assert prompted[0, 0, 0].item() == pytest.approx(5.0)
+    assert prompted[0, 0, 1].item() == pytest.approx(0.0)
+    assert prompted[0, 1, 0].item() == pytest.approx(1.0)
+    assert prompted[0, 1, 1].item() == pytest.approx(7.0)

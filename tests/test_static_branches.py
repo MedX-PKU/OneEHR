@@ -1,4 +1,4 @@
-"""Tests for static branches (ConCare, GRASP) and TCN patient-level support."""
+"""Tests for static branches and TCN patient-level support."""
 
 from __future__ import annotations
 
@@ -123,15 +123,19 @@ def test_has_static_branch_true():
     from oneehr.models.concare import ConCareModel
     from oneehr.models.grasp import GRASPModel
     from oneehr.models.dragent import DrAgentModel
+    from oneehr.models.safari import SafariModel
 
     assert has_static_branch(ConCareModel(input_dim=4, hidden_dim=16, num_heads=4, static_dim=3))
     assert has_static_branch(GRASPModel(input_dim=4, hidden_dim=16, cluster_num=2, static_dim=3))
     assert has_static_branch(DrAgentModel(input_dim=4, hidden_dim=16, static_dim=3))
+    assert has_static_branch(SafariModel(input_dim=4, hidden_dim=16, dim_list=[1, 1, 1, 1], static_dim=3))
 
 
 def test_has_static_branch_false_when_no_static_dim():
     from oneehr.models.concare import ConCareModel
     from oneehr.models.grasp import GRASPModel
+    from oneehr.models.safari import SafariModel
 
     assert not has_static_branch(ConCareModel(input_dim=4, hidden_dim=16, num_heads=4))
     assert not has_static_branch(GRASPModel(input_dim=4, hidden_dim=16, cluster_num=2))
+    assert not has_static_branch(SafariModel(input_dim=4, hidden_dim=16, dim_list=[1, 1, 1, 1]))

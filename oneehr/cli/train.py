@@ -224,13 +224,13 @@ def _train_dl(
     static_all: pd.DataFrame | None,
 ) -> None:
     from oneehr.models import build_dl_model
+    from oneehr.models.runtime import prepare_dl_artifacts
     from oneehr.training.trainer import fit_model
     from oneehr.training.persistence import save_checkpoint
-    from oneehr.data.sequence import build_patient_sequences, build_time_sequences, pad_sequences
     from oneehr.data.tabular import has_static_branch
 
     # Auto-detect static_dim for models that support it
-    _STATIC_MODELS = {"concare", "grasp", "mcgru", "dragent", "prism"}
+    _STATIC_MODELS = {"concare", "grasp", "mcgru", "dragent", "prism", "safari"}
     if (
         model_name in _STATIC_MODELS
         and static_all is not None
@@ -242,43 +242,15 @@ def _train_dl(
         )
 
     input_dim = len(feat_cols)
-
-    # PRISM-specific: prepare extra inputs (dim_list, centers, obs_rates, time_delta).
-    extra: dict | None = None
-    extra_meta: dict = {}
-    if model_name == "prism":
-        import json as _json
-        from oneehr.models.prism import prepare_prism_inputs, build_time_delta_tensor
-
-        run_dir = model_out.parent.parent
-        schema_path = run_dir / "preprocess" / "feature_schema.json"
-        obs_mask_path = run_dir / "preprocess" / "obs_mask.parquet"
-
-        feature_schema = _json.loads(schema_path.read_text(encoding="utf-8"))
-        obs_mask_df = pd.read_parquet(obs_mask_path)
-
-        train_pids = set(str(p) for p in split.train)
-        prism_data = prepare_prism_inputs(
-            binned, obs_mask_df, feat_cols, feature_schema, train_pids,
-            n_clusters=int(model_cfg.params.get("n_clusters", 10)),
-            bin_size=cfg.preprocess.bin_size,
-        )
-        # Inject dim_list and centers into model params.
-        model_cfg = type(model_cfg)(
-            name=model_cfg.name,
-            params={**model_cfg.params, "dim_list": prism_data["dim_list"], "centers": prism_data["centers"]},
-        )
-        # Build padded time_delta tensor aligned with all patients.
-        from oneehr.data.sequence import build_patient_sequences, pad_sequences
-        all_pids, all_seqs, all_lens = build_patient_sequences(binned, feat_cols)
-        max_len = int(all_lens.max())
-        td_tensor = build_time_delta_tensor(prism_data["time_delta_map"], all_pids, max_len, input_dim)
-
-        extra = {
-            "obs_rates": prism_data["obs_rates"],  # [D] — broadcast, not batched
-            "time_delta": td_tensor,               # [N, T, D] — batched
-        }
-        extra_meta = {"obs_rates": prism_data["obs_rates"].tolist()}
+    prepared = prepare_dl_artifacts(
+        model_cfg=model_cfg,
+        binned=binned,
+        feat_cols=feat_cols,
+        split=split,
+        run_dir=model_out.parent.parent,
+        preprocess_cfg=cfg.preprocess,
+    )
+    model_cfg = prepared.model_cfg
 
     model = build_dl_model(model_cfg, input_dim=input_dim, mode=cfg.task.prediction_mode)
     model_supports_static = has_static_branch(model)
@@ -296,7 +268,8 @@ def _train_dl(
             cfg=cfg.trainer, task=cfg.task,
             mode="patient",
             static=static_all if model_supports_static else None,
-            extra=extra,
+            train_extra=prepared.train_extra,
+            val_extra=prepared.val_extra,
         )
     else:
         trained_model, train_metrics = fit_model(
@@ -305,7 +278,8 @@ def _train_dl(
             cfg=cfg.trainer, task=cfg.task,
             mode="time",
             static=static_all if model_supports_static else None,
-            extra=extra,
+            train_extra=prepared.train_extra,
+            val_extra=prepared.val_extra,
         )
 
     # Build params for checkpoint (exclude non-serializable tensors).
@@ -317,5 +291,5 @@ def _train_dl(
         params=ckpt_params,
         train_metrics=train_metrics,
         feature_columns=feat_cols,
-        extra_meta=extra_meta,
+        extra_meta=prepared.extra_meta,
     )

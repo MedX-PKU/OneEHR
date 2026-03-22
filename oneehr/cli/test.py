@@ -146,6 +146,7 @@ def _predict_trained_model(
         model.eval()
         from oneehr.data.sequence import build_patient_sequences, pad_sequences
         from oneehr.data.tabular import has_static_branch
+        from oneehr.models.runtime import build_inference_extra
 
         # Load static features for models with a static branch
         run_dir = model_dir.parent.parent
@@ -157,46 +158,6 @@ def _predict_trained_model(
                 static_df = static_df.set_index("patient_id")
             static_df.index = static_df.index.astype(str)
 
-        # Prepare PRISM extra inputs if applicable.
-        prism_extra_kw: dict = {}
-        if meta.get("model_name") == "prism":
-            from oneehr.models.prism import build_time_delta_tensor
-
-            obs_rates_list = meta.get("extra", {}).get("obs_rates")
-            if obs_rates_list is not None:
-                prism_extra_kw["obs_rates"] = torch.tensor(obs_rates_list, dtype=torch.float32)
-
-            obs_mask_path = run_dir / "preprocess" / "obs_mask.parquet"
-            schema_path = run_dir / "preprocess" / "feature_schema.json"
-            if obs_mask_path.exists() and schema_path.exists():
-                obs_mask_df = pd.read_parquet(obs_mask_path)
-                # Build time_delta for test patients.
-                test_mask = obs_mask_df[obs_mask_df["patient_id"].astype(str).isin(test_pids)]
-                mask_cols = [c for c in feat_cols if c in obs_mask_df.columns]
-                from oneehr.utils import parse_bin_size
-                freq = parse_bin_size("1d")  # default; actual bin_size read below
-                td_unit = pd.Timedelta(freq)
-
-                td_map: dict[str, np.ndarray] = {}
-                for pid, grp in test_mask.groupby("patient_id", sort=False):
-                    grp = grp.sort_values("bin_time")
-                    mv = grp[mask_cols].values.astype(np.float32)
-                    T_p, D_p = mv.shape
-                    td = np.full((T_p, D_p), 2.0, dtype=np.float32)
-                    last_t = np.full(D_p, -np.inf)
-                    times = grp["bin_time"].values
-                    for t_i in range(T_p):
-                        for d_i in range(D_p):
-                            if mv[t_i, d_i] > 0.5:
-                                if last_t[d_i] != -np.inf:
-                                    gap = (pd.Timestamp(times[t_i]) - pd.Timestamp(times[int(last_t[d_i])])) / td_unit
-                                    td[t_i, d_i] = min(float(gap), 2.0)
-                                else:
-                                    td[t_i, d_i] = 0.0
-                                last_t[d_i] = t_i
-                    td_map[str(pid)] = td
-                prism_extra_kw["_td_map"] = td_map  # temporary; built into tensor below
-
         if mode == "patient":
             pids, seqs, lens = build_patient_sequences(binned_test, feat_cols)
             X_seq = pad_sequences(seqs, lens)
@@ -206,16 +167,14 @@ def _predict_trained_model(
             if has_static_branch(model) and static_path.exists():
                 s_vals = static_df.reindex(pids).fillna(0.0).to_numpy(dtype=np.float32)
                 static_tensor = torch.from_numpy(s_vals)
-
-            # Build PRISM time_delta tensor for test patients.
-            extra_kw: dict = {}
-            if "obs_rates" in prism_extra_kw:
-                extra_kw["obs_rates"] = prism_extra_kw["obs_rates"]
-            td_map = prism_extra_kw.pop("_td_map", None)
-            if td_map is not None:
-                from oneehr.models.prism import build_time_delta_tensor
-                max_len = int(lens.max())
-                extra_kw["time_delta"] = build_time_delta_tensor(td_map, list(pids), max_len, len(feat_cols))
+            extra_kw = build_inference_extra(
+                model_name=meta.get("model_name", model_name),
+                meta=meta,
+                run_dir=run_dir,
+                feat_cols=feat_cols,
+                patient_ids=list(pids),
+                max_len=int(lens.max()) if len(lens) else 0,
+            )
 
             with torch.no_grad():
                 if static_tensor is not None:
@@ -252,16 +211,14 @@ def _predict_trained_model(
             if has_static_branch(model) and static_path.exists():
                 s_vals = static_df.reindex(pids).fillna(0.0).to_numpy(dtype=np.float32)
                 time_static = torch.from_numpy(s_vals)
-
-            # Build PRISM extra for time-mode.
-            time_extra_kw: dict = {}
-            if "obs_rates" in prism_extra_kw:
-                time_extra_kw["obs_rates"] = prism_extra_kw["obs_rates"]
-            td_map_t = prism_extra_kw.pop("_td_map", None)
-            if td_map_t is not None:
-                from oneehr.models.prism import build_time_delta_tensor
-                max_len_t = int(lens.max())
-                time_extra_kw["time_delta"] = build_time_delta_tensor(td_map_t, list(pids), max_len_t, len(feat_cols))
+            time_extra_kw = build_inference_extra(
+                model_name=meta.get("model_name", model_name),
+                meta=meta,
+                run_dir=run_dir,
+                feat_cols=feat_cols,
+                patient_ids=list(pids),
+                max_len=int(lens.max()) if len(lens) else 0,
+            )
 
             with torch.no_grad():
                 if time_static is not None:

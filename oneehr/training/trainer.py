@@ -43,7 +43,8 @@ def fit_model(
     y_map: dict | None = None,
     labels_df=None,
     static=None,
-    extra: dict[str, torch.Tensor] | None = None,
+    train_extra: dict[str, torch.Tensor] | None = None,
+    val_extra: dict[str, torch.Tensor] | None = None,
 ) -> tuple[object, dict]:
     """Train a DL model and return (trained_model, val_metrics_dict).
 
@@ -100,14 +101,14 @@ def fit_model(
         model.train()
         train_loss = _run_epoch(
             model, X_train, len_train, y_train, static_train, mask_train,
-            loss_fn, optim, cfg, device, train=True, extra=extra,
+            loss_fn, optim, cfg, device, train=True, extra=train_extra,
         )
         # Validate
         model.eval()
         with torch.no_grad():
             val_loss = _run_epoch(
                 model, X_val, len_val, y_val, static_val, mask_val,
-                loss_fn, None, cfg, device, train=False, extra=extra,
+                loss_fn, None, cfg, device, train=False, extra=val_extra,
             )
 
         if val_loss < best_val_loss:
@@ -130,8 +131,11 @@ def fit_model(
         Lv = len_val.to(device)
         Sv = None if static_val is None else static_val.to(device)
         kw = {}
-        if extra:
-            kw = {k: v.to(device) if isinstance(v, torch.Tensor) and v.dim() > 0 else v for k, v in extra.items()}
+        if val_extra:
+            kw = {
+                k: v.to(device) if isinstance(v, torch.Tensor) and v.dim() > 0 else v
+                for k, v in val_extra.items()
+            }
         logits = model(Xv, Lv, **kw) if Sv is None else model(Xv, Lv, Sv, **kw)
         logits = logits.squeeze(-1).detach().cpu().numpy()
 

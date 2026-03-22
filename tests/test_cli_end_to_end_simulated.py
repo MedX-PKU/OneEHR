@@ -25,6 +25,24 @@ def _make_dynamic(tmp_path: Path, n_patients: int = 60, seed: int = 0) -> Path:
     return path
 
 
+def _make_dynamic_with_missing(tmp_path: Path, n_patients: int = 60, seed: int = 0) -> Path:
+    rng = np.random.default_rng(seed)
+    base = pd.Timestamp("2020-01-01")
+    rows = []
+    for pid in range(n_patients):
+        patient_id = f"p{pid:04d}"
+        for day in range(3):
+            t = base + pd.Timedelta(days=day)
+            rows.append({"patient_id": patient_id, "event_time": t, "code": "LAB_A", "value": float(rng.normal())})
+            if (pid + day) % 2 == 0:
+                rows.append({"patient_id": patient_id, "event_time": t, "code": "LAB_B", "value": float(rng.normal())})
+            if day != 1 or pid % 3 != 0:
+                rows.append({"patient_id": patient_id, "event_time": t, "code": "MED_X", "value": float(rng.integers(0, 2))})
+    path = tmp_path / "dynamic_missing.csv"
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return path
+
+
 def _make_label(tmp_path: Path, n_patients: int = 60) -> Path:
     rows = []
     for pid in range(n_patients):
@@ -131,3 +149,59 @@ def test_full_pipeline_xgboost(tmp_path: Path) -> None:
     main(["analyze", "--config", str(cfg)])
 
     assert (run_dir / "analyze" / "comparison.json").exists()
+
+
+def test_full_pipeline_pai(tmp_path: Path) -> None:
+    dynamic_csv = _make_dynamic_with_missing(tmp_path)
+    label_csv = _make_label(tmp_path)
+    out_root = tmp_path / "runs"
+    cfg = tmp_path / "pai.toml"
+    cfg.write_text(f"""
+[dataset]
+dynamic = "{dynamic_csv}"
+label = "{label_csv}"
+
+[preprocess]
+bin_size = "1d"
+top_k_codes = 20
+
+[task]
+kind = "binary"
+prediction_mode = "patient"
+
+[split]
+kind = "random"
+seed = 42
+val_size = 0.2
+test_size = 0.2
+
+[[models]]
+name = "pai"
+[models.params]
+hidden_dim = 8
+prompt_init = "median"
+
+[trainer]
+device = "cpu"
+seed = 42
+max_epochs = 1
+batch_size = 16
+early_stopping = false
+
+[output]
+root = "{out_root}"
+run_name = "pai_e2e"
+""", encoding="utf-8")
+
+    from oneehr.cli.main import main
+
+    main(["preprocess", "--config", str(cfg)])
+    run_dir = out_root / "pai_e2e"
+    assert (run_dir / "preprocess" / "obs_mask.parquet").exists()
+
+    main(["train", "--config", str(cfg)])
+    assert (run_dir / "train" / "pai" / "checkpoint.ckpt").exists()
+
+    main(["test", "--config", str(cfg)])
+    preds = pd.read_parquet(run_dir / "test" / "predictions.parquet")
+    assert (preds["system"] == "pai").any()

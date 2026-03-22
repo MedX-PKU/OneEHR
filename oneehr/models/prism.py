@@ -13,6 +13,7 @@ Data preparation:
 
 from __future__ import annotations
 
+import json
 import math
 from typing import Any
 
@@ -543,3 +544,127 @@ def build_time_delta_tensor(
             t = min(arr.shape[0], max_len)
             td[i, :t, :] = torch.from_numpy(arr[:t])
     return td
+
+
+def _build_time_delta_map(
+    obs_mask: pd.DataFrame,
+    feat_cols: list[str],
+    *,
+    bin_size: str = "1d",
+    patient_ids: set[str] | None = None,
+) -> dict[str, np.ndarray]:
+    from oneehr.utils import parse_bin_size
+
+    if patient_ids is not None:
+        obs_mask = obs_mask[obs_mask["patient_id"].astype(str).isin(patient_ids)].copy()
+
+    mask_cols = [c for c in feat_cols if c in obs_mask.columns]
+    freq = parse_bin_size(bin_size)
+    td_unit = pd.Timedelta(freq)
+
+    time_delta_map: dict[str, np.ndarray] = {}
+    for pid, grp in obs_mask.groupby("patient_id", sort=False):
+        pid_str = str(pid)
+        grp = grp.sort_values("bin_time")
+        mask_vals = grp[mask_cols].values.astype(np.float32)
+        T, D = mask_vals.shape
+        td = np.full((T, D), 2.0, dtype=np.float32)
+        last_obs_time = np.full(D, -np.inf)
+        times = grp["bin_time"].values
+
+        for t in range(T):
+            for d_idx in range(D):
+                if mask_vals[t, d_idx] > 0.5:
+                    if last_obs_time[d_idx] != -np.inf:
+                        gap = (pd.Timestamp(times[t]) - pd.Timestamp(times[int(last_obs_time[d_idx])])) / td_unit
+                        td[t, d_idx] = min(float(gap), 2.0)
+                    else:
+                        td[t, d_idx] = 0.0
+                    last_obs_time[d_idx] = t
+        time_delta_map[pid_str] = td
+
+    return time_delta_map
+
+
+def prepare_prism_training_artifacts(
+    *,
+    model_cfg,
+    binned: pd.DataFrame,
+    feat_cols: list[str],
+    split,
+    run_dir,
+    preprocess_cfg,
+) -> dict[str, object]:
+    from oneehr.data.sequence import build_patient_sequences
+
+    feature_schema_path = run_dir / "preprocess" / "feature_schema.json"
+    obs_mask_path = run_dir / "preprocess" / "obs_mask.parquet"
+    feature_schema = json.loads(feature_schema_path.read_text(encoding="utf-8"))
+    obs_mask_df = pd.read_parquet(obs_mask_path)
+
+    train_pids = set(str(p) for p in split.train)
+    val_pids = set(str(p) for p in split.val)
+    prism_data = prepare_prism_inputs(
+        binned,
+        obs_mask_df,
+        feat_cols,
+        feature_schema,
+        train_pids,
+        n_clusters=int(model_cfg.params.get("n_clusters", 10)),
+        bin_size=preprocess_cfg.bin_size,
+    )
+
+    def _build_extra(patient_ids: set[str]) -> dict[str, torch.Tensor]:
+        subset = binned[binned["patient_id"].astype(str).isin(patient_ids)].copy()
+        seq_pids, _, lens = build_patient_sequences(subset, feat_cols)
+        max_len = int(lens.max()) if len(lens) else 0
+        return {
+            "obs_rates": prism_data["obs_rates"],
+            "time_delta": build_time_delta_tensor(
+                prism_data["time_delta_map"],
+                list(seq_pids),
+                max_len,
+                len(feat_cols),
+            ),
+        }
+
+    return {
+        "model_cfg": type(model_cfg)(
+            name=model_cfg.name,
+            params={**model_cfg.params, "dim_list": prism_data["dim_list"], "centers": prism_data["centers"]},
+        ),
+        "train_extra": _build_extra(train_pids),
+        "val_extra": _build_extra(val_pids),
+        "extra_meta": {"obs_rates": prism_data["obs_rates"].tolist()},
+    }
+
+
+def prepare_prism_inference_extra(
+    *,
+    meta: dict,
+    run_dir,
+    feat_cols: list[str],
+    patient_ids: list[str],
+    max_len: int,
+) -> dict[str, torch.Tensor]:
+    obs_rates_list = meta.get("extra", {}).get("obs_rates")
+    if obs_rates_list is None:
+        return {}
+
+    from oneehr.artifacts.manifest import read_manifest
+
+    manifest = read_manifest(run_dir)
+    bin_size = manifest.get("config", {}).get("preprocess", {}).get("bin_size", "1d")
+    obs_mask_path = run_dir / "preprocess" / "obs_mask.parquet"
+    obs_mask_df = pd.read_parquet(obs_mask_path)
+    td_map = _build_time_delta_map(
+        obs_mask_df,
+        feat_cols,
+        bin_size=bin_size,
+        patient_ids=set(str(pid) for pid in patient_ids),
+    )
+
+    return {
+        "obs_rates": torch.tensor(obs_rates_list, dtype=torch.float32),
+        "time_delta": build_time_delta_tensor(td_map, patient_ids, max_len, len(feat_cols)),
+    }

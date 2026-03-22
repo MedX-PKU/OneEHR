@@ -13,6 +13,7 @@ DL_MODELS: frozenset[str] = frozenset({
     "mlp", "adacare", "stagenet", "retain",
     "concare", "grasp", "mcgru", "dragent",
     "deepr", "mamba", "jamba", "prism",
+    "m3care", "safari", "pai",
 })
 
 
@@ -48,6 +49,15 @@ _DL_DEFAULTS: dict[str, dict] = {
     },
     "prism": {
         "hidden_dim": 32, "feat_dim": 8, "n_clusters": 10, "calib": True, "dropout": 0.0,
+    },
+    "m3care": {
+        "hidden_dim": 128, "num_heads": 4, "dim_feedforward": 256, "dropout": 0.1, "num_layers": 1,
+    },
+    "safari": {
+        "hidden_dim": 32, "dropout": 0.5,
+    },
+    "pai": {
+        "hidden_dim": 128, "num_layers": 1, "dropout": 0.0, "prompt_init": "median",
     },
 }
 
@@ -250,6 +260,43 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             n_clusters=int(params.get("n_clusters", 10)),
             calib=bool(params.get("calib", True)),
             dropout=float(params.get("dropout", 0.0)),
+        )
+
+    if name == "m3care":
+        mod = import_module("oneehr.models.m3care")
+        cls_name = "M3CareTimeModel" if is_time else "M3CareModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_heads=int(params.get("num_heads", 4)),
+            dim_feedforward=int(params.get("dim_feedforward", 256)),
+            dropout=float(params.get("dropout", 0.1)),
+            num_layers=int(params.get("num_layers", 1)),
+        )
+
+    if name == "safari":
+        mod = import_module("oneehr.models.safari")
+        cls_name = "SafariTimeModel" if is_time else "SafariModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 32)),
+            out_dim=out_dim,
+            dim_list=params.get("dim_list"),
+            static_dim=int(params.get("static_dim", 0)),
+            dropout=float(params.get("dropout", 0.5)),
+        )
+
+    if name == "pai":
+        mod = import_module("oneehr.models.pai")
+        cls_name = "PAITimeModel" if is_time else "PAIModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_layers=int(params.get("num_layers", 1)),
+            dropout=float(params.get("dropout", 0.0)),
+            prompt_init_values=params.get("prompt_init_values"),
         )
 
     raise ValueError(f"Unsupported DL model: {name!r}")
