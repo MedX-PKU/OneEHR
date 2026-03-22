@@ -72,6 +72,8 @@ def _build_loss(task: TaskConfig, class_weights: torch.Tensor | None = None):
         if task.loss == "focal":
             return FocalLossMulticlass(gamma=task.focal_gamma, weight=class_weights)
         return torch.nn.CrossEntropyLoss(reduction="none", weight=class_weights)
+    if task.kind == "multilabel":
+        return torch.nn.BCEWithLogitsLoss(reduction="none")
     if task.kind == "regression":
         return torch.nn.MSELoss(reduction="none")
     raise ValueError(f"Unsupported task.kind={task.kind!r}")

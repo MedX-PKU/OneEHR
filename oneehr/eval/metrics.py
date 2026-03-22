@@ -229,3 +229,54 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> MetricResult:
     out["rmse"] = float(np.sqrt(mse))
     out["r2"] = float(r2_score(y_true, y_pred))
     return MetricResult(metrics=out)
+
+
+# ---------------------------------------------------------------------------
+# Multi-label classification
+# ---------------------------------------------------------------------------
+
+def multilabel_metrics(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    *,
+    threshold: float = 0.5,
+) -> MetricResult:
+    """Multi-label classification metrics.
+
+    Parameters
+    ----------
+    y_true : (N, L) binary label matrix
+    y_score : (N, L) predicted probabilities
+    threshold : float
+        Binarization threshold for y_score.
+    """
+    from sklearn.metrics import (
+        accuracy_score,
+        f1_score,
+        hamming_loss,
+        precision_score,
+        recall_score,
+        roc_auc_score,
+    )
+
+    y_pred = (y_score >= threshold).astype(int)
+    out: dict[str, float] = {}
+
+    # Subset accuracy (exact match)
+    out["subset_accuracy"] = float(accuracy_score(y_true, y_pred))
+    out["hamming_loss"] = float(hamming_loss(y_true, y_pred))
+
+    for avg in ("macro", "micro", "weighted", "samples"):
+        out[f"f1_{avg}"] = float(f1_score(y_true, y_pred, average=avg, zero_division=0))
+        out[f"precision_{avg}"] = float(precision_score(y_true, y_pred, average=avg, zero_division=0))
+        out[f"recall_{avg}"] = float(recall_score(y_true, y_pred, average=avg, zero_division=0))
+
+    # AUROC
+    try:
+        out["auroc_macro"] = float(roc_auc_score(y_true, y_score, average="macro"))
+        out["auroc_micro"] = float(roc_auc_score(y_true, y_score, average="micro"))
+    except ValueError:
+        out["auroc_macro"] = float("nan")
+        out["auroc_micro"] = float("nan")
+
+    return MetricResult(metrics=out)
