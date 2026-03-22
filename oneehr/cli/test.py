@@ -371,7 +371,7 @@ def _compute_metrics(
     systems_cfg: list,
 ) -> dict:
     """Compute per-system metrics from prediction rows."""
-    from oneehr.eval.metrics import binary_metrics, regression_metrics
+    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, regression_metrics
 
     if not rows:
         return {"task": {"kind": task_kind, "prediction_mode": mode}, "systems": []}
@@ -399,6 +399,15 @@ def _compute_metrics(
 
         if task_kind == "binary":
             metrics = binary_metrics(y_true, y_pred).metrics
+        elif task_kind == "multiclass":
+            # For multiclass, y_pred columns may be stored as separate prob cols
+            prob_cols = [c for c in sdf.columns if c.startswith("y_prob_")]
+            if prob_cols:
+                y_probs = sdf[prob_cols].to_numpy(dtype=float)[finite]
+            else:
+                y_probs = y_pred  # fallback: argmax-style
+            num_classes = int(y_true.max()) + 1
+            metrics = multiclass_metrics(y_true.astype(int), y_probs, num_classes=num_classes).metrics
         else:
             metrics = regression_metrics(y_true, y_pred).metrics
 
