@@ -59,7 +59,7 @@ def _validate_config(cfg: ExperimentConfig) -> None:
         warns.append(f"dataset.label path does not exist: {cfg.dataset.label}")
 
     # --- Task ---
-    valid_kinds = ("binary", "regression", "multiclass")
+    valid_kinds = ("binary", "regression", "multiclass", "survival", "multilabel")
     if cfg.task.kind not in valid_kinds:
         errors.append(f"task.kind={cfg.task.kind!r} — expected one of {valid_kinds}")
     if cfg.task.kind == "multiclass" and (cfg.task.num_classes is None or cfg.task.num_classes < 2):
