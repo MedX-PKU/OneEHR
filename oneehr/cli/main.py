@@ -29,6 +29,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--style", default="default", choices=["default", "nature", "lancet", "wide"], help="Journal style preset")
     pl.add_argument("--output", default=None, help="Output directory for figures")
 
+    cv = sub.add_parser("convert", help="Convert a raw dataset into OneEHR three-table format")
+    cv.add_argument("--dataset", required=True, choices=["mimic3", "mimic4", "eicu"], help="Source dataset")
+    cv.add_argument("--raw-dir", required=True, help="Path to raw dataset directory")
+    cv.add_argument("--output-dir", required=True, help="Output directory for converted CSVs")
+    cv.add_argument("--task", default=None, help="Label task to export (default: all)")
+
     return parser
 
 
@@ -59,6 +65,10 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "plot":
         from oneehr.cli.plot import run_plot
         run_plot(args.config, figures=args.figure, style=args.style, output=args.output)
+
+    elif args.command == "convert":
+        from oneehr.cli.convert import run_convert
+        run_convert(args.dataset, args.raw_dir, args.output_dir, task=args.task)
 
     else:
         parser.print_help()
