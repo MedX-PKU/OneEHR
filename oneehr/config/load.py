@@ -50,13 +50,13 @@ def _validate_config(cfg: ExperimentConfig) -> None:
     errors: list[str] = []
     warns: list[str] = []
 
-    # --- Dataset paths ---
+    # --- Dataset paths (warn only — paths are checked at preprocess time) ---
     if cfg.dataset.dynamic is not None and not cfg.dataset.dynamic.exists():
-        errors.append(f"dataset.dynamic path does not exist: {cfg.dataset.dynamic}")
+        warns.append(f"dataset.dynamic path does not exist: {cfg.dataset.dynamic}")
     if cfg.dataset.static is not None and not cfg.dataset.static.exists():
-        errors.append(f"dataset.static path does not exist: {cfg.dataset.static}")
+        warns.append(f"dataset.static path does not exist: {cfg.dataset.static}")
     if cfg.dataset.label is not None and not cfg.dataset.label.exists():
-        errors.append(f"dataset.label path does not exist: {cfg.dataset.label}")
+        warns.append(f"dataset.label path does not exist: {cfg.dataset.label}")
 
     # --- Task ---
     valid_kinds = ("binary", "regression", "multiclass")
