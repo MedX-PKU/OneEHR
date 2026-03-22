@@ -10,7 +10,10 @@ import math
 
 import torch
 from torch import nn
+import torch.nn.functional as F
+from sklearn.cluster import KMeans
 
+from oneehr.models.graph import normalize_adjacency
 from oneehr.models.recurrent import last_by_lengths
 
 
@@ -58,12 +61,52 @@ class SafariMCGRU(nn.Module):
         return torch.stack(outputs, dim=1)
 
 
+class FeatureGraphRefiner(nn.Module):
+    """Cluster-aware feature graph refinement adapted from SAFARI."""
+
+    def __init__(self, hidden_dim: int, n_clu: int = 8):
+        super().__init__()
+        self.n_clu = n_clu
+        self.gcn_w1 = nn.Linear(hidden_dim, hidden_dim)
+        self.gcn_w2 = nn.Linear(hidden_dim, hidden_dim)
+        self.relu = nn.ReLU()
+
+    def _build_adjacency(self, tokens: torch.Tensor) -> torch.Tensor:
+        node_repr = tokens.mean(dim=0)
+        num_nodes = node_repr.size(0)
+        if num_nodes <= 1:
+            return torch.eye(num_nodes, device=tokens.device, dtype=tokens.dtype)
+
+        k = min(self.n_clu, num_nodes)
+        labels = KMeans(n_clusters=k, init="random", n_init=2, random_state=42).fit_predict(
+            node_repr.detach().cpu().numpy()
+        )
+        adj = torch.zeros(num_nodes, num_nodes, device=tokens.device, dtype=tokens.dtype)
+        norm_repr = F.normalize(node_repr, dim=-1)
+        sim = torch.matmul(norm_repr, norm_repr.transpose(0, 1)).clamp_min(0.0)
+
+        for clu in range(k):
+            idx = torch.as_tensor([i for i, label in enumerate(labels) if label == clu], device=tokens.device)
+            if idx.numel() == 0:
+                continue
+            adj[idx.unsqueeze(1), idx.unsqueeze(0)] = sim[idx.unsqueeze(1), idx.unsqueeze(0)]
+
+        return normalize_adjacency(adj)
+
+    def forward(self, tokens: torch.Tensor) -> torch.Tensor:
+        adj = self._build_adjacency(tokens)
+        h = self.relu(self.gcn_w1(torch.matmul(adj.unsqueeze(0), tokens)))
+        h = self.relu(self.gcn_w2(torch.matmul(adj.unsqueeze(0), h)))
+        return h
+
+
 class SafariBackbone(nn.Module):
     def __init__(
         self,
         input_dim: int,
         hidden_dim: int = 32,
         dim_list: list[int] | None = None,
+        n_clu: int = 8,
         static_dim: int = 0,
         dropout: float = 0.5,
     ):
@@ -71,6 +114,7 @@ class SafariBackbone(nn.Module):
         self.static_dim = static_dim
         self.dim_list = list(dim_list or [1] * input_dim)
         self.encoder = SafariMCGRU(self.dim_list, hidden_dim)
+        self.graph_refiner = FeatureGraphRefiner(hidden_dim, n_clu=n_clu)
         self.attention = FinalAttentionQKV(hidden_dim, dropout=dropout)
         self.output_proj = nn.Linear(hidden_dim, hidden_dim)
         self.dropout = nn.Dropout(dropout)
@@ -93,7 +137,8 @@ class SafariBackbone(nn.Module):
         if self.static_proj is not None and static is not None:
             static_token = self.feature_proj(self.relu(self.static_proj(static))).unsqueeze(1)
             tokens = torch.cat([tokens, static_token], dim=1)
-        context = self.attention(self.dropout(tokens))
+        graph_tokens = self.graph_refiner(self.dropout(tokens))
+        context = self.attention(graph_tokens)
         return self.relu(self.output_proj(self.dropout(context)))
 
 
@@ -106,6 +151,7 @@ class SafariModel(nn.Module):
         hidden_dim: int = 32,
         out_dim: int = 1,
         dim_list: list[int] | None = None,
+        n_clu: int = 8,
         static_dim: int = 0,
         dropout: float = 0.5,
     ):
@@ -115,6 +161,7 @@ class SafariModel(nn.Module):
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             dim_list=dim_list,
+            n_clu=n_clu,
             static_dim=static_dim,
             dropout=dropout,
         )

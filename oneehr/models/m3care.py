@@ -11,7 +11,9 @@ import math
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 
+from oneehr.models.graph import GraphConvolution, normalize_adjacency
 from oneehr.models.recurrent import last_by_lengths
 
 
@@ -60,6 +62,39 @@ class M3CareEncoder(nn.Module):
         return self.encoder(h, src_key_padding_mask=key_padding_mask)
 
 
+class NeighborGraphRefiner(nn.Module):
+    """Refine patient embeddings using an in-batch similarity graph."""
+
+    def __init__(self, hidden_dim: int):
+        super().__init__()
+        self.sim_proj = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.SELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.SELU(),
+        )
+        self.gcn1 = GraphConvolution(hidden_dim, hidden_dim)
+        self.gcn2 = GraphConvolution(hidden_dim, hidden_dim)
+        self.weight_graph = nn.Linear(hidden_dim, 1)
+        self.weight_residual = nn.Linear(hidden_dim, 1)
+
+    def _build_adjacency(self, x: torch.Tensor) -> torch.Tensor:
+        proj = F.normalize(self.sim_proj(x), dim=-1)
+        adj = torch.relu(torch.matmul(proj, proj.transpose(0, 1)))
+        return normalize_adjacency(adj)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.size(0) <= 1:
+            return x
+        adj = self._build_adjacency(x)
+        graph = torch.selu(self.gcn1(adj, x))
+        graph = torch.selu(self.gcn2(adj, graph))
+        w_graph = torch.sigmoid(self.weight_graph(graph))
+        w_resid = torch.sigmoid(self.weight_residual(x))
+        mix = w_graph / (w_graph + w_resid).clamp_min(1e-6)
+        return mix * graph + (1.0 - mix) * x
+
+
 class M3CareModel(nn.Module):
     """Patient-level M3Care."""
 
@@ -82,6 +117,7 @@ class M3CareModel(nn.Module):
             dropout=dropout,
             num_layers=num_layers,
         )
+        self.graph_refiner = NeighborGraphRefiner(hidden_dim)
         self.head = nn.Linear(hidden_dim, out_dim)
 
     def forward(
@@ -92,7 +128,8 @@ class M3CareModel(nn.Module):
     ) -> torch.Tensor:
         h = self.encoder(x, lengths)
         last = last_by_lengths(h, lengths)
-        return self.head(last)
+        refined = self.graph_refiner(last)
+        return self.head(refined)
 
 
 class M3CareTimeModel(nn.Module):

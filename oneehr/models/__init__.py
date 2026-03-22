@@ -54,7 +54,7 @@ _DL_DEFAULTS: dict[str, dict] = {
         "hidden_dim": 128, "num_heads": 4, "dim_feedforward": 256, "dropout": 0.1, "num_layers": 1,
     },
     "safari": {
-        "hidden_dim": 32, "dropout": 0.5,
+        "hidden_dim": 32, "n_clu": 8, "dropout": 0.5,
     },
     "pai": {
         "hidden_dim": 128, "num_layers": 1, "dropout": 0.0, "prompt_init": "median",
@@ -283,6 +283,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             hidden_dim=int(params.get("hidden_dim", 32)),
             out_dim=out_dim,
             dim_list=params.get("dim_list"),
+            n_clu=int(params.get("n_clu", 8)),
             static_dim=int(params.get("static_dim", 0)),
             dropout=float(params.get("dropout", 0.5)),
         )
