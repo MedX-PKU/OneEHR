@@ -11,6 +11,7 @@ TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "
 DL_MODELS: frozenset[str] = frozenset({
     "gru", "lstm", "rnn", "tcn", "transformer",
     "mlp", "cnn", "grud", "sand", "dipole", "hitanet", "lsan",
+    "mtand", "raindrop", "contiformer", "teco",
     "adacare", "stagenet", "retain",
     "concare", "grasp", "mcgru", "dragent",
     "deepr", "mamba", "jamba", "prism",
@@ -44,6 +45,13 @@ _DL_DEFAULTS: dict[str, dict] = {
     "dipole": {"hidden_dim": 128, "attention_type": "general", "dropout": 0.1},
     "hitanet": {"hidden_dim": 128, "dropout": 0.1},
     "lsan": {"hidden_dim": 128, "nhead": 4, "num_layers": 2, "kernel_size": 3, "dropout": 0.1},
+    "mtand": {"hidden_dim": 128, "num_heads": 4, "num_layers": 2, "dropout": 0.1},
+    "raindrop": {"hidden_dim": 128, "dropout": 0.1},
+    "contiformer": {"hidden_dim": 128, "num_heads": 4, "num_layers": 2, "dropout": 0.1},
+    "teco": {
+        "hidden_dim": 128, "nhead": 4, "num_layers": 2,
+        "dim_feedforward": 256, "dropout": 0.1, "static_dim": 0,
+    },
     "mlp": {"hidden_dim": 128, "dropout": 0.0},
     "adacare": {"hidden_dim": 128, "kernel_size": 2, "kernel_num": 64, "dropout": 0.5},
     "stagenet": {"chunk_size": 128, "levels": 3, "conv_size": 10, "dropout": 0.3},
@@ -213,6 +221,54 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             kernel_size=int(params.get("kernel_size", 3)),
             group_indices=params.get("group_indices"),
             group_names=params.get("group_names"),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "mtand":
+        mod = import_module("oneehr.models.mtand")
+        cls_name = "MTANDTimeModel" if is_time else "MTANDModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_heads=int(params.get("num_heads", 4)),
+            num_layers=int(params.get("num_layers", 2)),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "raindrop":
+        mod = import_module("oneehr.models.raindrop")
+        cls_name = "RaindropTimeModel" if is_time else "RaindropModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "contiformer":
+        mod = import_module("oneehr.models.contiformer")
+        cls_name = "ContiFormerTimeModel" if is_time else "ContiFormerModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_heads=int(params.get("num_heads", 4)),
+            num_layers=int(params.get("num_layers", 2)),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "teco":
+        mod = import_module("oneehr.models.teco")
+        cls_name = "TECOTimeModel" if is_time else "TECOModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            nhead=int(params.get("nhead", 4)),
+            num_layers=int(params.get("num_layers", 2)),
+            dim_feedforward=int(params.get("dim_feedforward", 256)),
+            static_dim=int(params.get("static_dim", 0)),
             dropout=float(params.get("dropout", 0.1)),
         )
 

@@ -146,6 +146,104 @@ def test_lsan(mode, expected_shape):
     ("patient", (B, OUT_DIM)),
     ("time", (B, T, OUT_DIM)),
 ])
+def test_mtand(mode, expected_shape):
+    from oneehr.models.mtand import MTANDModel, MTANDTimeModel
+
+    cls = MTANDTimeModel if mode == "time" else MTANDModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        num_heads=4,
+        num_layers=1,
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    missing_mask = torch.zeros(B, T, INPUT_DIM)
+    missing_mask[:, 2:, 1] = 1.0
+    time_delta = torch.rand(B, T, INPUT_DIM)
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    out = m(x, lengths, missing_mask=missing_mask, time_delta=time_delta, visit_time=visit_time)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_raindrop(mode, expected_shape):
+    from oneehr.models.raindrop import RaindropModel, RaindropTimeModel
+
+    cls = RaindropTimeModel if mode == "time" else RaindropModel
+    m = cls(input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM)
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    missing_mask = torch.zeros(B, T, INPUT_DIM)
+    missing_mask[:, 1:, 2] = 1.0
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    out = m(x, lengths, missing_mask=missing_mask, visit_time=visit_time)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_contiformer(mode, expected_shape):
+    from oneehr.models.contiformer import ContiFormerModel, ContiFormerTimeModel
+
+    cls = ContiFormerTimeModel if mode == "time" else ContiFormerModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        num_heads=4,
+        num_layers=1,
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    time_delta = torch.rand(B, T, INPUT_DIM)
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    out = m(x, lengths, time_delta=time_delta, visit_time=visit_time)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+@pytest.mark.parametrize("use_static", [False, True])
+def test_teco(mode, expected_shape, use_static):
+    from oneehr.models.teco import TECOModel, TECOTimeModel
+
+    cls = TECOTimeModel if mode == "time" else TECOModel
+    kwargs = {
+        "input_dim": INPUT_DIM,
+        "hidden_dim": HIDDEN,
+        "out_dim": OUT_DIM,
+        "nhead": 4,
+        "num_layers": 1,
+    }
+    if use_static:
+        kwargs["static_dim"] = 3
+    m = cls(**kwargs)
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    time_delta = torch.rand(B, T, INPUT_DIM)
+    static = torch.randn(B, 3) if use_static else None
+    out = m(x, lengths, static=static, visit_time=visit_time, time_delta=time_delta)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
 def test_deepr(mode, expected_shape):
     from oneehr.models.deepr import DeeprModel, DeeprTimeModel
 

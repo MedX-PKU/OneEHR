@@ -253,7 +253,7 @@ def _train_dl(
     from oneehr.data.tabular import has_static_branch
 
     # Auto-detect static_dim for models that support it
-    _STATIC_MODELS = {"concare", "grasp", "mcgru", "dragent", "prism", "safari"}
+    _STATIC_MODELS = {"concare", "grasp", "mcgru", "dragent", "prism", "safari", "teco"}
     if (
         model_name in _STATIC_MODELS
         and static_all is not None
