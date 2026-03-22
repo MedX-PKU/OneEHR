@@ -15,12 +15,14 @@ from pathlib import Path
 
 import pandas as pd
 
+import torch
+
 from oneehr.artifacts.manifest import write_manifest
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels
-from oneehr.data.splits import make_patient_index, make_split, save_split
-from oneehr.data.tabular import fit_transform_static_features
+from oneehr.data.splits import make_patient_index, make_split, save_split, load_split
+from oneehr.data.tabular import fit_pipeline, fit_transform_static_features
 from oneehr.utils import ensure_dir
 
 
@@ -80,6 +82,14 @@ def materialize_preprocess_artifacts(
     split = make_split(patient_index, cfg.split)
     save_split(split, pp_dir / "split.json")
 
+    # --- Fit preprocessing pipeline on train split ---
+    if dynamic is not None:
+        train_pids = set(load_split(pp_dir / "split.json").train.tolist())
+        train_mask = binned_df["patient_id"].astype(str).isin(train_pids)
+        X_train_for_pipeline = binned_df.loc[train_mask].copy()
+        fitted = fit_pipeline(X_train_for_pipeline, cfg.preprocess.pipeline)
+        torch.save(fitted, pp_dir / "fitted_pipeline.pt")
+
     # --- Static features ---
     static_feat_cols: list[str] | None = None
     if static is not None and not static.empty:
@@ -88,7 +98,8 @@ def materialize_preprocess_artifacts(
         id_like = [c for c in static.columns if str(c).lower() in {"patient_id", "patientid"}]
         static_raw = static.drop(columns=id_like, errors="ignore")
         static_all, _, _, static_art = fit_transform_static_features(
-            raw_train=static_raw, raw_val=None, raw_test=None, pipeline=[],
+            raw_train=static_raw, raw_val=None, raw_test=None,
+            pipeline=cfg.preprocess.pipeline,
         )
         static_feat_cols = list(static_all.columns)
         # Set patient_id as index before saving
