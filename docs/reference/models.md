@@ -1,6 +1,6 @@
 # Models Reference
 
-OneEHR ships 15 models: 2 tabular and 13 deep learning. All models are configured via `[[models]]` entries with a `name` and `params` dict.
+OneEHR ships a growing mix of tabular and deep learning models. All models are configured via `[[models]]` entries with a `name` and `params` dict.
 
 ---
 
@@ -23,6 +23,13 @@ OneEHR ships 15 models: 2 tabular and 13 deep learning. All models are configure
 | GRASP | `grasp` | DL | Yes | Yes | Yes |
 | MCGRU | `mcgru` | DL | Yes | Yes | Yes |
 | DrAgent | `dragent` | DL | Yes | Yes | Yes |
+| Deepr | `deepr` | DL | Yes | Yes | No |
+| EHR-Mamba | `mamba` | DL | Yes | Yes | No |
+| Jamba | `jamba` | DL | Yes | Yes | No |
+| PRISM | `prism` | DL | Yes | Yes | Yes |
+| M3Care | `m3care` | DL | Yes | Yes | No |
+| SAFARI | `safari` | DL | Yes | Yes | Yes |
+| PAI (GRU) | `pai` | DL | Yes | Yes | No |
 
 Models with a **static branch** automatically receive patient-level static features as a separate input tensor when `static.csv` is provided. The `static_dim` parameter is auto-detected from the static feature count.
 
@@ -354,3 +361,74 @@ lamda = 0.5
 | `dropout` | `float` | `0.5` | Dropout rate |
 | `lamda` | `float` | `0.5` | Mixing weight for agent-selected vs current hidden state |
 | `static_dim` | `int` | auto | Auto-detected from static features |
+
+### M3Care
+
+Transformer-style temporal encoder with sinusoidal positional encodings and in-batch neighbour graph refinement.
+
+> KDD 2022 reference-inspired implementation adapted to OneEHR's sequence contract.
+
+```toml
+[[models]]
+name = "m3care"
+[models.params]
+hidden_dim = 128
+num_heads = 4
+dim_feedforward = 256
+dropout = 0.1
+num_layers = 1
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | Sequence embedding size |
+| `num_heads` | `int` | `4` | Attention head count |
+| `dim_feedforward` | `int` | `256` | Feed-forward inner dimension |
+| `dropout` | `float` | `0.1` | Dropout rate |
+| `num_layers` | `int` | `1` | Number of encoder blocks |
+
+### SAFARI
+
+MCGRU-style grouped feature encoder with feature clustering, graph refinement, and attention pooling. Supports a dedicated static branch.
+
+> TKDE 2022 reference-inspired implementation adapted to OneEHR's grouped feature schema.
+
+```toml
+[[models]]
+name = "safari"
+[models.params]
+hidden_dim = 32
+n_clu = 8
+dropout = 0.5
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `32` | Group encoder and attention hidden size |
+| `n_clu` | `int` | `8` | Number of feature clusters used for the graph update |
+| `dropout` | `float` | `0.5` | Dropout rate |
+| `dim_list` | `list[int]` | auto | Auto-derived group widths from `feature_schema.json` |
+| `static_dim` | `int` | auto | Auto-detected from static features |
+
+### PAI
+
+Learnable Prompt as Pseudo-Imputation on top of the GRU backbone. Missing entries are replaced by a learned feature-wise prompt using `obs_mask.parquet`.
+
+> KDD 2025 plugin-style implementation restricted to the GRU base model in OneEHR.
+
+```toml
+[[models]]
+name = "pai"
+[models.params]
+hidden_dim = 128
+num_layers = 1
+dropout = 0.0
+prompt_init = "median"
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | GRU hidden state size |
+| `num_layers` | `int` | `1` | Number of stacked GRU layers |
+| `dropout` | `float` | `0.0` | Dropout between GRU layers |
+| `prompt_init` | `str` | `"median"` | Prompt initialisation: `median`, `zero`, or `random` |

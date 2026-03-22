@@ -48,17 +48,17 @@ This writes the run under `runs/tjh/`, including `manifest.json`, `preprocess/`,
 
 ## Models
 
-OneEHR ships 15 models: 2 tabular and 13 deep learning.
+OneEHR ships a growing model zoo across tabular and deep learning baselines.
 
-**Tabular:** XGBoost, CatBoost
+**Tabular:** XGBoost, CatBoost, Random Forest, Decision Tree, GBDT, Logistic Regression
 
-**Recurrent:** GRU, LSTM, RNN
+**Recurrent / sequence:** GRU, LSTM, RNN, M3Care, PAI (GRU + pseudo-imputation plugin)
 
-**Non-recurrent:** TCN, Transformer, MLP
+**Non-recurrent:** TCN, Transformer, MLP, Deepr, EHR-Mamba, Jamba
 
-**EHR-specialised:** AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent
+**EHR-specialised:** AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI
 
-Models with static branches (ConCare, GRASP, MCGRU, DrAgent) automatically use patient-level static features when `static.csv` is provided.
+Models with static branches (ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI) automatically use patient-level static features when `static.csv` is provided.
 
 ## Configuration Model
 
