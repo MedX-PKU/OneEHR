@@ -1,11 +1,32 @@
 [project]
 name = "oneehr"
 version = "0.1.0"
-description = "Platform for longitudinal EHR experiments across AI agents, LLM systems, and conventional ML/DL models"
+description = "Unified platform for longitudinal EHR experiments across ML, DL, and LLM agents"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-authors = [{ name = "OneEHR Contributors" }]
+authors = [{ name = "MedX Lab @ PKU" }]
+keywords = [
+  "ehr",
+  "electronic-health-records",
+  "clinical-prediction",
+  "machine-learning",
+  "deep-learning",
+  "llm",
+  "benchmarking",
+  "longitudinal",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Healthcare Industry",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
 
 dependencies = [
   "numpy>=1.24",
@@ -22,13 +43,24 @@ dependencies = [
   "matplotlib>=3.7",
   "seaborn>=0.13",
   "tqdm>=4.60",
+  "scipy>=1.10",
 ]
+
+[project.urls]
+Homepage = "https://github.com/MedXLab/OneEHR"
+Documentation = "https://medxlab.github.io/OneEHR"
+Repository = "https://github.com/MedXLab/OneEHR"
+Issues = "https://github.com/MedXLab/OneEHR/issues"
 
 [project.scripts]
 oneehr = "oneehr.cli.main:main"
 
 [project.optional-dependencies]
 docs = ["mkdocs @ git+https://github.com/encode/mkdocs.git"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
