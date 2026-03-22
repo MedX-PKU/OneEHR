@@ -244,6 +244,82 @@ def test_teco(mode, expected_shape, use_static):
     ("patient", (B, OUT_DIM)),
     ("time", (B, T, OUT_DIM)),
 ])
+def test_graphcare(mode, expected_shape):
+    from oneehr.models.graphcare import GraphCareModel, GraphCareTimeModel
+
+    cls = GraphCareTimeModel if mode == "time" else GraphCareModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        group_names=["g1", "g2", "g3"],
+        global_adj=torch.eye(3),
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    group_values = torch.randn(B, T, 3)
+    group_mask = torch.ones(B, T, 3)
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    out = m(x, lengths, group_values=group_values, group_mask=group_mask, visit_time=visit_time)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_kerprint(mode, expected_shape):
+    from oneehr.models.kerprint import KerPrintModel, KerPrintTimeModel
+
+    cls = KerPrintTimeModel if mode == "time" else KerPrintModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        group_names=["g1", "g2", "g3"],
+        global_adj=torch.eye(3),
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    group_values = torch.randn(B, T, 3)
+    group_mask = torch.ones(B, T, 3)
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    out = m(x, lengths, group_values=group_values, group_mask=group_mask, visit_time=visit_time)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_protoehr(mode, expected_shape):
+    from oneehr.models.protoehr import ProtoEHRModel, ProtoEHRTimeModel
+
+    cls = ProtoEHRTimeModel if mode == "time" else ProtoEHRModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        num_prototypes=4,
+        group_names=["g1", "g2", "g3"],
+        global_adj=torch.eye(3),
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    group_values = torch.randn(B, T, 3)
+    group_mask = torch.ones(B, T, 3)
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    out = m(x, lengths, group_values=group_values, group_mask=group_mask, visit_time=visit_time)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
 def test_deepr(mode, expected_shape):
     from oneehr.models.deepr import DeeprModel, DeeprTimeModel
 

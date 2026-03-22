@@ -116,8 +116,11 @@ def _build_inference_sequence_extra(
     feat_cols: list[str],
     patient_ids: list[str],
     max_len: int,
-    bin_size: str,
 ) -> dict[str, torch.Tensor]:
+    from oneehr.artifacts.manifest import read_manifest
+
+    manifest = read_manifest(run_dir)
+    bin_size = str(manifest.get("config", {}).get("preprocess", {}).get("bin_size", "1d"))
     obs_mask = load_obs_mask(run_dir)
     if obs_mask is None:
         raise ValueError("Model requires preprocess/obs_mask.parquet")
@@ -371,7 +374,6 @@ def build_inference_extra(
             feat_cols=feat_cols,
             patient_ids=patient_ids,
             max_len=max_len,
-            bin_size=str(meta.get("config", {}).get("preprocess", {}).get("bin_size", "1d")),
         )
 
     if model_name in {"hitanet", "mtand", "raindrop", "contiformer", "teco"}:
@@ -380,7 +382,6 @@ def build_inference_extra(
             feat_cols=feat_cols,
             patient_ids=patient_ids,
             max_len=max_len,
-            bin_size=str(meta.get("config", {}).get("preprocess", {}).get("bin_size", "1d")),
         )
 
     if model_name in {"graphcare", "kerprint", "protoehr"}:

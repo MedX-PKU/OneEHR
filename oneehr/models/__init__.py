@@ -12,6 +12,7 @@ DL_MODELS: frozenset[str] = frozenset({
     "gru", "lstm", "rnn", "tcn", "transformer",
     "mlp", "cnn", "grud", "sand", "dipole", "hitanet", "lsan",
     "mtand", "raindrop", "contiformer", "teco",
+    "graphcare", "kerprint", "protoehr",
     "adacare", "stagenet", "retain",
     "concare", "grasp", "mcgru", "dragent",
     "deepr", "mamba", "jamba", "prism",
@@ -51,6 +52,18 @@ _DL_DEFAULTS: dict[str, dict] = {
     "teco": {
         "hidden_dim": 128, "nhead": 4, "num_layers": 2,
         "dim_feedforward": 256, "dropout": 0.1, "static_dim": 0,
+    },
+    "graphcare": {
+        "hidden_dim": 128, "dropout": 0.1,
+        "kg_source": "lightweight", "kg_top_k": 6, "kg_min_cooccurrence": 2, "kg_ontology": "auto",
+    },
+    "kerprint": {
+        "hidden_dim": 128, "dropout": 0.1,
+        "kg_source": "lightweight", "kg_top_k": 6, "kg_min_cooccurrence": 2, "kg_ontology": "auto",
+    },
+    "protoehr": {
+        "hidden_dim": 128, "num_prototypes": 8, "dropout": 0.1,
+        "kg_source": "lightweight", "kg_top_k": 6, "kg_min_cooccurrence": 2, "kg_ontology": "auto",
     },
     "mlp": {"hidden_dim": 128, "dropout": 0.0},
     "adacare": {"hidden_dim": 128, "kernel_size": 2, "kernel_num": 64, "dropout": 0.5},
@@ -269,6 +282,46 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             num_layers=int(params.get("num_layers", 2)),
             dim_feedforward=int(params.get("dim_feedforward", 256)),
             static_dim=int(params.get("static_dim", 0)),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "graphcare":
+        mod = import_module("oneehr.models.graphcare")
+        cls_name = "GraphCareTimeModel" if is_time else "GraphCareModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            group_indices=params.get("group_indices"),
+            group_names=params.get("group_names"),
+            global_adj=params.get("global_adj"),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "kerprint":
+        mod = import_module("oneehr.models.kerprint")
+        cls_name = "KerPrintTimeModel" if is_time else "KerPrintModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            group_indices=params.get("group_indices"),
+            group_names=params.get("group_names"),
+            global_adj=params.get("global_adj"),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "protoehr":
+        mod = import_module("oneehr.models.protoehr")
+        cls_name = "ProtoEHRTimeModel" if is_time else "ProtoEHRModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_prototypes=int(params.get("num_prototypes", 8)),
+            group_indices=params.get("group_indices"),
+            group_names=params.get("group_names"),
+            global_adj=params.get("global_adj"),
             dropout=float(params.get("dropout", 0.1)),
         )
 
