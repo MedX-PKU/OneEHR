@@ -73,6 +73,7 @@ def fit_model(
     static=None,
     train_extra: dict[str, torch.Tensor] | None = None,
     val_extra: dict[str, torch.Tensor] | None = None,
+    max_seq_length: int | None = None,
 ) -> tuple[object, dict]:
     """Train a DL model and return (trained_model, val_metrics_dict).
 
@@ -97,9 +98,11 @@ def fit_model(
     if mode == "patient":
         X_train, len_train, y_train, static_train = _prep_patient(
             binned_train, feat_cols, y_map or {}, split.train, static if use_static else None,
+            max_seq_length=max_seq_length,
         )
         X_val, len_val, y_val, static_val = _prep_patient(
             binned_val, feat_cols, y_map or {}, split.val, static if use_static else None,
+            max_seq_length=max_seq_length,
         )
         mask_train = mask_val = None
     else:
@@ -110,9 +113,11 @@ def fit_model(
 
         X_train, len_train, y_train, mask_train, static_train = _prep_time(
             binned_train, labels_train, feat_cols, split.train, static if use_static else None,
+            max_seq_length=max_seq_length,
         )
         X_val, len_val, y_val, mask_val, static_val = _prep_time(
             binned_val, labels_val, feat_cols, split.val, static if use_static else None,
+            max_seq_length=max_seq_length,
         )
 
     # Training loop
@@ -266,10 +271,10 @@ def _run_epoch(model, X, L, y, S, mask, loss_fn, optim, cfg, device, *, train: b
     return total_loss / max(total_denom, 1.0)
 
 
-def _prep_patient(binned, feat_cols, y_map, patient_ids, static):
+def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_length=None):
     from oneehr.data.sequence import build_patient_sequences, pad_sequences
 
-    pids, seqs, lens = build_patient_sequences(binned, feat_cols)
+    pids, seqs, lens = build_patient_sequences(binned, feat_cols, max_seq_length=max_seq_length)
     X_seq = pad_sequences(seqs, lens)
     lens_t = torch.from_numpy(lens)
 
@@ -292,12 +297,13 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static):
     return X_seq, lens_t, y, static_t
 
 
-def _prep_time(binned, labels_df, feat_cols, patient_ids, static):
+def _prep_time(binned, labels_df, feat_cols, patient_ids, static, *, max_seq_length=None):
     from oneehr.data.sequence import build_time_sequences, pad_sequences
     import numpy as np
 
     pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
         binned, labels_df, feat_cols, label_time_col="bin_time",
+        max_seq_length=max_seq_length,
     )
     X_seq = pad_sequences(seqs, lens)
     Y_seq = pad_sequences([yy[:, None] for yy in y_seqs], lens).squeeze(-1)

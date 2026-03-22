@@ -104,6 +104,26 @@ def bin_events(
             "Try adjusting `code_selection`, increasing `top_k_codes`, or decreasing `min_code_count`."
         )
 
+    # Filter patients with too few events.
+    min_events = preprocess.min_events_per_patient
+    if min_events > 1:
+        event_counts = df.groupby("patient_id").size()
+        keep_pids = event_counts[event_counts >= min_events].index
+        n_before = df["patient_id"].nunique()
+        df = df[df["patient_id"].isin(keep_pids)].copy()
+        n_after = df["patient_id"].nunique()
+        if n_after < n_before:
+            import warnings
+            warnings.warn(
+                f"min_events_per_patient={min_events}: dropped {n_before - n_after} patients "
+                f"({n_before} → {n_after})",
+                stacklevel=2,
+            )
+        if df.empty:
+            raise ValueError(
+                f"No patients left after min_events_per_patient={min_events} filter."
+            )
+
     # Infer type per code.
     code_types: dict[str, str] = {}
     for code, g in df.groupby("code", sort=False):
@@ -118,21 +138,30 @@ def bin_events(
         numeric = df[df["code"].isin(numeric_codes)].copy()
         numeric["value_num"] = pd.to_numeric(numeric["value"], errors="coerce")
         numeric = numeric.dropna(subset=["value_num"])
-        if preprocess.numeric_strategy == "mean":
-            agg = (
-                numeric.groupby(["patient_id", "bin_time", "code"], sort=False)["value_num"]
-                .mean()
-                .reset_index()
-            )
-        elif preprocess.numeric_strategy == "last":
+        strategy = preprocess.numeric_strategy
+        grp = numeric.groupby(["patient_id", "bin_time", "code"], sort=False)["value_num"]
+        if strategy == "mean":
+            agg = grp.mean().reset_index()
+        elif strategy == "last":
             numeric = numeric.sort_values(["patient_id", "event_time"], kind="stable")
-            agg = (
-                numeric.groupby(["patient_id", "bin_time", "code"], sort=False)["value_num"]
-                .last()
-                .reset_index()
-            )
+            grp = numeric.groupby(["patient_id", "bin_time", "code"], sort=False)["value_num"]
+            agg = grp.last().reset_index()
+        elif strategy == "median":
+            agg = grp.median().reset_index()
+        elif strategy == "min":
+            agg = grp.min().reset_index()
+        elif strategy == "max":
+            agg = grp.max().reset_index()
+        elif strategy == "std":
+            agg = grp.std().reset_index()
+            agg["value_num"] = agg["value_num"].fillna(0.0)
+        elif strategy == "count":
+            agg = grp.count().reset_index()
         else:
-            raise ValueError(f"Unsupported preprocess.numeric_strategy={preprocess.numeric_strategy!r}")
+            raise ValueError(
+                f"Unsupported preprocess.numeric_strategy={strategy!r}. "
+                "Expected one of: mean, last, median, min, max, std, count."
+            )
 
         wide = agg.pivot(index=["patient_id", "bin_time"], columns="code", values="value_num")
         wide = wide.add_prefix("num__").reset_index()

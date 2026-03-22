@@ -8,7 +8,30 @@ import pandas as pd
 import torch
 
 
-def build_patient_sequences(binned: pd.DataFrame, feature_columns: list[str]):
+def _truncate_seqs(
+    seqs: list[np.ndarray], lengths: np.ndarray, max_len: int | None,
+) -> tuple[list[np.ndarray], np.ndarray]:
+    """Truncate sequences to at most *max_len* time steps (keep most recent)."""
+    if max_len is None or max_len <= 0:
+        return seqs, lengths
+    new_seqs = []
+    new_lengths = np.empty(len(seqs), dtype=np.int64)
+    for i, s in enumerate(seqs):
+        if s.shape[0] > max_len:
+            new_seqs.append(s[-max_len:])
+            new_lengths[i] = max_len
+        else:
+            new_seqs.append(s)
+            new_lengths[i] = s.shape[0]
+    return new_seqs, new_lengths
+
+
+def build_patient_sequences(
+    binned: pd.DataFrame,
+    feature_columns: list[str],
+    *,
+    max_seq_length: int | None = None,
+):
     """Build variable-length sequences per patient from binned table."""
 
     required = {"patient_id", "bin_time"}
@@ -22,6 +45,7 @@ def build_patient_sequences(binned: pd.DataFrame, feature_columns: list[str]):
     patient_ids = [str(pid) for pid, _ in groups]
     seqs = [g[feature_columns].to_numpy(dtype=np.float32) for _, g in groups]
     lengths = np.array([len(s) for s in seqs], dtype=np.int64)
+    seqs, lengths = _truncate_seqs(seqs, lengths, max_seq_length)
     return patient_ids, seqs, lengths
 
 
@@ -54,6 +78,7 @@ def build_time_sequences(
     feature_columns: list[str],
     *,
     label_time_col: str = "bin_time",
+    max_seq_length: int | None = None,
 ):
     """Build variable-length sequences per patient with N-N labels.
 
@@ -107,6 +132,17 @@ def build_time_sequences(
     y_seqs = [g["_label"].to_numpy(dtype=np.float32) for _, g in groups]
     mask_seqs = [g["_mask"].to_numpy(dtype=np.float32) for _, g in groups]
     lengths = np.array([len(s) for s in seqs], dtype=np.int64)
+
+    # Truncate to most recent max_seq_length bins.
+    if max_seq_length is not None and max_seq_length > 0:
+        for i in range(len(seqs)):
+            if seqs[i].shape[0] > max_seq_length:
+                seqs[i] = seqs[i][-max_seq_length:]
+                y_seqs[i] = y_seqs[i][-max_seq_length:]
+                mask_seqs[i] = mask_seqs[i][-max_seq_length:]
+                time_seqs[i] = time_seqs[i][-max_seq_length:]
+                lengths[i] = max_seq_length
+
     return patient_ids, time_seqs, seqs, y_seqs, mask_seqs, lengths
 
 

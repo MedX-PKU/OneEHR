@@ -293,6 +293,7 @@ def _train_dl(
             static=static_all if model_supports_static else None,
             train_extra=prepared.train_extra,
             val_extra=prepared.val_extra,
+            max_seq_length=cfg.preprocess.max_seq_length,
         )
     else:
         trained_model, train_metrics = fit_model(
@@ -303,6 +304,7 @@ def _train_dl(
             static=static_all if model_supports_static else None,
             train_extra=prepared.train_extra,
             val_extra=prepared.val_extra,
+            max_seq_length=cfg.preprocess.max_seq_length,
         )
 
     # Build params for checkpoint (exclude non-serializable tensors).
