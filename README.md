@@ -1,6 +1,11 @@
 # OneEHR
 
-OneEHR is a Python platform for longitudinal EHR experiments. It provides shared infrastructure for preprocessing, modeling, testing, and analysis across conventional ML/DL models and LLM systems on one shared run contract.
+[![CI](https://github.com/MedXLab/OneEHR/actions/workflows/ci.yml/badge.svg)](https://github.com/MedXLab/OneEHR/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](https://medxlab.github.io/OneEHR)
+
+OneEHR is a unified Python platform for longitudinal EHR experiments across ML, DL, and LLM agents. It provides shared infrastructure for preprocessing, modeling, testing, and analysis on one shared run contract — the first toolkit bridging classical machine learning, deep learning, and agentic AI for clinical prediction.
 
 ## Workflow At A Glance
 
