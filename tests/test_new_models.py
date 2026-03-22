@@ -100,6 +100,52 @@ def test_dipole(mode, expected_shape, attention_type):
     ("patient", (B, OUT_DIM)),
     ("time", (B, T, OUT_DIM)),
 ])
+def test_hitanet(mode, expected_shape):
+    from oneehr.models.hitanet import HiTANetModel, HiTANetTimeModel
+
+    cls = HiTANetTimeModel if mode == "time" else HiTANetModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        group_indices=[[0, 1], [2], [3]],
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    visit_time = torch.arange(T, dtype=torch.float32).repeat(B, 1)
+    time_delta = torch.rand(B, T, INPUT_DIM)
+    out = m(x, lengths, visit_time=visit_time, time_delta=time_delta)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_lsan(mode, expected_shape):
+    from oneehr.models.lsan import LSANModel, LSANTimeModel
+
+    cls = LSANTimeModel if mode == "time" else LSANModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        nhead=4,
+        num_layers=1,
+        group_indices=[[0, 1], [2], [3]],
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    out = m(x, lengths)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
 def test_deepr(mode, expected_shape):
     from oneehr.models.deepr import DeeprModel, DeeprTimeModel
 

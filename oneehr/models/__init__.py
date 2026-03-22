@@ -10,7 +10,7 @@ from oneehr.config.schema import ModelConfig, TaskConfig
 TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt", "lr"})
 DL_MODELS: frozenset[str] = frozenset({
     "gru", "lstm", "rnn", "tcn", "transformer",
-    "mlp", "cnn", "grud", "sand", "dipole",
+    "mlp", "cnn", "grud", "sand", "dipole", "hitanet", "lsan",
     "adacare", "stagenet", "retain",
     "concare", "grasp", "mcgru", "dragent",
     "deepr", "mamba", "jamba", "prism",
@@ -42,6 +42,8 @@ _DL_DEFAULTS: dict[str, dict] = {
         "dim_feedforward": 256, "kernel_size": 3, "interp_points": 8, "dropout": 0.1,
     },
     "dipole": {"hidden_dim": 128, "attention_type": "general", "dropout": 0.1},
+    "hitanet": {"hidden_dim": 128, "dropout": 0.1},
+    "lsan": {"hidden_dim": 128, "nhead": 4, "num_layers": 2, "kernel_size": 3, "dropout": 0.1},
     "mlp": {"hidden_dim": 128, "dropout": 0.0},
     "adacare": {"hidden_dim": 128, "kernel_size": 2, "kernel_num": 64, "dropout": 0.5},
     "stagenet": {"chunk_size": 128, "levels": 3, "conv_size": 10, "dropout": 0.3},
@@ -184,6 +186,33 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             hidden_dim=int(params.get("hidden_dim", 128)),
             out_dim=out_dim,
             attention_type=str(params.get("attention_type", "general")),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "hitanet":
+        mod = import_module("oneehr.models.hitanet")
+        cls_name = "HiTANetTimeModel" if is_time else "HiTANetModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            group_indices=params.get("group_indices"),
+            group_names=params.get("group_names"),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "lsan":
+        mod = import_module("oneehr.models.lsan")
+        cls_name = "LSANTimeModel" if is_time else "LSANModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            nhead=int(params.get("nhead", 4)),
+            num_layers=int(params.get("num_layers", 2)),
+            kernel_size=int(params.get("kernel_size", 3)),
+            group_indices=params.get("group_indices"),
+            group_names=params.get("group_names"),
             dropout=float(params.get("dropout", 0.1)),
         )
 
