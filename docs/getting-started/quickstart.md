@@ -21,7 +21,7 @@ The TJH example ships three experiment configs:
 
 | Config | Task | Mode | Models |
 |--------|------|------|--------|
-| `mortality_patient.toml` | Binary mortality | Patient (N-1) | All 15 |
+| `mortality_patient.toml` | Binary mortality | Patient (N-1) | 15 DL + tabular |
 | `mortality_time.toml` | Binary mortality | Time (N-N) | xgboost + gru |
 | `los_time.toml` | Remaining LOS regression | Time (N-N) | xgboost + gru |
 

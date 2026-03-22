@@ -65,11 +65,11 @@ Models with static branches (ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI) auto
 OneEHR uses TOML as the experiment contract. The main sections are:
 
 - `[dataset]` for input table paths (`dynamic`, `static`, `label`)
-- `[preprocess]` for binning and feature building
+- `[preprocess]` for binning, feature building, and preprocessing pipeline
 - `[task]` for task kind and prediction mode
 - `[split]` for patient-level train/val/test splitting
 - `[[models]]` for model selection with per-model `params`
-- `[trainer]` for DL training configuration
+- `[trainer]` for DL training configuration (including configurable early stopping metric)
 - `[[systems]]` for LLM/agent system definitions
 - `[output]` for run root and run name
 
