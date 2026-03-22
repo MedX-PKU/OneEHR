@@ -18,6 +18,8 @@ class PreprocessConfig:
     categorical_strategy: str = "onehot"  # onehot | count
     code_selection: str = "frequency"  # frequency | all | list
     top_k_codes: int = 100
+    min_code_count: int = 1
+    pipeline: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,8 @@ class TrainerConfig:
     precision: str = "fp32"
     early_stopping: bool = True
     patience: int = 5
+    monitor: str = "val_loss"  # val_loss | val_auroc | val_auprc | val_rmse | val_mae
+    monitor_mode: str = "min"  # min | max (auto-set for known metrics)
 
 
 @dataclass(frozen=True)

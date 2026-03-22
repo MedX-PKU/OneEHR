@@ -1,4 +1,4 @@
-"""Tabular views, postprocess pipeline, static features, and feature utilities.
+"""Tabular views, preprocessing pipeline, static features, and feature utilities.
 
 Merged from: tabular.py, postprocess.py, static_postprocess.py, features.py
 """
@@ -82,12 +82,16 @@ def make_time_tabular(binned: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd
     return X, y, key
 
 
-# ─── Postprocess pipeline ────────────────────────────────────────────────────
+# ─── Preprocessing pipeline ─────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
-class FittedPostprocess:
+class FittedPipeline:
     pipeline: list[dict[str, object]]
+
+
+# Legacy alias
+FittedPostprocess = FittedPipeline
 
 
 def _select_columns(X: pd.DataFrame, spec: str | list[str] | None) -> list[str]:
@@ -99,9 +103,6 @@ def _select_columns(X: pd.DataFrame, spec: str | list[str] | None) -> list[str]:
         raise ValueError("step.cols must be a string, list[str], or null")
 
     if spec.endswith("*"):
-        prefix = spec[:-1]
-        return [c for c in X.columns if str(c).startswith(prefix)]
-    if spec in {"num__*", "cat__*"}:
         prefix = spec[:-1]
         return [c for c in X.columns if str(c).startswith(prefix)]
     if spec in X.columns:
@@ -150,8 +151,8 @@ def _fit_fill_values(
     raise ValueError(f"Unsupported fill strategy={strategy!r}. Expected mean|median|mode|constant")
 
 
-def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, object]]) -> FittedPostprocess:
-    """Fit post-merge preprocessing steps on training split only."""
+def fit_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, object]]) -> FittedPipeline:
+    """Fit preprocessing steps on training split only."""
 
     X = X_train.copy()
     fitted_steps: list[dict[str, object]] = []
@@ -241,6 +242,31 @@ def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, obj
             X.loc[:, cols] = X[cols].clip(lower=lo, upper=hi, axis=1)
             continue
 
+        if op == "zscore_filter":
+            _ensure_numeric_frame(X, cols)
+            threshold = float(step.get("threshold", 3.0))
+            mean = X[cols].mean(axis=0, skipna=True)
+            std = X[cols].std(axis=0, ddof=0, skipna=True).replace(0.0, 1.0)
+            fitted_steps.append({"op": "zscore_filter", "cols": cols, "threshold": threshold, "mean": mean, "std": std})
+            z = (X[cols] - mean).abs() / std
+            X = X.copy()
+            X.loc[:, cols] = X[cols].where(z <= threshold, other=np.nan)
+            continue
+
+        if op == "normalize_label":
+            label_col = step.get("col", "label")
+            if label_col not in X.columns:
+                fitted_steps.append({"op": "normalize_label", "col": label_col, "mean": 0.0, "std": 1.0})
+                continue
+            mean = float(X[label_col].mean(skipna=True))
+            std = float(X[label_col].std(ddof=0, skipna=True))
+            if std == 0.0:
+                std = 1.0
+            fitted_steps.append({"op": "normalize_label", "col": label_col, "mean": mean, "std": std})
+            X = X.copy()
+            X[label_col] = (X[label_col] - mean) / std
+            continue
+
         if op == "knn_impute":
             from sklearn.impute import KNNImputer
 
@@ -297,14 +323,26 @@ def fit_postprocess_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, obj
 
         raise ValueError(f"Unsupported preprocess.pipeline op={op!r}")
 
-    return FittedPostprocess(pipeline=fitted_steps)
+    return FittedPipeline(pipeline=fitted_steps)
 
 
-def transform_postprocess_pipeline(X: pd.DataFrame, fitted: FittedPostprocess) -> pd.DataFrame:
+# Legacy alias
+fit_postprocess_pipeline = fit_pipeline
+
+
+def transform_pipeline(X: pd.DataFrame, fitted: FittedPipeline) -> pd.DataFrame:
     X_out = X.copy()
     for step in fitted.pipeline:
         op = str(step["op"])
         cols = list(step.get("cols") or [])
+        if op == "normalize_label":
+            col = step["col"]
+            if col not in X_out.columns:
+                continue
+            mean, std = step["mean"], step["std"]
+            X_out = X_out.copy()
+            X_out[col] = (X_out[col] - mean) / std
+            continue
         if not cols:
             continue
         if op == "standardize":
@@ -339,6 +377,13 @@ def transform_postprocess_pipeline(X: pd.DataFrame, fitted: FittedPostprocess) -
             X_out.loc[:, cols] = X_out[cols].clip(lower=step.get("lower"), upper=step.get("upper"))
         elif op == "winsorize":
             X_out.loc[:, cols] = X_out[cols].clip(lower=step["lo"], upper=step["hi"], axis=1)
+        elif op == "zscore_filter":
+            mean = step["mean"]
+            std = step["std"]
+            threshold = step["threshold"]
+            z = (X_out[cols] - mean).abs() / std
+            X_out = X_out.copy()
+            X_out.loc[:, cols] = X_out[cols].where(z <= threshold, other=np.nan)
         elif op == "knn_impute":
             imputer = step["imputer"]
             X_out = X_out.copy()
@@ -360,19 +405,8 @@ def transform_postprocess_pipeline(X: pd.DataFrame, fitted: FittedPostprocess) -
     return X_out
 
 
-def maybe_fit_transform_postprocess(
-    X_train: pd.DataFrame,
-    X_val: pd.DataFrame | None,
-    X_test: pd.DataFrame | None,
-    pipeline: list[dict[str, object]],
-) -> tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, FittedPostprocess | None]:
-    if not pipeline:
-        return X_train, X_val, X_test, None
-    fitted = fit_postprocess_pipeline(X_train, pipeline)
-    X_train_t = transform_postprocess_pipeline(X_train, fitted)
-    X_val_t = None if X_val is None else transform_postprocess_pipeline(X_val, fitted)
-    X_test_t = None if X_test is None else transform_postprocess_pipeline(X_test, fitted)
-    return X_train_t, X_val_t, X_test_t, fitted
+# Legacy alias
+transform_postprocess_pipeline = transform_pipeline
 
 
 # ─── Static feature processing ───────────────────────────────────────────────
@@ -386,11 +420,11 @@ class StaticArtifacts:
     raw_cols: list[str]
     feature_columns: list[str]
     feature_columns_sha256: str
-    fitted_postprocess: FittedPostprocess | None
+    fitted_pipeline: FittedPipeline | None
 
 
 def _encode_static_categoricals(raw: pd.DataFrame) -> pd.DataFrame:
-    """Turn raw static columns into numeric columns compatible with postprocess."""
+    """Turn raw static columns into numeric columns compatible with pipeline."""
 
     if raw.empty:
         return raw.copy()
@@ -424,7 +458,7 @@ def fit_transform_static_features(
     *,
     pipeline: list[dict[str, object]],
 ) -> tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None, StaticArtifacts]:
-    """Fit static feature encoder + postprocess on train only, then transform all splits."""
+    """Fit static feature encoder + pipeline on train only, then transform all splits."""
     from oneehr.utils import sha256_lines
 
     X_train0 = _encode_static_categoricals(raw_train)
@@ -441,12 +475,14 @@ def fit_transform_static_features(
     X_val0 = None if X_val0 is None else X_val0.reindex(columns=cols).fillna(0.0)
     X_test0 = None if X_test0 is None else X_test0.reindex(columns=cols).fillna(0.0)
 
-    X_train, X_val, X_test, fitted_post = maybe_fit_transform_postprocess(
-        X_train=X_train0,
-        X_val=X_val0,
-        X_test=X_test0,
-        pipeline=pipeline,
-    )
+    if pipeline:
+        fitted_post = fit_pipeline(X_train0, pipeline)
+        X_train = transform_pipeline(X_train0, fitted_post)
+        X_val = None if X_val0 is None else transform_pipeline(X_val0, fitted_post)
+        X_test = None if X_test0 is None else transform_pipeline(X_test0, fitted_post)
+    else:
+        X_train, X_val, X_test = X_train0, X_val0, X_test0
+        fitted_post = None
 
     feat_cols = list(X_train.columns)
     artifacts = StaticArtifacts(
@@ -454,6 +490,6 @@ def fit_transform_static_features(
         raw_cols=list(raw_train.columns),
         feature_columns=feat_cols,
         feature_columns_sha256=sha256_lines(feat_cols),
-        fitted_postprocess=fitted_post,
+        fitted_pipeline=fitted_post,
     )
     return X_train, X_val, X_test, artifacts
