@@ -17,18 +17,25 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from oneehr.visualization._utils import load_analysis_json
 from oneehr.visualization.calibration_plot import plot_calibration
+from oneehr.visualization.cohort_flow import plot_cohort_flow
 from oneehr.visualization.confusion import plot_confusion_grid, plot_confusion_matrix
+from oneehr.visualization.decision_curve import plot_decision_curve
+from oneehr.visualization.fairness_plot import plot_fairness_radar
 from oneehr.visualization.forest import plot_forest
 from oneehr.visualization.importance import plot_feature_importance, plot_shap_beeswarm
+from oneehr.visualization.missing_heatmap import plot_missing_heatmap, plot_missingness_bar
 from oneehr.visualization.pr import plot_pr
 from oneehr.visualization.roc import plot_roc
+from oneehr.visualization.significance import plot_significance_matrix
 from oneehr.visualization.training_curves import (
     plot_training_curves,
     plot_training_curves_multi,
 )
 
 __all__ = [
+    # Tier 1
     "plot_roc",
     "plot_pr",
     "plot_forest",
@@ -39,6 +46,14 @@ __all__ = [
     "plot_confusion_grid",
     "plot_training_curves",
     "plot_training_curves_multi",
+    # Tier 2
+    "plot_fairness_radar",
+    "plot_missing_heatmap",
+    "plot_missingness_bar",
+    "plot_decision_curve",
+    "plot_significance_matrix",
+    "plot_cohort_flow",
+    # API
     "render_figure",
     "list_figures",
 ]
@@ -83,6 +98,32 @@ _FIGURE_REGISTRY: dict[str, dict[str, Any]] = {
         "fn": "_render_training_curves",
         "requires": "train",
         "description": "Loss/metric curves over epochs",
+    },
+    # Tier 2
+    "fairness": {
+        "fn": "_render_fairness",
+        "requires": "analyze/fairness.json",
+        "description": "Fairness radar chart across subgroups",
+    },
+    "missing_data": {
+        "fn": "_render_missing_data",
+        "requires": "preprocess/binned.parquet",
+        "description": "Missing data heatmap and bar chart",
+    },
+    "decision_curve": {
+        "fn": "_render_decision_curve",
+        "requires": "test/predictions.parquet",
+        "description": "Decision curve analysis (net benefit)",
+    },
+    "significance": {
+        "fn": "_render_significance",
+        "requires": "analyze/statistical_tests.json",
+        "description": "Pairwise p-value significance matrix",
+    },
+    "cohort_flow": {
+        "fn": "_render_cohort_flow",
+        "requires": "preprocess/split.json",
+        "description": "CONSORT-style cohort flow diagram",
     },
 }
 
@@ -185,3 +226,43 @@ def _render_training_curves(*, run_dir: Path, style: str, save_dir: Path, **kw: 
             save_path=save_dir / f"training_{model_dir.name}.png",
             **kw,
         )
+
+
+def _render_fairness(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) -> None:
+    fairness_data = load_analysis_json(run_dir, "fairness")
+    systems = fairness_data.get("systems", [])
+    for sys_info in systems:
+        name = sys_info["name"]
+        plot_fairness_radar(
+            fairness_data, system=name, style=style,
+            save_path=save_dir / f"fairness_{name}.png",
+            **kw,
+        )
+
+
+def _render_missing_data(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) -> None:
+    binned = run_dir / "preprocess" / "binned.parquet"
+    try:
+        plot_missingness_bar(binned, style=style, save_path=save_dir / "missingness_bar.png", **kw)
+    except ValueError:
+        pass  # No missing data.
+    try:
+        plot_missing_heatmap(binned, style=style, save_path=save_dir / "missing_heatmap.png", **kw)
+    except ValueError:
+        pass
+
+
+def _render_decision_curve(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) -> None:
+    preds = run_dir / "test" / "predictions.parquet"
+    plot_decision_curve(preds, style=style, save_path=save_dir / "decision_curve.png", **kw)
+
+
+def _render_significance(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) -> None:
+    stats_data = load_analysis_json(run_dir, "statistical_tests")
+    plot_significance_matrix(
+        stats_data, style=style, save_path=save_dir / "significance.png", **kw,
+    )
+
+
+def _render_cohort_flow(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) -> None:
+    plot_cohort_flow(run_dir, style=style, save_path=save_dir / "cohort_flow.png", **kw)
