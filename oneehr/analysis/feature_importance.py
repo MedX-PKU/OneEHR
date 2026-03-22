@@ -299,3 +299,45 @@ def attention_importance(
         importances=np.asarray(imp, dtype=float),
         details=None,
     )
+
+
+def permutation_importance(
+    model: Any,
+    X: pd.DataFrame | np.ndarray,
+    y: np.ndarray,
+    *,
+    scoring: str = "roc_auc",
+    n_repeats: int = 10,
+    seed: int = 0,
+    feature_names: list[str] | None = None,
+) -> FeatureImportanceResult:
+    """Compute permutation importance (model-agnostic).
+
+    Uses sklearn's permutation_importance under the hood.
+    Works with any model that has a `predict` or `predict_proba` method.
+    """
+    from sklearn.inspection import permutation_importance as sklearn_perm_imp
+
+    if isinstance(X, pd.DataFrame):
+        feats = list(X.columns) if feature_names is None else feature_names
+        X_arr = X.to_numpy()
+    else:
+        X_arr = np.asarray(X)
+        feats = feature_names if feature_names is not None else [f"f{i}" for i in range(X_arr.shape[1])]
+
+    result = sklearn_perm_imp(
+        model, X_arr, y,
+        scoring=scoring,
+        n_repeats=n_repeats,
+        random_state=seed,
+    )
+
+    return FeatureImportanceResult(
+        method=f"permutation:{scoring}",
+        input_kind="tabular",
+        feature_names=feats,
+        importances=np.asarray(result.importances_mean, dtype=float),
+        details={
+            "importances_std": result.importances_std.tolist(),
+        },
+    )

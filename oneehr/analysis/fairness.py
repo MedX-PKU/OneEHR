@@ -47,6 +47,22 @@ def _equalized_odds_diff(
     return float(max(max(tprs) - min(tprs), max(fprs) - min(fprs)))
 
 
+def _predictive_parity_diff(
+    groups: dict[str, tuple[np.ndarray, np.ndarray]],
+) -> float:
+    """Max absolute difference of PPV (precision) across groups."""
+    ppvs = []
+    for y_true, y_pred in groups.values():
+        y_hat = (y_pred >= 0.5).astype(int)
+        tp = ((y_hat == 1) & (y_true == 1)).sum()
+        fp = ((y_hat == 1) & (y_true == 0)).sum()
+        ppv = tp / max(tp + fp, 1)
+        ppvs.append(ppv)
+    if len(ppvs) < 2:
+        return 0.0
+    return float(max(ppvs) - min(ppvs))
+
+
 def _smd_predictions(groups: dict[str, np.ndarray]) -> float:
     """Standardized mean difference of predictions between groups."""
     means = []
@@ -78,7 +94,8 @@ def compute_fairness(
     ----------
     preds : predictions.parquet with columns: patient_id, system, y_true, y_pred
     static : static.parquet with patient_id index or column
-    sensitive_columns : override auto-detected sensitive columns
+    sensitive_columns : override auto-detected sensitive columns.
+        If provided, only these columns are analyzed (no auto-detection).
     """
     if sensitive_columns is None:
         sensitive_columns = _detect_sensitive_columns(static)
@@ -133,6 +150,7 @@ def compute_fairness(
                 "groups": group_metrics,
                 "demographic_parity_diff": _demographic_parity_diff(pred_groups),
                 "equalized_odds_diff": _equalized_odds_diff(truepred_groups),
+                "predictive_parity_diff": _predictive_parity_diff(truepred_groups),
                 "smd_predictions": _smd_predictions(pred_groups),
             }
 
