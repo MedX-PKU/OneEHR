@@ -97,9 +97,13 @@ def materialize_preprocess_artifacts(
             raise ValueError("static.csv missing required column: patient_id")
         id_like = [c for c in static.columns if str(c).lower() in {"patient_id", "patientid"}]
         static_raw = static.drop(columns=id_like, errors="ignore")
+        # Filter pipeline ops that require time ordering (forward_fill)
+        # since static features are patient-level only
+        _TIME_OPS = {"forward_fill"}
+        static_pipeline = [s for s in cfg.preprocess.pipeline if s.get("op") not in _TIME_OPS]
         static_all, _, _, static_art = fit_transform_static_features(
             raw_train=static_raw, raw_val=None, raw_test=None,
-            pipeline=cfg.preprocess.pipeline,
+            pipeline=static_pipeline,
         )
         static_feat_cols = list(static_all.columns)
         # Set patient_id as index before saving
