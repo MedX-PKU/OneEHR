@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -119,6 +121,13 @@ def pad_sequences(seqs: list[np.ndarray], lengths: np.ndarray):
     # Fill any NaNs in the padded tensor (some datasets may still contain NaNs
     # after preprocessing, and they can poison DL training/inference).
     if np.isnan(out).any():
+        nan_count = int(np.isnan(out).sum())
+        warnings.warn(
+            f"pad_sequences: {nan_count} residual NaN values found after preprocessing. "
+            "Consider adding an impute step to your pipeline config. "
+            "Filling with 0 as safety net.",
+            stacklevel=2,
+        )
         out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
     # Ensure the returned tensor is writable/contiguous.
     return torch.from_numpy(out.copy())
