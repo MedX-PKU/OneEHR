@@ -9,7 +9,7 @@ OneEHR is a unified Python platform for longitudinal EHR experiments across ML, 
 
 ## Key Features
 
-- **25 model architectures** — tabular ML, recurrent/non-recurrent DL, EHR-specialised, and survival models
+- **38 model architectures** — tabular ML, recurrent/non-recurrent DL, irregular-time, KG-enhanced, and survival models
 - **Unified ML/DL/LLM comparison** — all predictions in one `predictions.parquet` with bootstrap CI and statistical tests
 - **Dataset converters** — built-in support for MIMIC-III, MIMIC-IV, and eICU
 - **Medical code ontologies** — ICD-9/10 mapping, CCS grouping, ATC drug hierarchy
@@ -89,17 +89,19 @@ Each converter produces labels for mortality, readmission, and length-of-stay ta
 
 ## Models
 
-OneEHR ships 25 model architectures:
+OneEHR ships 38 model architectures:
 
 | Category | Models |
 |----------|--------|
 | **Tabular ML** | XGBoost, CatBoost, Random Forest, Decision Tree, GBDT, Logistic Regression |
-| **Recurrent** | GRU, LSTM, RNN, M3Care, PAI |
-| **Non-recurrent** | TCN, Transformer, MLP, Deepr, EHR-Mamba, Jamba |
+| **Recurrent** | GRU, LSTM, RNN, GRU-D, Dipole, HiTANet, M3Care, PAI |
+| **Non-recurrent** | CNN, TCN, Transformer, SAnD, MLP, Deepr, EHR-Mamba, Jamba, LSAN |
+| **Irregular-time** | mTAND, Raindrop, ContiFormer, TECO |
 | **EHR-specialised** | AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI |
+| **KG-enhanced** | GraphCare, KerPrint, ProtoEHR |
 | **Survival** | DeepSurv, DeepHit |
 
-Models with static branches (ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI) automatically use patient-level static features when `static.csv` is provided.
+Models with static branches (ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI, TECO) automatically use patient-level static features when `static.csv` is provided.
 
 ## Task Types
 

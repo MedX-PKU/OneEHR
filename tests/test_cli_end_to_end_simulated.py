@@ -205,3 +205,171 @@ run_name = "pai_e2e"
     main(["test", "--config", str(cfg)])
     preds = pd.read_parquet(run_dir / "test" / "predictions.parquet")
     assert (preds["system"] == "pai").any()
+
+
+def test_full_pipeline_grud(tmp_path: Path) -> None:
+    dynamic_csv = _make_dynamic_with_missing(tmp_path)
+    label_csv = _make_label(tmp_path)
+    out_root = tmp_path / "runs"
+    cfg = tmp_path / "grud.toml"
+    cfg.write_text(f"""
+[dataset]
+dynamic = "{dynamic_csv}"
+label = "{label_csv}"
+
+[preprocess]
+bin_size = "1d"
+top_k_codes = 20
+
+[task]
+kind = "binary"
+prediction_mode = "patient"
+
+[split]
+kind = "random"
+seed = 42
+val_size = 0.2
+test_size = 0.2
+
+[[models]]
+name = "grud"
+[models.params]
+hidden_dim = 8
+
+[trainer]
+device = "cpu"
+seed = 42
+max_epochs = 1
+batch_size = 16
+early_stopping = false
+
+[output]
+root = "{out_root}"
+run_name = "grud_e2e"
+""", encoding="utf-8")
+
+    from oneehr.cli.main import main
+
+    main(["preprocess", "--config", str(cfg)])
+    run_dir = out_root / "grud_e2e"
+    assert (run_dir / "preprocess" / "obs_mask.parquet").exists()
+
+    main(["train", "--config", str(cfg)])
+    assert (run_dir / "train" / "grud" / "checkpoint.ckpt").exists()
+
+    main(["test", "--config", str(cfg)])
+    preds = pd.read_parquet(run_dir / "test" / "predictions.parquet")
+    assert (preds["system"] == "grud").any()
+
+
+def test_full_pipeline_raindrop(tmp_path: Path) -> None:
+    dynamic_csv = _make_dynamic_with_missing(tmp_path)
+    label_csv = _make_label(tmp_path)
+    out_root = tmp_path / "runs"
+    cfg = tmp_path / "raindrop.toml"
+    cfg.write_text(f"""
+[dataset]
+dynamic = "{dynamic_csv}"
+label = "{label_csv}"
+
+[preprocess]
+bin_size = "1d"
+top_k_codes = 20
+
+[task]
+kind = "binary"
+prediction_mode = "patient"
+
+[split]
+kind = "random"
+seed = 42
+val_size = 0.2
+test_size = 0.2
+
+[[models]]
+name = "raindrop"
+[models.params]
+hidden_dim = 8
+
+[trainer]
+device = "cpu"
+seed = 42
+max_epochs = 1
+batch_size = 16
+early_stopping = false
+
+[output]
+root = "{out_root}"
+run_name = "raindrop_e2e"
+""", encoding="utf-8")
+
+    from oneehr.cli.main import main
+
+    main(["preprocess", "--config", str(cfg)])
+    run_dir = out_root / "raindrop_e2e"
+    assert (run_dir / "preprocess" / "obs_mask.parquet").exists()
+
+    main(["train", "--config", str(cfg)])
+    assert (run_dir / "train" / "raindrop" / "checkpoint.ckpt").exists()
+
+    main(["test", "--config", str(cfg)])
+    preds = pd.read_parquet(run_dir / "test" / "predictions.parquet")
+    assert (preds["system"] == "raindrop").any()
+
+
+def test_full_pipeline_graphcare(tmp_path: Path) -> None:
+    dynamic_csv = _make_dynamic(tmp_path)
+    label_csv = _make_label(tmp_path)
+    out_root = tmp_path / "runs"
+    cfg = tmp_path / "graphcare.toml"
+    cfg.write_text(f"""
+[dataset]
+dynamic = "{dynamic_csv}"
+label = "{label_csv}"
+
+[preprocess]
+bin_size = "1d"
+top_k_codes = 20
+
+[task]
+kind = "binary"
+prediction_mode = "patient"
+
+[split]
+kind = "random"
+seed = 42
+val_size = 0.2
+test_size = 0.2
+
+[[models]]
+name = "graphcare"
+[models.params]
+hidden_dim = 8
+kg_source = "lightweight"
+kg_top_k = 4
+kg_min_cooccurrence = 1
+
+[trainer]
+device = "cpu"
+seed = 42
+max_epochs = 1
+batch_size = 16
+early_stopping = false
+
+[output]
+root = "{out_root}"
+run_name = "graphcare_e2e"
+""", encoding="utf-8")
+
+    from oneehr.cli.main import main
+
+    main(["preprocess", "--config", str(cfg)])
+    run_dir = out_root / "graphcare_e2e"
+    assert (run_dir / "preprocess" / "feature_schema.json").exists()
+
+    main(["train", "--config", str(cfg)])
+    assert (run_dir / "train" / "graphcare" / "checkpoint.ckpt").exists()
+
+    main(["test", "--config", str(cfg)])
+    preds = pd.read_parquet(run_dir / "test" / "predictions.parquet")
+    assert (preds["system"] == "graphcare").any()

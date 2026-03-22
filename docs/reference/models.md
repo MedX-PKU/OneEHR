@@ -1,6 +1,6 @@
 # Models Reference
 
-OneEHR ships 25 model architectures across tabular ML, deep learning, EHR-specialised, and survival analysis. All models are configured via `[[models]]` entries with a `name` and `params` dict.
+OneEHR ships 38 model architectures across tabular ML, deep learning, irregular-time modeling, KG-enhanced EHR modeling, and survival analysis. All models are configured via `[[models]]` entries with a `name` and `params` dict.
 
 ---
 
@@ -17,8 +17,18 @@ OneEHR ships 25 model architectures across tabular ML, deep learning, EHR-specia
 | GRU | `gru` | DL | Yes | Yes | No |
 | LSTM | `lstm` | DL | Yes | Yes | No |
 | RNN | `rnn` | DL | Yes | Yes | No |
+| GRU-D | `grud` | DL | Yes | Yes | No |
+| CNN | `cnn` | DL | Yes | Yes | No |
 | TCN | `tcn` | DL | Yes | Yes | No |
 | Transformer | `transformer` | DL | Yes | Yes | No |
+| SAnD | `sand` | DL | Yes | Yes | No |
+| Dipole | `dipole` | DL | Yes | Yes | No |
+| HiTANet | `hitanet` | DL | Yes | Yes | No |
+| LSAN | `lsan` | DL | Yes | Yes | No |
+| mTAND | `mtand` | DL | Yes | Yes | No |
+| Raindrop | `raindrop` | DL | Yes | Yes | No |
+| ContiFormer | `contiformer` | DL | Yes | Yes | No |
+| TECO | `teco` | DL | Yes | Yes | Yes |
 | MLP | `mlp` | DL | Yes | Yes | No |
 | AdaCare | `adacare` | DL | Yes | Yes | No |
 | StageNet | `stagenet` | DL | Yes | Yes | No |
@@ -34,10 +44,35 @@ OneEHR ships 25 model architectures across tabular ML, deep learning, EHR-specia
 | M3Care | `m3care` | DL | Yes | Yes | No |
 | SAFARI | `safari` | DL | Yes | Yes | Yes |
 | PAI (GRU) | `pai` | DL | Yes | Yes | No |
+| GraphCare | `graphcare` | DL / KG | Yes | Yes | No |
+| KerPrint | `kerprint` | DL / KG | Yes | Yes | No |
+| ProtoEHR | `protoehr` | DL / KG | Yes | Yes | No |
 | DeepSurv | `deepsurv` | DL / Survival | Yes | No | No |
 | DeepHit | `deephit` | DL / Survival | Yes | No | No |
 
 Models with a **static branch** automatically receive patient-level static features as a separate input tensor when `static.csv` is provided. The `static_dim` parameter is auto-detected from the static feature count.
+
+## Recent Additions
+
+The latest model family additions concentrate on three gaps in longitudinal EHR benchmarking: missing-aware recurrent baselines, irregular-time encoders, and lightweight KG-enhanced architectures.
+
+| Model | Config | Summary | Key params |
+|-------|--------|---------|------------|
+| GRU-D | `grud` | Missing-aware GRU with trainable decay and observed-feature means | `hidden_dim`, `dropout` |
+| CNN | `cnn` | Lightweight temporal convolution baseline | `hidden_dim`, `num_layers`, `kernel_size` |
+| SAnD | `sand` | Self-attention with causal convolution and dense interpolation pooling | `d_model`, `nhead`, `interp_points` |
+| Dipole | `dipole` | Bidirectional GRU with location/general/concat attention | `hidden_dim`, `attention_type` |
+| HiTANet | `hitanet` | Grouped visit encoder with hierarchical time-aware attention | `hidden_dim` |
+| LSAN | `lsan` | Grouped visit encoder with long/short-term fusion | `hidden_dim`, `nhead`, `kernel_size` |
+| mTAND | `mtand` | Relative-time attention for irregular sequences | `hidden_dim`, `num_heads`, `num_layers` |
+| Raindrop | `raindrop` | Graph-guided sensor message passing over irregular observations | `hidden_dim` |
+| ContiFormer | `contiformer` | Continuous-time state updates followed by time-biased attention | `hidden_dim`, `num_heads`, `num_layers` |
+| TECO | `teco` | Encounter-level transformer with optional static token | `hidden_dim`, `nhead`, `static_dim` |
+| GraphCare | `graphcare` | Lightweight patient-specific KG summarization with temporal fusion | `hidden_dim`, `kg_source`, `kg_top_k`, `kg_ontology` |
+| KerPrint | `kerprint` | Local/global KG summaries with time-aware knowledge gating | `hidden_dim`, `kg_source`, `kg_top_k`, `kg_ontology` |
+| ProtoEHR | `protoehr` | KG-enhanced patient modeling with concept/visit/patient prototypes | `hidden_dim`, `num_prototypes`, `kg_source`, `kg_top_k`, `kg_ontology` |
+
+For KG-enhanced models, `kg_source = "lightweight"` builds an internal concept graph from train-split co-occurrence plus available ontology hints. `kg_source = "external"` reads a user-supplied graph from `external_kg_path`.
 
 ---
 

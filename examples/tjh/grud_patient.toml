@@ -1,0 +1,37 @@
+[dataset]
+dynamic = "examples/tjh/dynamic.csv"
+static = "examples/tjh/static.csv"
+label = "examples/tjh/label_mortality.csv"
+
+[preprocess]
+bin_size = "1d"
+top_k_codes = 100
+
+[task]
+kind = "binary"
+prediction_mode = "patient"
+
+[split]
+kind = "random"
+seed = 42
+val_size = 0.1
+test_size = 0.2
+
+[[models]]
+name = "grud"
+[models.params]
+hidden_dim = 64
+dropout = 0.1
+
+[trainer]
+device = "cpu"
+seed = 42
+max_epochs = 5
+batch_size = 32
+lr = 1e-3
+early_stopping = true
+patience = 3
+
+[output]
+root = "runs"
+run_name = "tjh_grud_patient"
