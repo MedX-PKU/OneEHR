@@ -36,6 +36,8 @@ Controls how irregular events are binned and features are built.
 | `categorical_strategy` | `str` | `"onehot"` | Encoding for categorical values: `onehot` or `count` |
 | `code_selection` | `str` | `"frequency"` | Code vocabulary strategy: `frequency`, `all`, or `list` |
 | `top_k_codes` | `int` | `100` | Number of top codes for `frequency` selection |
+| `min_code_count` | `int` | `1` | Minimum event count for a code to be included in the vocabulary |
+| `pipeline` | `list[dict]` | `[]` | Ordered list of preprocessing ops applied after binning (see below) |
 
 ```toml
 [preprocess]
@@ -44,6 +46,49 @@ numeric_strategy = "mean"
 categorical_strategy = "onehot"
 code_selection = "frequency"
 top_k_codes = 100
+min_code_count = 1
+```
+
+### Preprocessing Pipeline
+
+The `pipeline` field defines an ordered sequence of preprocessing operations fitted on the train split and applied to all splits. When `pipeline` is empty (the default), numeric features are filled with 0 at train/test time as a safety net.
+
+Each step is a TOML table with an `op` key and operation-specific parameters. The `cols` parameter supports glob patterns (`"num__*"`, `"cat__*"`), explicit lists, or `null` (all columns).
+
+Supported operations:
+
+| Op | Description | Key params |
+|----|-------------|------------|
+| `impute` | Fill NaN with a statistic | `strategy` (`mean`, `median`, `mode`, `constant`), `value` |
+| `forward_fill` | LOCF within patient + fallback | `group_key`, `order_key`, `fallback.strategy` |
+| `standardize` | Z-score normalization | _(none)_ |
+| `zscore_filter` | Replace outliers beyond threshold with NaN | `threshold` (default `3.0`) |
+| `normalize_label` | Z-score the label column (regression) | `col` (default `"label"`) |
+| `winsorize` | Quantile-based outlier clipping | `lower_q`, `upper_q` |
+| `clip` | Hard value clipping | `lower`, `upper` |
+| `knn_impute` | KNN imputation | `n_neighbors` |
+| `iterative_impute` | MICE imputation | `max_iter` |
+| `robust_scale` | Median/IQR scaling | _(none)_ |
+| `quantile_norm` | Quantile normalization | `output_distribution`, `n_quantiles` |
+
+Example: LOCF with mean fallback (recommended for time-series EHR):
+
+```toml
+[preprocess]
+pipeline = [
+  { op = "forward_fill", cols = "num__*", group_key = "patient_id", order_key = "bin_time", fallback = { strategy = "mean" } },
+]
+```
+
+Example: Outlier handling + imputation + normalization:
+
+```toml
+[preprocess]
+pipeline = [
+  { op = "zscore_filter", cols = "num__*", threshold = 3.0 },
+  { op = "impute", cols = "num__*", strategy = "median" },
+  { op = "standardize", cols = "num__*" },
+]
 ```
 
 ---
@@ -136,6 +181,8 @@ Training loop configuration for deep learning models.
 | `precision` | `str` | `"fp32"` | `fp32` or `bf16` |
 | `early_stopping` | `bool` | `true` | Enable early stopping |
 | `patience` | `int` | `5` | Epochs without improvement before stopping |
+| `monitor` | `str` | `"val_loss"` | Metric for early stopping: `val_loss`, `val_auroc`, `val_auprc`, `val_rmse`, `val_mae` |
+| `monitor_mode` | `str` | `"min"` | `min` (lower is better) or `max` (higher is better) |
 
 ```toml
 [trainer]
@@ -147,6 +194,18 @@ lr = 1e-3
 early_stopping = true
 patience = 5
 ```
+
+Monitor AUROC instead of loss for binary tasks:
+
+```toml
+[trainer]
+monitor = "val_auroc"
+monitor_mode = "max"
+early_stopping = true
+patience = 10
+```
+
+The trainer tracks a per-epoch history of `train_loss`, `val_loss`, and the monitored metric (if not `val_loss`). This history is saved in `meta.json` under `train_metrics.history`.
 
 ---
 
