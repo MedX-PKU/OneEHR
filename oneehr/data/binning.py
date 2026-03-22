@@ -40,6 +40,7 @@ def _select_code_vocab(
     preprocess: PreprocessConfig,
 ) -> list[str]:
     code_counts = df["code"].value_counts()
+    code_counts = code_counts[code_counts >= preprocess.min_code_count]
 
     selection = preprocess.code_selection
     if selection == "all":
@@ -204,11 +205,10 @@ def bin_events(
     id_cols = [c for c in ["patient_id", "bin_time"] if c in out.columns]
     obs_mask = pd.concat([out[id_cols].reset_index(drop=True), obs_mask.reset_index(drop=True)], axis=1)
 
-    # Fill missing numeric features with 0, categorical with 0.
+    # Fill missing categorical features with 0 (absence indicator).
+    # Numeric features keep NaN — imputation is handled by the pipeline.
     for col in out.columns:
         if col.startswith("cat__"):
-            out[col] = out[col].fillna(0.0)
-        elif col.startswith("num__"):
             out[col] = out[col].fillna(0.0)
 
     return BinnedTable(table=out, code_vocab=code_vocab, feature_schema=feature_schema, obs_mask=obs_mask)
