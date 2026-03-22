@@ -23,6 +23,12 @@ def _build_parser() -> argparse.ArgumentParser:
     an.add_argument("--config", required=True, help="Path to TOML config")
     an.add_argument("--module", default=None, help="Analysis module name (comparison, feature_importance)")
 
+    pl = sub.add_parser("plot", help="Render publication-quality figures")
+    pl.add_argument("--config", required=True, help="Path to TOML config")
+    pl.add_argument("--figure", nargs="*", default=None, help="Figure name(s) to render (default: all available)")
+    pl.add_argument("--style", default="default", choices=["default", "nature", "lancet", "wide"], help="Journal style preset")
+    pl.add_argument("--output", default=None, help="Output directory for figures")
+
     return parser
 
 
@@ -49,6 +55,10 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "analyze":
         from oneehr.cli.analyze import run_analyze
         run_analyze(args.config, module=args.module)
+
+    elif args.command == "plot":
+        from oneehr.cli.plot import run_plot
+        run_plot(args.config, figures=args.figure, style=args.style, output=args.output)
 
     else:
         parser.print_help()

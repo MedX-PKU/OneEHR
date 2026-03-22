@@ -1,0 +1,67 @@
+"""ROC curve visualization with multi-system overlay and bootstrap CI."""
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn.metrics import roc_auc_score, roc_curve
+
+from oneehr.visualization._style import get_palette, new_figure, save_and_close
+from oneehr.visualization._utils import bootstrap_curve, system_predictions
+
+
+def _roc_xy(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    fpr, tpr, _ = roc_curve(y_true, y_pred)
+    return fpr, tpr
+
+
+def plot_roc(
+    predictions: pd.DataFrame | Path,
+    *,
+    systems: list[str] | None = None,
+    ci: bool = True,
+    n_boot: int = 200,
+    ax: plt.Axes | None = None,
+    style: str = "default",
+    figsize: tuple[float, float] | None = None,
+    save_path: str | Path | None = None,
+    title: str = "ROC Curves",
+) -> plt.Figure:
+    """Multi-system ROC curves with AUC in legend and optional CI shading."""
+    if isinstance(predictions, (str, Path)):
+        predictions = pd.read_parquet(predictions)
+
+    fig, ax = new_figure(style=style, figsize=figsize, ax=ax)
+    names = systems or sorted(predictions["system"].unique())
+    palette = get_palette(len(names), style)
+
+    for i, name in enumerate(names):
+        y_true, y_pred = system_predictions(predictions, name)
+        if len(y_true) == 0 or len(np.unique(y_true)) < 2:
+            continue
+
+        fpr, tpr, _ = roc_curve(y_true, y_pred)
+        auc = roc_auc_score(y_true, y_pred)
+        ax.plot(fpr, tpr, color=palette[i], lw=1.5,
+                label=f"{name} (AUC={auc:.3f})")
+
+        if ci:
+            x_common, y_low, y_high = bootstrap_curve(
+                y_true, y_pred, _roc_xy, n_boot=n_boot,
+            )
+            ax.fill_between(x_common, y_low, y_high,
+                            color=palette[i], alpha=0.12)
+
+    ax.plot([0, 1], [0, 1], "k--", lw=0.8, alpha=0.4, label="Random")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title(title)
+    ax.legend(loc="lower right", frameon=True, framealpha=0.9)
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.02, 1.02)
+
+    fig.tight_layout()
+    save_and_close(fig, save_path)
+    return fig
