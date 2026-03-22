@@ -16,6 +16,24 @@ import torch
 from oneehr.utils import ensure_dir, write_json
 
 
+def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
+    """Load fitted pipeline and apply to dataframe, then fill residual NaN."""
+    pipeline_path = run_dir / "preprocess" / "fitted_pipeline.pt"
+    if not pipeline_path.exists():
+        for col in df.columns:
+            if col.startswith("num__"):
+                df[col] = df[col].fillna(0.0)
+        return df
+
+    from oneehr.data.tabular import transform_pipeline
+    fitted = torch.load(pipeline_path, weights_only=False)
+    df = transform_pipeline(df, fitted)
+    for col in df.columns:
+        if col.startswith("num__"):
+            df[col] = df[col].fillna(0.0)
+    return df
+
+
 def run_test(cfg_path: str, force: bool) -> None:
     from oneehr.config.load import load_experiment_config
 
@@ -40,8 +58,9 @@ def run_test(cfg_path: str, force: bool) -> None:
     if not test_pids:
         raise SystemExit("No test patients in split.")
 
-    # Load preprocessed data
+    # Load preprocessed data and apply pipeline
     binned = pd.read_parquet(run_dir / "preprocess" / "binned.parquet")
+    binned = _apply_pipeline(run_dir, binned)
     labels_path = run_dir / "preprocess" / "labels.parquet"
     labels_df = pd.read_parquet(labels_path) if labels_path.exists() else None
 
