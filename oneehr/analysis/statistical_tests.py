@@ -1,4 +1,4 @@
-"""Statistical tests for pairwise model comparison: DeLong and McNemar."""
+"""Statistical tests for pairwise model comparison: DeLong, McNemar, bootstrap CI."""
 
 from __future__ import annotations
 
@@ -82,8 +82,123 @@ def _mcnemar_test(
     return float(chi2), float(p)
 
 
-def compute_statistical_tests(*, preds: pd.DataFrame) -> dict:
-    """Run pairwise DeLong and McNemar tests between all systems."""
+# ---------------------------------------------------------------------------
+# Bootstrap confidence intervals
+# ---------------------------------------------------------------------------
+
+def bootstrap_metric_ci(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    metric_fn,
+    *,
+    n_bootstrap: int = 1000,
+    confidence: float = 0.95,
+    seed: int = 42,
+) -> dict[str, float]:
+    """Compute bootstrap confidence interval for a metric function.
+
+    Parameters
+    ----------
+    metric_fn : callable(y_true, y_pred) -> float
+    """
+    rng = np.random.default_rng(seed)
+    n = len(y_true)
+    scores = []
+    for _ in range(n_bootstrap):
+        idx = rng.integers(0, n, size=n)
+        try:
+            s = metric_fn(y_true[idx], y_pred[idx])
+            if np.isfinite(s):
+                scores.append(s)
+        except Exception:
+            continue
+
+    if not scores:
+        return {"mean": float("nan"), "ci_lower": float("nan"), "ci_upper": float("nan")}
+
+    scores = np.array(scores)
+    alpha = (1 - confidence) / 2
+    return {
+        "mean": float(np.mean(scores)),
+        "ci_lower": float(np.percentile(scores, 100 * alpha)),
+        "ci_upper": float(np.percentile(scores, 100 * (1 - alpha))),
+        "std": float(np.std(scores)),
+    }
+
+
+def bootstrap_all_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    task_kind: str = "binary",
+    n_bootstrap: int = 1000,
+    seed: int = 42,
+) -> dict[str, dict[str, float]]:
+    """Compute bootstrap CI for all standard metrics."""
+    from sklearn.metrics import roc_auc_score, average_precision_score, matthews_corrcoef
+
+    results = {}
+    if task_kind == "binary":
+        metric_fns = {
+            "auroc": lambda yt, yp: roc_auc_score(yt, yp) if len(np.unique(yt)) >= 2 else float("nan"),
+            "auprc": lambda yt, yp: average_precision_score(yt, yp),
+            "brier": lambda yt, yp: float(np.mean((yp - yt) ** 2)),
+            "mcc": lambda yt, yp: matthews_corrcoef(yt, (yp >= 0.5).astype(int)),
+        }
+    else:
+        from sklearn.metrics import mean_absolute_error, mean_squared_error
+        metric_fns = {
+            "mae": lambda yt, yp: mean_absolute_error(yt, yp),
+            "rmse": lambda yt, yp: np.sqrt(mean_squared_error(yt, yp)),
+        }
+
+    for name, fn in metric_fns.items():
+        results[name] = bootstrap_metric_ci(
+            y_true, y_pred, fn, n_bootstrap=n_bootstrap, seed=seed,
+        )
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Multiple comparison correction
+# ---------------------------------------------------------------------------
+
+def _bonferroni_correction(p_values: list[float]) -> list[float]:
+    """Bonferroni correction: multiply p-values by number of comparisons."""
+    n = len(p_values)
+    return [min(p * n, 1.0) for p in p_values]
+
+
+def _bh_fdr_correction(p_values: list[float]) -> list[float]:
+    """Benjamini-Hochberg FDR correction."""
+    n = len(p_values)
+    if n == 0:
+        return []
+    indexed = sorted(enumerate(p_values), key=lambda x: x[1])
+    corrected = [0.0] * n
+    prev = 1.0
+    for rank_minus_1 in range(n - 1, -1, -1):
+        orig_idx, p = indexed[rank_minus_1]
+        rank = rank_minus_1 + 1
+        adj = min(p * n / rank, prev)
+        corrected[orig_idx] = min(adj, 1.0)
+        prev = adj
+    return corrected
+
+
+def compute_statistical_tests(
+    *,
+    preds: pd.DataFrame,
+    n_bootstrap: int = 1000,
+    correction: str = "bh",
+) -> dict:
+    """Run pairwise DeLong and McNemar tests between all systems.
+
+    Parameters
+    ----------
+    correction : "bonferroni", "bh" (Benjamini-Hochberg FDR), or "none"
+    n_bootstrap : number of bootstrap resamples for CI computation
+    """
     systems = sorted(preds["system"].unique())
     if len(systems) < 2:
         return {"module": "statistical_tests", "pairwise": [], "note": "need >= 2 systems"}
@@ -118,6 +233,9 @@ def compute_statistical_tests(*, preds: pd.DataFrame) -> dict:
         system_data[s] = (y_true[finite], y_pred[finite])
 
     pairwise = []
+    delong_pvals = []
+    mcnemar_pvals = []
+
     for a, b in combinations(systems, 2):
         y_true_a, y_pred_a = system_data[a]
         y_true_b, y_pred_b = system_data[b]
@@ -129,6 +247,8 @@ def compute_statistical_tests(*, preds: pd.DataFrame) -> dict:
 
         z, delong_p = _delong_roc_test(yt, ypa, ypb)
         chi2, mcnemar_p = _mcnemar_test(yt, ypa, ypb)
+        delong_pvals.append(delong_p)
+        mcnemar_pvals.append(mcnemar_p)
 
         pairwise.append({
             "system_a": a,
@@ -138,4 +258,31 @@ def compute_statistical_tests(*, preds: pd.DataFrame) -> dict:
             "mcnemar": {"chi2": chi2, "p_value": mcnemar_p},
         })
 
-    return {"module": "statistical_tests", "n_common_patients": len(common_sorted), "pairwise": pairwise}
+    # Apply multiple comparison correction
+    if correction == "bonferroni":
+        delong_adj = _bonferroni_correction(delong_pvals)
+        mcnemar_adj = _bonferroni_correction(mcnemar_pvals)
+    elif correction == "bh":
+        delong_adj = _bh_fdr_correction(delong_pvals)
+        mcnemar_adj = _bh_fdr_correction(mcnemar_pvals)
+    else:
+        delong_adj = delong_pvals
+        mcnemar_adj = mcnemar_pvals
+
+    for i, pw in enumerate(pairwise):
+        pw["delong"]["p_adjusted"] = delong_adj[i]
+        pw["mcnemar"]["p_adjusted"] = mcnemar_adj[i]
+
+    # Bootstrap CI for each system
+    bootstrap_cis = {}
+    for s in systems:
+        yt, yp = system_data[s]
+        bootstrap_cis[s] = bootstrap_all_metrics(yt, yp, n_bootstrap=n_bootstrap)
+
+    return {
+        "module": "statistical_tests",
+        "n_common_patients": len(common_sorted),
+        "correction_method": correction,
+        "pairwise": pairwise,
+        "bootstrap_ci": bootstrap_cis,
+    }
