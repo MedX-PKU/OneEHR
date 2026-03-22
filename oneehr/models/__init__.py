@@ -10,7 +10,8 @@ from oneehr.config.schema import ModelConfig, TaskConfig
 TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt", "lr"})
 DL_MODELS: frozenset[str] = frozenset({
     "gru", "lstm", "rnn", "tcn", "transformer",
-    "mlp", "adacare", "stagenet", "retain",
+    "mlp", "cnn", "grud", "sand", "dipole",
+    "adacare", "stagenet", "retain",
     "concare", "grasp", "mcgru", "dragent",
     "deepr", "mamba", "jamba", "prism",
     "m3care", "safari", "pai",
@@ -30,10 +31,17 @@ _DL_DEFAULTS: dict[str, dict] = {
     "lstm": {"hidden_dim": 128, "num_layers": 1, "dropout": 0.0},
     "rnn": {"hidden_dim": 128, "num_layers": 1, "dropout": 0.0},
     "tcn": {"hidden_dim": 128, "num_layers": 2, "kernel_size": 3, "dropout": 0.1},
+    "cnn": {"hidden_dim": 128, "num_layers": 2, "kernel_size": 3, "dropout": 0.1},
     "transformer": {
         "d_model": 128, "nhead": 4, "num_layers": 2,
         "dim_feedforward": 256, "dropout": 0.1, "pooling": "last",
     },
+    "grud": {"hidden_dim": 128, "dropout": 0.0},
+    "sand": {
+        "d_model": 128, "nhead": 4, "num_layers": 2,
+        "dim_feedforward": 256, "kernel_size": 3, "interp_points": 8, "dropout": 0.1,
+    },
+    "dipole": {"hidden_dim": 128, "attention_type": "general", "dropout": 0.1},
     "mlp": {"hidden_dim": 128, "dropout": 0.0},
     "adacare": {"hidden_dim": 128, "kernel_size": 2, "kernel_num": 64, "dropout": 0.5},
     "stagenet": {"chunk_size": 128, "levels": 3, "conv_size": 10, "dropout": 0.3},
@@ -119,6 +127,19 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             dropout=float(params.get("dropout", 0.1)),
         )
 
+    if name == "cnn":
+        mod = import_module("oneehr.models.cnn")
+        cls_name = "CNNTimeModel" if is_time else "CNNPatientModel"
+        cls = getattr(mod, cls_name)
+        return cls(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            num_layers=int(params.get("num_layers", 2)),
+            kernel_size=int(params.get("kernel_size", 3)),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
     if name == "mlp":
         mod = import_module("oneehr.models.mlp")
         cls_name = "MLPTimeModel" if is_time else "MLPModel"
@@ -127,6 +148,43 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             hidden_dim=int(params.get("hidden_dim", 128)),
             out_dim=out_dim,
             dropout=float(params.get("dropout", 0.0)),
+        )
+
+    if name == "grud":
+        mod = import_module("oneehr.models.grud")
+        cls_name = "GRUDTimeModel" if is_time else "GRUDModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            dropout=float(params.get("dropout", 0.0)),
+            feature_means=params.get("feature_means"),
+        )
+
+    if name == "sand":
+        mod = import_module("oneehr.models.sand")
+        cls_name = "SAnDTimeModel" if is_time else "SAnDModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            d_model=int(params.get("d_model", 128)),
+            out_dim=out_dim,
+            nhead=int(params.get("nhead", 4)),
+            num_layers=int(params.get("num_layers", 2)),
+            dim_feedforward=int(params.get("dim_feedforward", 256)),
+            kernel_size=int(params.get("kernel_size", 3)),
+            interp_points=int(params.get("interp_points", 8)),
+            dropout=float(params.get("dropout", 0.1)),
+        )
+
+    if name == "dipole":
+        mod = import_module("oneehr.models.dipole")
+        cls_name = "DipoleTimeModel" if is_time else "DipoleModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            attention_type=str(params.get("attention_type", "general")),
+            dropout=float(params.get("dropout", 0.1)),
         )
 
     if name == "adacare":

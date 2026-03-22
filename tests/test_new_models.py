@@ -14,6 +14,92 @@ HIDDEN = 16
     ("patient", (B, OUT_DIM)),
     ("time", (B, T, OUT_DIM)),
 ])
+def test_cnn(mode, expected_shape):
+    from oneehr.models.cnn import CNNPatientModel, CNNTimeModel
+
+    cls = CNNTimeModel if mode == "time" else CNNPatientModel
+    m = cls(input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM, num_layers=2)
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    out = m(x, lengths)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_grud(mode, expected_shape):
+    from oneehr.models.grud import GRUDModel, GRUDTimeModel
+
+    cls = GRUDTimeModel if mode == "time" else GRUDModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        feature_means=torch.zeros(INPUT_DIM),
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    missing_mask = torch.zeros(B, T, INPUT_DIM)
+    missing_mask[:, 1:, 0] = 1.0
+    time_delta = torch.rand(B, T, INPUT_DIM)
+    out = m(x, lengths, missing_mask=missing_mask, time_delta=time_delta)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+def test_sand(mode, expected_shape):
+    from oneehr.models.sand import SAnDModel, SAnDTimeModel
+
+    cls = SAnDTimeModel if mode == "time" else SAnDModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        d_model=HIDDEN,
+        out_dim=OUT_DIM,
+        nhead=4,
+        num_layers=1,
+        dim_feedforward=32,
+        interp_points=4,
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    out = m(x, lengths)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
+@pytest.mark.parametrize("attention_type", ["location", "general", "concat"])
+def test_dipole(mode, expected_shape, attention_type):
+    from oneehr.models.dipole import DipoleModel, DipoleTimeModel
+
+    cls = DipoleTimeModel if mode == "time" else DipoleModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        attention_type=attention_type,
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    out = m(x, lengths)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+@pytest.mark.parametrize("mode,expected_shape", [
+    ("patient", (B, OUT_DIM)),
+    ("time", (B, T, OUT_DIM)),
+])
 def test_deepr(mode, expected_shape):
     from oneehr.models.deepr import DeeprModel, DeeprTimeModel
 
