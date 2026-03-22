@@ -31,6 +31,34 @@ def sigmoid(x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
 
 
+def _metric_value(task: TaskConfig, monitor: str, y_true: np.ndarray, y_score: np.ndarray) -> float:
+    """Compute the monitored metric from val predictions."""
+    from oneehr.eval.metrics import binary_metrics, regression_metrics
+
+    if task.kind == "binary":
+        mets = binary_metrics(y_true.astype(float), y_score.astype(float)).metrics
+        if monitor in ("val_auroc", "auroc"):
+            return float(mets["auroc"])
+        if monitor in ("val_auprc", "auprc"):
+            return float(mets["auprc"])
+        raise ValueError(f"Unsupported monitor metric for binary: {monitor!r}")
+    mets = regression_metrics(y_true.astype(float), y_score.astype(float)).metrics
+    if monitor in ("val_rmse", "rmse"):
+        return float(mets["rmse"])
+    if monitor in ("val_mae", "mae"):
+        return float(mets["mae"])
+    raise ValueError(f"Unsupported monitor metric for regression: {monitor!r}")
+
+
+def _is_better(mode: str, a: float, b: float) -> bool:
+    """Compare two scores based on monitor_mode."""
+    if mode == "min":
+        return a < b
+    if mode == "max":
+        return a > b
+    raise ValueError(f"Unsupported monitor_mode={mode!r}")
+
+
 def fit_model(
     *,
     model,
@@ -93,8 +121,43 @@ def fit_model(
     loss_fn = _default_loss(task)
 
     best_state = None
-    best_val_loss = float("inf")
+    best_score: float | None = None
     bad_epochs = 0
+    history: list[dict[str, float]] = []
+
+    def _val_predictions():
+        """Compute val predictions for metric evaluation."""
+        model.eval()
+        with torch.no_grad():
+            Xv = X_val.to(device)
+            Lv = len_val.to(device)
+            Sv = None if static_val is None else static_val.to(device)
+            kw = {}
+            if val_extra:
+                kw = {
+                    k: v.to(device) if isinstance(v, torch.Tensor) and v.dim() > 0 else v
+                    for k, v in val_extra.items()
+                }
+            logits = model(Xv, Lv, **kw) if Sv is None else model(Xv, Lv, Sv, **kw)
+            logits = logits.squeeze(-1).detach().cpu().numpy()
+
+        if task.kind == "binary":
+            y_score = sigmoid(logits)
+        else:
+            y_score = logits
+
+        y_val_np = y_val.detach().cpu().numpy()
+        if mask_val is not None:
+            m_np = mask_val.detach().cpu().numpy()
+            if y_score.ndim > 1 and y_val_np.ndim > 1 and y_score.shape[-1] != y_val_np.shape[-1]:
+                t = y_score.shape[-1]
+                y_val_np = y_val_np[:, :t]
+                m_np = m_np[:, :t]
+            m = m_np.reshape(-1).astype(bool)
+            return y_val_np.reshape(-1)[m], y_score.reshape(-1)[m]
+        return y_val_np, y_score
+
+    monitor_needs_preds = cfg.monitor != "val_loss"
 
     for epoch in range(cfg.max_epochs):
         # Train
@@ -111,8 +174,21 @@ def fit_model(
                 loss_fn, None, cfg, device, train=False, extra=val_extra,
             )
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        row: dict[str, float] = {"train_loss": float(train_loss), "val_loss": float(val_loss)}
+
+        if monitor_needs_preds:
+            yv, sv = _val_predictions()
+            row[cfg.monitor] = _metric_value(task, cfg.monitor, yv, sv)
+
+        history.append(row)
+
+        if cfg.monitor == "val_loss":
+            score = float(val_loss)
+        else:
+            score = float(row[cfg.monitor])
+
+        if best_score is None or _is_better(cfg.monitor_mode, score, best_score):
+            best_score = score
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             bad_epochs = 0
         else:
@@ -123,46 +199,15 @@ def fit_model(
     if best_state is not None:
         model.load_state_dict(best_state)
 
-    # Compute val predictions for metrics
-    model.eval()
-    model = model.to(device)
-    with torch.no_grad():
-        Xv = X_val.to(device)
-        Lv = len_val.to(device)
-        Sv = None if static_val is None else static_val.to(device)
-        kw = {}
-        if val_extra:
-            kw = {
-                k: v.to(device) if isinstance(v, torch.Tensor) and v.dim() > 0 else v
-                for k, v in val_extra.items()
-            }
-        logits = model(Xv, Lv, **kw) if Sv is None else model(Xv, Lv, Sv, **kw)
-        logits = logits.squeeze(-1).detach().cpu().numpy()
+    # Compute final val metrics from best model
+    yv_final, yp_final = _val_predictions()
 
     if task.kind == "binary":
-        y_pred = sigmoid(logits)
+        metrics = binary_metrics(yv_final.astype(float), yp_final.astype(float)).metrics
     else:
-        y_pred = logits
+        metrics = regression_metrics(yv_final.astype(float), yp_final.astype(float)).metrics
 
-    y_val_np = y_val.detach().cpu().numpy()
-    if mask_val is not None:
-        # Align time dimensions (same as training loop)
-        m_np = mask_val.detach().cpu().numpy()
-        if y_pred.ndim > 1 and y_val_np.ndim > 1 and y_pred.shape[-1] != y_val_np.shape[-1]:
-            t = y_pred.shape[-1]
-            y_val_np = y_val_np[:, :t]
-            m_np = m_np[:, :t]
-        m = m_np.reshape(-1).astype(bool)
-        y_val_flat = y_val_np.reshape(-1)[m]
-        y_pred_flat = y_pred.reshape(-1)[m]
-    else:
-        y_val_flat = y_val_np
-        y_pred_flat = y_pred
-
-    if task.kind == "binary":
-        metrics = binary_metrics(y_val_flat.astype(float), y_pred_flat.astype(float)).metrics
-    else:
-        metrics = regression_metrics(y_val_flat.astype(float), y_pred_flat.astype(float)).metrics
+    metrics["history"] = history
 
     model = model.cpu()
     return model, metrics
