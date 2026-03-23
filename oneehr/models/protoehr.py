@@ -83,8 +83,10 @@ class ProtoEHRModel(nn.Module):
         num_groups = len(group_names or group_indices or [])
         if num_groups <= 0 and global_adj is not None:
             num_groups = int(global_adj.size(0))
+        if num_groups <= 0:
+            num_groups = input_dim
         self.backbone = ProtoEHRBackbone(
-            num_groups=max(num_groups, input_dim),
+            num_groups=num_groups,
             hidden_dim=hidden_dim,
             num_prototypes=num_prototypes,
             global_adj=global_adj,

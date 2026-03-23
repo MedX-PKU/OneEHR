@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 def _causal_mask(size: int, device: torch.device) -> torch.Tensor:
     return torch.triu(
-        torch.full((size, size), float("-inf"), device=device),
+        torch.ones((size, size), device=device, dtype=torch.bool),
         diagonal=1,
     )
 
