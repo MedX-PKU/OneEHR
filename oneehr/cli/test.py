@@ -4,6 +4,7 @@ Produces:
     {run_dir}/test/predictions.parquet  — all systems × test patients
     {run_dir}/test/metrics.json         — per-system metrics
 """
+
 from __future__ import annotations
 
 import shutil
@@ -26,6 +27,7 @@ def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     from oneehr.data.tabular import transform_pipeline
+
     fitted = torch.load(pipeline_path, weights_only=False)
     df = transform_pipeline(df, fitted)
     for col in df.columns:
@@ -113,9 +115,14 @@ def run_test(cfg_path: str, force: bool) -> None:
         preds_df.to_parquet(test_dir / "predictions.parquet", index=False)
     else:
         # Empty predictions
-        preds_df = pd.DataFrame(columns=[
-            "system", "patient_id", "y_true", "y_pred",
-        ])
+        preds_df = pd.DataFrame(
+            columns=[
+                "system",
+                "patient_id",
+                "y_true",
+                "y_pred",
+            ]
+        )
         preds_df.to_parquet(test_dir / "predictions.parquet", index=False)
 
     # Build metrics.json
@@ -207,12 +214,14 @@ def _predict_trained_model(
                 y_pred_all = logits
 
             for pid, yp in zip(pids, y_pred_all.tolist()):
-                rows.append({
-                    "system": model_name,
-                    "patient_id": str(pid),
-                    "y_true": y_true_map.get(str(pid), float("nan")),
-                    "y_pred": float(yp),
-                })
+                rows.append(
+                    {
+                        "system": model_name,
+                        "patient_id": str(pid),
+                        "y_true": y_true_map.get(str(pid), float("nan")),
+                        "y_pred": float(yp),
+                    }
+                )
         else:
             # Time mode DL
             from oneehr.data.sequence import build_time_sequences, pad_sequences
@@ -220,7 +229,9 @@ def _predict_trained_model(
             if labels_df is None:
                 return rows
             pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
-                binned_test, labels_df, feat_cols,
+                binned_test,
+                labels_df,
+                feat_cols,
             )
             X_seq = pad_sequences(seqs, lens)
             lens_t = torch.from_numpy(lens)
@@ -245,17 +256,19 @@ def _predict_trained_model(
                 else:
                     logits = model(X_seq, lens_t, **time_extra_kw).squeeze(-1).detach().cpu().numpy()
 
-            for i, (pid, l) in enumerate(zip(pids, lens)):
-                for t in range(l):
+            for i, (pid, seq_len) in enumerate(zip(pids, lens)):
+                for t in range(seq_len):
                     val = logits[i, t] if logits.ndim > 1 else logits[i]
                     yp = float(sigmoid(val)) if task_kind == "binary" else float(val)
                     bt = str(time_seqs[i][t])
-                    rows.append({
-                        "system": model_name,
-                        "patient_id": str(pid),
-                        "y_true": y_true_time_map.get((str(pid), bt), float("nan")),
-                        "y_pred": yp,
-                    })
+                    rows.append(
+                        {
+                            "system": model_name,
+                            "patient_id": str(pid),
+                            "y_true": y_true_time_map.get((str(pid), bt), float("nan")),
+                            "y_pred": yp,
+                        }
+                    )
     else:
         # ML model (XGBoost, CatBoost etc.) — loaded via torch.save
         if binned_test.empty:
@@ -277,11 +290,7 @@ def _predict_trained_model(
             return df
 
         if mode == "patient":
-            last = (
-                binned_test.sort_values(["patient_id", "bin_time"], kind="stable")
-                .groupby("patient_id", sort=False)[feat_cols]
-                .last()
-            )
+            last = binned_test.sort_values(["patient_id", "bin_time"], kind="stable").groupby("patient_id", sort=False)[feat_cols].last()
             last.index = last.index.astype(str)
             last = _join_static(last)
 
@@ -294,12 +303,14 @@ def _predict_trained_model(
                 y_pred = model.predict(last[stored_feat_cols])
 
             for pid, yp in zip(last.index.tolist(), y_pred.tolist()):
-                rows.append({
-                    "system": model_name,
-                    "patient_id": str(pid),
-                    "y_true": y_true_map.get(str(pid), float("nan")),
-                    "y_pred": float(yp),
-                })
+                rows.append(
+                    {
+                        "system": model_name,
+                        "patient_id": str(pid),
+                        "y_true": y_true_map.get(str(pid), float("nan")),
+                        "y_pred": float(yp),
+                    }
+                )
         else:
             # Time-level ML prediction
             df = binned_test[["patient_id", "bin_time", *feat_cols]].copy()
@@ -323,12 +334,14 @@ def _predict_trained_model(
             for i, yp in enumerate(y_pred.tolist()):
                 pid = str(key.iloc[i]["patient_id"])
                 bt = str(key.iloc[i]["bin_time"])
-                rows.append({
-                    "system": model_name,
-                    "patient_id": pid,
-                    "y_true": y_true_time_map.get((pid, bt), float("nan")),
-                    "y_pred": float(yp),
-                })
+                rows.append(
+                    {
+                        "system": model_name,
+                        "patient_id": pid,
+                        "y_true": y_true_time_map.get((pid, bt), float("nan")),
+                        "y_pred": float(yp),
+                    }
+                )
 
     return rows
 
@@ -351,6 +364,7 @@ def _predict_llm_system(
     rows: list[dict] = []
     try:
         from oneehr.agent.runtime import run_system_on_patients
+
         rows = run_system_on_patients(
             system_cfg=system_cfg,
             binned=binned,
@@ -389,12 +403,14 @@ def _compute_metrics(
         y_pred = y_pred[finite]
 
         if y_true.size == 0:
-            system_results.append({
-                "name": system_name,
-                "kind": "trained_model",
-                "n": 0,
-                "metrics": {},
-            })
+            system_results.append(
+                {
+                    "name": system_name,
+                    "kind": "trained_model",
+                    "n": 0,
+                    "metrics": {},
+                }
+            )
             continue
 
         if task_kind == "binary":
@@ -418,12 +434,14 @@ def _compute_metrics(
                 kind = sc.kind
                 break
 
-        system_results.append({
-            "name": system_name,
-            "kind": kind,
-            "n": int(y_true.size),
-            "metrics": metrics,
-        })
+        system_results.append(
+            {
+                "name": system_name,
+                "kind": kind,
+                "n": int(y_true.size),
+                "metrics": metrics,
+            }
+        )
 
     return {
         "task": {"kind": task_kind, "prediction_mode": mode},

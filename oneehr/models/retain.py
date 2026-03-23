@@ -10,8 +10,6 @@ import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
 
-from oneehr.models.recurrent import last_by_lengths
-
 
 class RETAINLayer(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, dropout: float = 0.5):
@@ -28,9 +26,9 @@ class RETAINLayer(nn.Module):
     @staticmethod
     def _reverse(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         rev = x.clone()
-        for i, l in enumerate(lengths.long().tolist()):
-            if l > 0:
-                rev[i, :l] = x[i, :l].flip(0)
+        for i, seq_len in enumerate(lengths.long().tolist()):
+            if seq_len > 0:
+                rev[i, :seq_len] = x[i, :seq_len].flip(0)
         return rev
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
@@ -106,7 +104,7 @@ class RETAINTimeModel(nn.Module):
         B, T, _ = x.size()
         outputs = []
         for t in range(T):
-            cur_x = x[:, :t + 1, :]
+            cur_x = x[:, : t + 1, :]
             cur_len = lengths.clamp(max=t + 1)
             cur_len = cur_len.clamp(min=1)
             c = self.layer(cur_x, cur_len)

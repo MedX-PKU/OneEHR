@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import json
-
 import numpy as np
 import pandas as pd
 
 
-def _temperature_scale(
-    val_probs: np.ndarray, val_labels: np.ndarray
-) -> tuple[float, callable]:
+def _temperature_scale(val_probs: np.ndarray, val_labels: np.ndarray) -> tuple[float, callable]:
     """Fit temperature scaling on validation data."""
     from scipy.optimize import minimize
 
@@ -33,9 +29,7 @@ def _temperature_scale(
     return T_opt, transform
 
 
-def _platt_scale(
-    val_probs: np.ndarray, val_labels: np.ndarray
-) -> callable:
+def _platt_scale(val_probs: np.ndarray, val_labels: np.ndarray) -> callable:
     """Fit Platt scaling (logistic regression on logits)."""
     from sklearn.linear_model import LogisticRegression
 
@@ -44,15 +38,13 @@ def _platt_scale(
     lr.fit(logits, val_labels.astype(int))
 
     def transform(probs):
-        l = np.log(np.clip(probs, 1e-7, 1 - 1e-7)).reshape(-1, 1)
-        return lr.predict_proba(l)[:, 1]
+        logits = np.log(np.clip(probs, 1e-7, 1 - 1e-7)).reshape(-1, 1)
+        return lr.predict_proba(logits)[:, 1]
 
     return transform
 
 
-def _isotonic_scale(
-    val_probs: np.ndarray, val_labels: np.ndarray
-) -> callable:
+def _isotonic_scale(val_probs: np.ndarray, val_labels: np.ndarray) -> callable:
     """Fit isotonic regression calibration."""
     from sklearn.isotonic import IsotonicRegression
 
@@ -159,12 +151,14 @@ def compute_calibration(
             except Exception as e:
                 method_results[method_name] = {"error": str(e)}
 
-        systems.append({
-            "name": system_name,
-            "n_val": int(y_val_true.size),
-            "n_test": int(y_test_true.size),
-            "methods": method_results,
-        })
+        systems.append(
+            {
+                "name": system_name,
+                "n_val": int(y_val_true.size),
+                "n_test": int(y_test_true.size),
+                "methods": method_results,
+            }
+        )
         all_calibrated.append(cal_row)
 
     calibrated_df = pd.concat(all_calibrated, ignore_index=True) if all_calibrated else pd.DataFrame()

@@ -53,25 +53,24 @@ class StageNetLayer(nn.Module):
         return torch.flip(torch.cumsum(torch.softmax(x, dim=-1), dim=-1), [-1])
 
     def _step(self, inp, c_last, h_last, interval):
-        device = inp.device
+        _device = inp.device
         interval = interval.unsqueeze(-1)
         x1 = self.dropconnect(self.kernel(torch.cat([inp, interval], dim=-1)))
         x2 = self.dropconnect_r(self.recurrent_kernel(torch.cat([h_last, interval], dim=-1)))
         x_out = x1 + x2
 
-        f_master = self._cumax(x_out[:, :self.levels], "l2r").unsqueeze(2)
-        i_master = self._cumax(x_out[:, self.levels:self.levels * 2], "r2l").unsqueeze(2)
+        f_master = self._cumax(x_out[:, : self.levels], "l2r").unsqueeze(2)
+        i_master = self._cumax(x_out[:, self.levels : self.levels * 2], "r2l").unsqueeze(2)
 
-        gates = x_out[:, self.levels * 2:].reshape(-1, self.levels * 4, self.chunk_size)
-        f_gate = torch.sigmoid(gates[:, :self.levels])
-        i_gate = torch.sigmoid(gates[:, self.levels:self.levels * 2])
-        o_gate = torch.sigmoid(gates[:, self.levels * 2:self.levels * 3])
-        c_in = torch.tanh(gates[:, self.levels * 3:])
+        gates = x_out[:, self.levels * 2 :].reshape(-1, self.levels * 4, self.chunk_size)
+        f_gate = torch.sigmoid(gates[:, : self.levels])
+        i_gate = torch.sigmoid(gates[:, self.levels : self.levels * 2])
+        o_gate = torch.sigmoid(gates[:, self.levels * 2 : self.levels * 3])
+        c_in = torch.tanh(gates[:, self.levels * 3 :])
 
         c_last_r = c_last.reshape(-1, self.levels, self.chunk_size)
         overlap = f_master * i_master
-        c_out = overlap * (f_gate * c_last_r + i_gate * c_in) + \
-                (f_master - overlap) * c_last_r + (i_master - overlap) * c_in
+        c_out = overlap * (f_gate * c_last_r + i_gate * c_in) + (f_master - overlap) * c_last_r + (i_master - overlap) * c_in
         h_out = o_gate * torch.tanh(c_out)
 
         c_out = c_out.reshape(-1, self.hidden_dim)
@@ -95,18 +94,16 @@ class StageNetLayer(nn.Module):
 
         for t in range(T):
             out, c_out, h_out = self._step(x[:, t, :], c_out, h_out, time_intervals[:, t])
-            cur_dist = 1 - out[:, self.hidden_dim:self.hidden_dim + self.levels].mean(-1)
-            origin_h_list.append(out[:, :self.hidden_dim])
+            cur_dist = 1 - out[:, self.hidden_dim : self.hidden_dim + self.levels].mean(-1)
+            origin_h_list.append(out[:, : self.hidden_dim])
 
-            tmp_h = torch.cat([tmp_h[1:], out[:, :self.hidden_dim].unsqueeze(0)], 0)
+            tmp_h = torch.cat([tmp_h[1:], out[:, : self.hidden_dim].unsqueeze(0)], 0)
             tmp_dis = torch.cat([tmp_dis[1:], cur_dist.unsqueeze(0)], 0)
 
             local_dis = torch.softmax(torch.cumsum(tmp_dis.permute(1, 0), dim=1), dim=1)
             local_h = tmp_h.permute(1, 2, 0) * local_dis.unsqueeze(1)
 
-            local_theme = torch.sigmoid(self.nn_rescale(torch.relu(
-                self.nn_scale(local_h.mean(dim=-1))
-            )))
+            local_theme = torch.sigmoid(self.nn_rescale(torch.relu(self.nn_scale(local_h.mean(dim=-1)))))
             local_h = self.nn_conv(local_h).squeeze(-1)
             h_list.append(local_theme * local_h)
 

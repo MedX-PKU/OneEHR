@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import pandas as pd
 
+if TYPE_CHECKING:
+    import torch
 
 InputKind = Literal["tabular", "sequence"]
 
@@ -279,10 +281,7 @@ def attention_importance(
     if X.ndim != 3:
         raise ValueError(f"X must be (B,T,D), got {tuple(X.shape)}")
     if attn_weights.shape[0] != X.shape[0] or attn_weights.shape[1] != X.shape[1]:
-        raise ValueError(
-            "attn_weights shape must match X batch/time dims: "
-            f"attn={tuple(attn_weights.shape)} X={tuple(X.shape)}"
-        )
+        raise ValueError(f"attn_weights shape must match X batch/time dims: attn={tuple(attn_weights.shape)} X={tuple(X.shape)}")
 
     B, T, D = X.shape
     feats = feature_names if feature_names is not None else [f"f{i}" for i in range(D)]
@@ -326,7 +325,9 @@ def permutation_importance(
         feats = feature_names if feature_names is not None else [f"f{i}" for i in range(X_arr.shape[1])]
 
     result = sklearn_perm_imp(
-        model, X_arr, y,
+        model,
+        X_arr,
+        y,
         scoring=scoring,
         n_repeats=n_repeats,
         random_state=seed,

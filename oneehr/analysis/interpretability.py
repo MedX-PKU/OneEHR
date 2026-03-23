@@ -6,10 +6,13 @@ model-specific interpretability tools.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    import torch
 
 from oneehr.analysis.feature_importance import FeatureImportanceResult
 
@@ -127,9 +130,7 @@ def extract_attention_weights(
                 max_len = int(lengths.max().item())
                 x = x[:, :max_len, :]
                 rx = layer._reverse(x, lengths)
-                packed = torch.nn.utils.rnn.pack_padded_sequence(
-                    rx, lengths.cpu(), batch_first=True, enforce_sorted=False
-                )
+                packed = torch.nn.utils.rnn.pack_padded_sequence(rx, lengths.cpu(), batch_first=True, enforce_sorted=False)
                 g, _ = layer.alpha_gru(packed)
                 g, _ = torch.nn.utils.rnn.pad_packed_sequence(g, batch_first=True)
                 alpha = torch.softmax(layer.alpha_fc(g), dim=1)  # (B, T, 1)
@@ -154,9 +155,9 @@ def extract_attention_weights(
     # Fallback: uniform attention
     B, T, D = X.shape
     attn = np.zeros((B, T), dtype=np.float32)
-    for i, l in enumerate(lengths.cpu().numpy()):
-        if l > 0:
-            attn[i, :int(l)] = 1.0 / int(l)
+    for i, seq_len in enumerate(lengths.cpu().numpy()):
+        if seq_len > 0:
+            attn[i, : int(seq_len)] = 1.0 / int(seq_len)
     return attn
 
 

@@ -15,14 +15,13 @@ Frameworks are lightweight adapters inspired by MedAgentAudit:
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Callable
 
 from oneehr.agent.client import OpenAICompatibleAgentClient
 from oneehr.agent.contracts import AgentRequestSpec, ParsedPrediction
 from oneehr.agent.runtime import execute_agent_request
 from oneehr.agent.schema import parse_prediction_response, schema_prompt_text
 from oneehr.config.schema import SystemConfig
-
 
 FrameworkRunner = Callable[
     [OpenAICompatibleAgentClient, SystemConfig, str, str],
@@ -36,6 +35,7 @@ def register_framework(name: str) -> Callable[[FrameworkRunner], FrameworkRunner
     def decorator(fn: FrameworkRunner) -> FrameworkRunner:
         _FRAMEWORK_REGISTRY[name] = fn
         return fn
+
     return decorator
 
 
@@ -129,13 +129,8 @@ def run_single_llm(
 ) -> ParsedPrediction | None:
     """Direct single-model inference."""
     schema_text = _schema_text(task_kind)
-    prompt = (
-        f"{patient_context}\n\n"
-        f"Output Schema:\n{schema_text}\n\n"
-        "Return exactly one JSON object matching the schema above."
-    )
-    return _call_llm(client, system_cfg, prompt, task_kind,
-                     system_prompt="You are a clinical prediction model. Analyze the patient data and make a prediction.")
+    prompt = f"{patient_context}\n\nOutput Schema:\n{schema_text}\n\nReturn exactly one JSON object matching the schema above."
+    return _call_llm(client, system_cfg, prompt, task_kind, system_prompt="You are a clinical prediction model. Analyze the patient data and make a prediction.")
 
 
 @register_framework("medagent")
@@ -150,18 +145,15 @@ def run_medagent(
     Steps: Expert gathering → Doctor opinions → Meta-synthesis → Decision.
     """
     params = system_cfg.params or {}
-    max_rounds = int(params.get("max_rounds", 2))
+    _max_rounds = int(params.get("max_rounds", 2))
     schema_text = _schema_text(task_kind)
 
     # Step 1: Gather relevant specialties
-    gather_prompt = (
-        f"Given this patient case, list 3 relevant medical specialties "
-        f"that should be consulted (one per line, just the specialty name):\n\n{patient_context}"
-    )
-    gather_req = _make_request(system_cfg, gather_prompt,
-                               "You are a medical expert coordinator.")
+    gather_prompt = f"Given this patient case, list 3 relevant medical specialties that should be consulted (one per line, just the specialty name):\n\n{patient_context}"
+    gather_req = _make_request(system_cfg, gather_prompt, "You are a medical expert coordinator.")
     gather_result = execute_agent_request(
-        client=client, request=gather_req,
+        client=client,
+        request=gather_req,
         parse_response=lambda t: t,
     )
     specialties = [s.strip("- ").strip() for s in (gather_result.raw_response or "").strip().split("\n") if s.strip()][:3]
@@ -171,29 +163,18 @@ def run_medagent(
     # Step 2: Get doctor opinions
     opinions = []
     for specialty in specialties:
-        doc_prompt = (
-            f"You are a {specialty} specialist. Analyze this patient case and provide "
-            f"your clinical assessment and prediction.\n\n{patient_context}\n\n"
-            f"Provide your assessment in 2-3 sentences."
-        )
-        doc_req = _make_request(system_cfg, doc_prompt,
-                                f"You are a {specialty} specialist.")
+        doc_prompt = f"You are a {specialty} specialist. Analyze this patient case and provide your clinical assessment and prediction.\n\n{patient_context}\n\nProvide your assessment in 2-3 sentences."
+        doc_req = _make_request(system_cfg, doc_prompt, f"You are a {specialty} specialist.")
         doc_result = execute_agent_request(
-            client=client, request=doc_req, parse_response=lambda t: t,
+            client=client,
+            request=doc_req,
+            parse_response=lambda t: t,
         )
         opinions.append(f"{specialty}: {doc_result.raw_response}")
 
     # Step 3: Synthesize and decide
-    synthesis_prompt = (
-        f"Based on the following specialist opinions about a patient case, "
-        f"synthesize a final prediction.\n\n"
-        f"Patient Case:\n{patient_context}\n\n"
-        f"Specialist Opinions:\n" + "\n".join(opinions) + "\n\n"
-        f"Output Schema:\n{schema_text}\n\n"
-        f"Return exactly one JSON object matching the schema above."
-    )
-    return _call_llm(client, system_cfg, synthesis_prompt, task_kind,
-                     system_prompt="You are a medical decision synthesizer. Combine specialist opinions into a final prediction.")
+    synthesis_prompt = f"Based on the following specialist opinions about a patient case, synthesize a final prediction.\n\nPatient Case:\n{patient_context}\n\nSpecialist Opinions:\n" + "\n".join(opinions) + f"\n\nOutput Schema:\n{schema_text}\n\nReturn exactly one JSON object matching the schema above."
+    return _call_llm(client, system_cfg, synthesis_prompt, task_kind, system_prompt="You are a medical decision synthesizer. Combine specialist opinions into a final prediction.")
 
 
 @register_framework("colacare")
@@ -212,26 +193,14 @@ def run_colacare(
     analyses = []
     roles = ["attending physician", "specialist consultant", "senior resident"][:n_doctors]
     for role in roles:
-        prompt = (
-            f"You are a {role}. Analyze this patient case and provide "
-            f"your initial assessment.\n\n{patient_context}\n\n"
-            f"Provide a brief clinical analysis (2-3 sentences)."
-        )
+        prompt = f"You are a {role}. Analyze this patient case and provide your initial assessment.\n\n{patient_context}\n\nProvide a brief clinical analysis (2-3 sentences)."
         req = _make_request(system_cfg, prompt, f"You are a {role}.")
         result = execute_agent_request(client=client, request=req, parse_response=lambda t: t)
         analyses.append(f"{role}: {result.raw_response}")
 
     # Collaborative synthesis
-    collab_prompt = (
-        f"The following clinical team has analyzed a patient case. "
-        f"Synthesize their analyses into a final prediction.\n\n"
-        f"Patient Case:\n{patient_context}\n\n"
-        f"Team Analyses:\n" + "\n".join(analyses) + "\n\n"
-        f"Output Schema:\n{schema_text}\n\n"
-        f"Return exactly one JSON object matching the schema above."
-    )
-    return _call_llm(client, system_cfg, collab_prompt, task_kind,
-                     system_prompt="You are a collaborative care coordinator. Synthesize team opinions.")
+    collab_prompt = f"The following clinical team has analyzed a patient case. Synthesize their analyses into a final prediction.\n\nPatient Case:\n{patient_context}\n\nTeam Analyses:\n" + "\n".join(analyses) + f"\n\nOutput Schema:\n{schema_text}\n\nReturn exactly one JSON object matching the schema above."
+    return _call_llm(client, system_cfg, collab_prompt, task_kind, system_prompt="You are a collaborative care coordinator. Synthesize team opinions.")
 
 
 @register_framework("healthcareagent")
@@ -245,40 +214,28 @@ def run_healthcareagent(
     schema_text = _schema_text(task_kind)
 
     # Step 1: Preliminary analysis
-    analysis_prompt = (
-        f"Analyze this patient case and identify key clinical indicators, "
-        f"risk factors, and relevant patterns.\n\n{patient_context}\n\n"
-        f"Provide a structured clinical analysis."
-    )
-    analysis_req = _make_request(system_cfg, analysis_prompt,
-                                  "You are a clinical analyst.")
+    analysis_prompt = f"Analyze this patient case and identify key clinical indicators, risk factors, and relevant patterns.\n\n{patient_context}\n\nProvide a structured clinical analysis."
+    analysis_req = _make_request(system_cfg, analysis_prompt, "You are a clinical analyst.")
     analysis_result = execute_agent_request(
-        client=client, request=analysis_req, parse_response=lambda t: t,
+        client=client,
+        request=analysis_req,
+        parse_response=lambda t: t,
     )
 
     # Step 2: Safety review
-    safety_prompt = (
-        f"Review this clinical analysis for safety concerns, potential errors, "
-        f"and ethical considerations.\n\nAnalysis:\n{analysis_result.raw_response}\n\n"
-        f"Provide a brief safety assessment."
-    )
-    safety_req = _make_request(system_cfg, safety_prompt,
-                                "You are a clinical safety reviewer.")
+    safety_prompt = f"Review this clinical analysis for safety concerns, potential errors, and ethical considerations.\n\nAnalysis:\n{analysis_result.raw_response}\n\nProvide a brief safety assessment."
+    safety_req = _make_request(system_cfg, safety_prompt, "You are a clinical safety reviewer.")
     safety_result = execute_agent_request(
-        client=client, request=safety_req, parse_response=lambda t: t,
+        client=client,
+        request=safety_req,
+        parse_response=lambda t: t,
     )
 
     # Step 3: Final decision
     decision_prompt = (
-        f"Based on the clinical analysis and safety review, make a final prediction.\n\n"
-        f"Patient Case:\n{patient_context}\n\n"
-        f"Clinical Analysis:\n{analysis_result.raw_response}\n\n"
-        f"Safety Review:\n{safety_result.raw_response}\n\n"
-        f"Output Schema:\n{schema_text}\n\n"
-        f"Return exactly one JSON object matching the schema above."
+        f"Based on the clinical analysis and safety review, make a final prediction.\n\nPatient Case:\n{patient_context}\n\nClinical Analysis:\n{analysis_result.raw_response}\n\nSafety Review:\n{safety_result.raw_response}\n\nOutput Schema:\n{schema_text}\n\nReturn exactly one JSON object matching the schema above."
     )
-    return _call_llm(client, system_cfg, decision_prompt, task_kind,
-                     system_prompt="You are a clinical decision maker with safety awareness.")
+    return _call_llm(client, system_cfg, decision_prompt, task_kind, system_prompt="You are a clinical decision maker with safety awareness.")
 
 
 @register_framework("mac")
@@ -302,25 +259,14 @@ def run_mac(
             if discussion:
                 context += "\n\nPrior Discussion:\n" + "\n".join(discussion[-6:])
 
-            prompt = (
-                f"You are {agent_name} in a medical team discussion (round {round_num + 1}). "
-                f"Provide your clinical opinion about this case.\n\n{context}\n\n"
-                f"Give a brief opinion (2-3 sentences)."
-            )
+            prompt = f"You are {agent_name} in a medical team discussion (round {round_num + 1}). Provide your clinical opinion about this case.\n\n{context}\n\nGive a brief opinion (2-3 sentences)."
             req = _make_request(system_cfg, prompt, f"You are {agent_name}.")
             result = execute_agent_request(client=client, request=req, parse_response=lambda t: t)
             discussion.append(f"{agent_name} (round {round_num + 1}): {result.raw_response}")
 
     # Supervisor synthesis
-    supervisor_prompt = (
-        f"As the supervising physician, synthesize this team discussion into a final prediction.\n\n"
-        f"Patient Case:\n{patient_context}\n\n"
-        f"Discussion:\n" + "\n".join(discussion) + "\n\n"
-        f"Output Schema:\n{schema_text}\n\n"
-        f"Return exactly one JSON object matching the schema above."
-    )
-    return _call_llm(client, system_cfg, supervisor_prompt, task_kind,
-                     system_prompt="You are the supervising physician. Make a final clinical prediction.")
+    supervisor_prompt = f"As the supervising physician, synthesize this team discussion into a final prediction.\n\nPatient Case:\n{patient_context}\n\nDiscussion:\n" + "\n".join(discussion) + f"\n\nOutput Schema:\n{schema_text}\n\nReturn exactly one JSON object matching the schema above."
+    return _call_llm(client, system_cfg, supervisor_prompt, task_kind, system_prompt="You are the supervising physician. Make a final clinical prediction.")
 
 
 @register_framework("mdagents")
@@ -331,15 +277,11 @@ def run_mdagents(
     task_kind: str,
 ) -> ParsedPrediction | None:
     """MDAgents: complexity-adaptive routing."""
-    schema_text = _schema_text(task_kind)
+    _schema_text(task_kind)  # validate task_kind
 
     # Step 1: Assess complexity
-    complexity_prompt = (
-        f"Assess the clinical complexity of this case. "
-        f"Reply with exactly one word: basic, intermediate, or advanced.\n\n{patient_context}"
-    )
-    cx_req = _make_request(system_cfg, complexity_prompt,
-                            "You are a clinical complexity assessor.")
+    complexity_prompt = f"Assess the clinical complexity of this case. Reply with exactly one word: basic, intermediate, or advanced.\n\n{patient_context}"
+    cx_req = _make_request(system_cfg, complexity_prompt, "You are a clinical complexity assessor.")
     cx_result = execute_agent_request(client=client, request=cx_req, parse_response=lambda t: t)
     complexity = (cx_result.raw_response or "").strip().lower()
 
@@ -367,7 +309,7 @@ def run_reconcile(
     n_agents = int(params.get("n_agents", 3))
     schema_text = _schema_text(task_kind)
 
-    agents = [f"Agent {i+1}" for i in range(n_agents)]
+    agents = [f"Agent {i + 1}" for i in range(n_agents)]
     predictions: list[str] = []
 
     for round_num in range(n_rounds):
@@ -377,15 +319,8 @@ def run_reconcile(
             if predictions:
                 context += "\n\nPrevious round predictions:\n" + "\n".join(predictions[-n_agents:])
 
-            prompt = (
-                f"You are {agent_name} (round {round_num + 1}). "
-                f"Analyze this case and provide your prediction with a confidence score [0-1].\n\n"
-                f"{context}\n\n"
-                f"Output Schema:\n{schema_text}\n\n"
-                f"Return exactly one JSON object matching the schema above."
-            )
-            pred = _call_llm(client, system_cfg, prompt, task_kind,
-                             system_prompt=f"You are {agent_name}, a clinical prediction agent.")
+            prompt = f"You are {agent_name} (round {round_num + 1}). Analyze this case and provide your prediction with a confidence score [0-1].\n\n{context}\n\nOutput Schema:\n{schema_text}\n\nReturn exactly one JSON object matching the schema above."
+            pred = _call_llm(client, system_cfg, prompt, task_kind, system_prompt=f"You are {agent_name}, a clinical prediction agent.")
             if pred and pred.parsed_ok:
                 conf = pred.confidence if pred.confidence is not None else 0.5
                 round_preds.append(f"{agent_name}: prediction={pred.prediction}, confidence={conf:.2f}")
@@ -395,12 +330,6 @@ def run_reconcile(
 
     # Final consensus
     consensus_prompt = (
-        f"Based on multi-round agent predictions, determine the final consensus prediction.\n\n"
-        f"Patient Case:\n{patient_context}\n\n"
-        f"All Predictions:\n" + "\n".join(predictions) + "\n\n"
-        f"Output Schema:\n{schema_text}\n\n"
-        f"Return exactly one JSON object matching the schema above. "
-        f"Weight predictions by confidence scores."
+        f"Based on multi-round agent predictions, determine the final consensus prediction.\n\nPatient Case:\n{patient_context}\n\nAll Predictions:\n" + "\n".join(predictions) + f"\n\nOutput Schema:\n{schema_text}\n\nReturn exactly one JSON object matching the schema above. Weight predictions by confidence scores."
     )
-    return _call_llm(client, system_cfg, consensus_prompt, task_kind,
-                     system_prompt="You are a consensus builder. Combine confidence-weighted predictions.")
+    return _call_llm(client, system_cfg, consensus_prompt, task_kind, system_prompt="You are a consensus builder. Combine confidence-weighted predictions.")
