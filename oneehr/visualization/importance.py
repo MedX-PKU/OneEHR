@@ -1,4 +1,5 @@
 """Feature importance bar chart and SHAP beeswarm plot."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -60,8 +61,7 @@ def plot_feature_importance(
     fig, ax = new_figure(style=style, figsize=figsize or (5, fig_h), ax=ax)
     palette = get_palette(1, style)
 
-    ax.barh(range(len(features)), importances, color=palette[0], edgecolor="none",
-            height=0.7, alpha=0.85)
+    ax.barh(range(len(features)), importances, color=palette[0], edgecolor="none", height=0.7, alpha=0.85)
     ax.set_yticks(range(len(features)))
     ax.set_yticklabels(features)
     ax.set_xlabel("Importance")
@@ -117,11 +117,9 @@ def plot_shap_beeswarm(
                 fv_norm = fv_norm / denom
             else:
                 fv_norm = np.full_like(fv_norm, 0.5)
-            ax.scatter(vals, y, c=fv_norm, cmap="coolwarm", s=5, alpha=0.6,
-                       edgecolors="none", vmin=0, vmax=1)
+            ax.scatter(vals, y, c=fv_norm, cmap="coolwarm", s=5, alpha=0.6, edgecolors="none", vmin=0, vmax=1)
         else:
-            ax.scatter(vals, y, c=vals, cmap="coolwarm", s=5, alpha=0.6,
-                       edgecolors="none")
+            ax.scatter(vals, y, c=vals, cmap="coolwarm", s=5, alpha=0.6, edgecolors="none")
 
     ax.set_yticks(range(len(order)))
     ax.set_yticklabels([feature_names[j] for j in order])
@@ -132,6 +130,7 @@ def plot_shap_beeswarm(
     if feature_data is not None:
         from matplotlib.cm import ScalarMappable
         from matplotlib.colors import Normalize
+
         sm = ScalarMappable(norm=Normalize(0, 1), cmap="coolwarm")
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.04)

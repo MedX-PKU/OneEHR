@@ -41,13 +41,12 @@ class Sparsemax(nn.Module):
 class CausalConv1d(nn.Conv1d):
     def __init__(self, in_ch, out_ch, kernel_size, stride=1, dilation=1, groups=1, bias=True):
         self._pad = (kernel_size - 1) * dilation
-        super().__init__(in_ch, out_ch, kernel_size, stride=stride,
-                         padding=self._pad, dilation=dilation, groups=groups, bias=bias)
+        super().__init__(in_ch, out_ch, kernel_size, stride=stride, padding=self._pad, dilation=dilation, groups=groups, bias=bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = super().forward(x)
         if self._pad != 0:
-            return out[:, :, :-self._pad]
+            return out[:, :, : -self._pad]
         return out
 
 
@@ -110,7 +109,10 @@ class AdaCareLayer(nn.Module):
         combined = torch.cat([conv_out, inp_out], dim=1).permute(0, 2, 1)
 
         packed = nn.utils.rnn.pack_padded_sequence(
-            combined, lengths.cpu(), batch_first=True, enforce_sorted=False,
+            combined,
+            lengths.cpu(),
+            batch_first=True,
+            enforce_sorted=False,
         )
         output, _ = self.rnn(packed)
         output, _ = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)

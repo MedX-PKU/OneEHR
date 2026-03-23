@@ -1,4 +1,5 @@
 """End-to-end tests for the new 4-command pipeline."""
+
 from __future__ import annotations
 
 import json
@@ -6,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
 
 def _make_dynamic(tmp_path: Path, n_patients: int = 60, seed: int = 0) -> Path:
@@ -46,12 +46,14 @@ def _make_dynamic_with_missing(tmp_path: Path, n_patients: int = 60, seed: int =
 def _make_label(tmp_path: Path, n_patients: int = 60) -> Path:
     rows = []
     for pid in range(n_patients):
-        rows.append({
-            "patient_id": f"p{pid:04d}",
-            "label_time": "2020-01-03",
-            "label_code": "outcome",
-            "label_value": pid % 2,
-        })
+        rows.append(
+            {
+                "patient_id": f"p{pid:04d}",
+                "label_time": "2020-01-03",
+                "label_code": "outcome",
+                "label_value": pid % 2,
+            }
+        )
     path = tmp_path / "label.csv"
     pd.DataFrame(rows).to_csv(path, index=False)
     return path
@@ -67,13 +69,11 @@ def _write_config(
     models: list[str] | None = None,
 ) -> Path:
     models = models or ["xgboost"]
-    model_blocks = "\n".join([
-        f'[[models]]\nname = "{m}"\n[models.params]\n'
-        for m in models
-    ])
+    model_blocks = "\n".join([f'[[models]]\nname = "{m}"\n[models.params]\n' for m in models])
 
     cfg = tmp_path / "exp.toml"
-    cfg.write_text(f"""
+    cfg.write_text(
+        f"""
 [dataset]
 dynamic = "{dynamic_csv}"
 label = "{label_csv}"
@@ -104,7 +104,9 @@ early_stopping = false
 [output]
 root = "{out_root}"
 run_name = "{run_name}"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     return cfg
 
 
@@ -156,7 +158,8 @@ def test_full_pipeline_pai(tmp_path: Path) -> None:
     label_csv = _make_label(tmp_path)
     out_root = tmp_path / "runs"
     cfg = tmp_path / "pai.toml"
-    cfg.write_text(f"""
+    cfg.write_text(
+        f"""
 [dataset]
 dynamic = "{dynamic_csv}"
 label = "{label_csv}"
@@ -191,7 +194,9 @@ early_stopping = false
 [output]
 root = "{out_root}"
 run_name = "pai_e2e"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
     from oneehr.cli.main import main
 
@@ -212,7 +217,8 @@ def test_full_pipeline_grud(tmp_path: Path) -> None:
     label_csv = _make_label(tmp_path)
     out_root = tmp_path / "runs"
     cfg = tmp_path / "grud.toml"
-    cfg.write_text(f"""
+    cfg.write_text(
+        f"""
 [dataset]
 dynamic = "{dynamic_csv}"
 label = "{label_csv}"
@@ -246,7 +252,9 @@ early_stopping = false
 [output]
 root = "{out_root}"
 run_name = "grud_e2e"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
     from oneehr.cli.main import main
 
@@ -267,7 +275,8 @@ def test_full_pipeline_raindrop(tmp_path: Path) -> None:
     label_csv = _make_label(tmp_path)
     out_root = tmp_path / "runs"
     cfg = tmp_path / "raindrop.toml"
-    cfg.write_text(f"""
+    cfg.write_text(
+        f"""
 [dataset]
 dynamic = "{dynamic_csv}"
 label = "{label_csv}"
@@ -301,7 +310,9 @@ early_stopping = false
 [output]
 root = "{out_root}"
 run_name = "raindrop_e2e"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
     from oneehr.cli.main import main
 
@@ -322,7 +333,8 @@ def test_full_pipeline_graphcare(tmp_path: Path) -> None:
     label_csv = _make_label(tmp_path)
     out_root = tmp_path / "runs"
     cfg = tmp_path / "graphcare.toml"
-    cfg.write_text(f"""
+    cfg.write_text(
+        f"""
 [dataset]
 dynamic = "{dynamic_csv}"
 label = "{label_csv}"
@@ -359,7 +371,9 @@ early_stopping = false
 [output]
 root = "{out_root}"
 run_name = "graphcare_e2e"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
     from oneehr.cli.main import main
 

@@ -15,9 +15,13 @@ from oneehr.models.recurrent import last_by_lengths
 
 
 def _sorted_feature_frame(df: pd.DataFrame, feat_cols: list[str]) -> pd.DataFrame:
-    return df[["patient_id", "bin_time", *feat_cols]].copy().sort_values(
-        ["patient_id", "bin_time"],
-        kind="stable",
+    return (
+        df[["patient_id", "bin_time", *feat_cols]]
+        .copy()
+        .sort_values(
+            ["patient_id", "bin_time"],
+            kind="stable",
+        )
     )
 
 
@@ -168,9 +172,7 @@ class PAIEncoder(nn.Module):
         if missing_mask is None:
             raise ValueError("PAI requires `missing_mask` in forward()")
         if missing_mask.shape != x.shape:
-            raise ValueError(
-                f"PAI missing_mask shape mismatch: expected {tuple(x.shape)}, got {tuple(missing_mask.shape)}"
-            )
+            raise ValueError(f"PAI missing_mask shape mismatch: expected {tuple(x.shape)}, got {tuple(missing_mask.shape)}")
         mask = missing_mask.to(device=x.device, dtype=x.dtype)
         prompt = self.prompt.to(device=x.device, dtype=x.dtype).view(1, 1, -1)
         return x * (1.0 - mask) + prompt * mask

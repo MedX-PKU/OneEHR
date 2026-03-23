@@ -22,4 +22,3 @@ def test_as_last_step_for_sequence_tabular():
     assert feats == ["f1", "f2"]
     assert x2d.shape == (2, 2)
     assert np.allclose(x2d, np.array([[1.0, 2.0], [3.0, 4.0]]))
-

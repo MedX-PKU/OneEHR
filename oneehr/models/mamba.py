@@ -5,11 +5,9 @@ Ported from PyHealth's ehrmamba.py (RMSNorm + MambaBlock).
 
 from __future__ import annotations
 
-import math
-
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 from oneehr.models.recurrent import last_by_lengths
 
@@ -47,7 +45,8 @@ class MambaBlock(nn.Module):
 
         self.in_proj = nn.Linear(d_model, d_inner * 2, bias=False)
         self.conv1d = nn.Conv1d(
-            d_inner, d_inner,
+            d_inner,
+            d_inner,
             kernel_size=conv_kernel,
             padding=conv_kernel - 1,
             groups=d_inner,
@@ -74,15 +73,15 @@ class MambaBlock(nn.Module):
 
         # Conv1d
         x_conv = x_inner.transpose(1, 2)  # (B, d_inner, T)
-        x_conv = self.conv1d(x_conv)[:, :, :x_inner.shape[1]]  # trim to T
+        x_conv = self.conv1d(x_conv)[:, :, : x_inner.shape[1]]  # trim to T
         x_conv = x_conv.transpose(1, 2)  # (B, T, d_inner)
         x_conv = F.silu(x_conv)
 
         # SSM parameters from input
         x_ssm = self.x_proj(x_conv)
         dt = F.softplus(self.dt_proj(x_ssm[:, :, -1:]))  # (B, T, d_inner)
-        B_param = x_ssm[:, :, :self.state_size]  # (B, T, state_size)
-        C_param = x_ssm[:, :, self.state_size:self.state_size * 2]  # (B, T, state_size)
+        B_param = x_ssm[:, :, : self.state_size]  # (B, T, state_size)
+        C_param = x_ssm[:, :, self.state_size : self.state_size * 2]  # (B, T, state_size)
 
         # Discretize and scan
         A = -torch.exp(self.A_log)  # (d_inner, state_size)
@@ -118,10 +117,7 @@ class MambaEncoder(nn.Module):
     ):
         super().__init__()
         self.proj = nn.Linear(input_dim, hidden_dim)
-        self.layers = nn.ModuleList([
-            MambaBlock(hidden_dim, state_size=state_size, conv_kernel=conv_kernel)
-            for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList([MambaBlock(hidden_dim, state_size=state_size, conv_kernel=conv_kernel) for _ in range(num_layers)])
         self.norm = RMSNorm(hidden_dim)
         self.drop = nn.Dropout(dropout)
 

@@ -21,7 +21,6 @@ from oneehr.eval.metrics import binary_metrics, regression_metrics
 from oneehr.eval.tables import summarize_metrics
 from oneehr.utils import ensure_dir, write_json
 
-
 ANALYSIS_SCHEMA_VERSION = 1
 PLOT_SCHEMA_VERSION = 1
 SUPPORTED_MODULES = (
@@ -81,10 +80,7 @@ def normalize_modules(cfg, modules: list[str] | None, *, method: str | None) -> 
     seen: set[str] = set()
     for name in selected:
         if name not in SUPPORTED_MODULES:
-            raise SystemExit(
-                f"Unsupported analysis module {name!r}. "
-                f"Expected one of: {', '.join(SUPPORTED_MODULES)}"
-            )
+            raise SystemExit(f"Unsupported analysis module {name!r}. Expected one of: {', '.join(SUPPORTED_MODULES)}")
         if name not in seen:
             out.append(name)
             seen.add(name)
@@ -245,9 +241,7 @@ def _module_dataset_profile(
         "module": "dataset_profile",
         "status": "ok",
         "n_dynamic_events": 0 if ctx.dynamic_raw is None else int(len(ctx.dynamic_raw)),
-        "n_patients_raw": 0
-        if ctx.dynamic_raw is None
-        else int(ctx.dynamic_raw["patient_id"].astype(str).nunique()),
+        "n_patients_raw": 0 if ctx.dynamic_raw is None else int(ctx.dynamic_raw["patient_id"].astype(str).nunique()),
         "n_dynamic_features": int(len(ctx.dynamic_feature_columns)),
         "n_static_features": int(len(ctx.static_feature_columns or [])),
         "n_static_columns_raw": 0 if ctx.static_raw is None else int(len(ctx.static_raw.columns) - 1),
@@ -494,11 +488,7 @@ def _module_test_audit(
 
     metric_key = _primary_metric(ctx.cfg.task.kind)
     model_primary_df = _summarize_metric_frame(test_df, group_col="model", metric_col=metric_key)
-    full_metric_summary = (
-        summarize_metrics(test_df, group_cols=["model"])
-        if not test_df.empty
-        else pd.DataFrame(columns=["model", "metric", "mean", "std", "ci95_low", "ci95_high", "n"])
-    )
+    full_metric_summary = summarize_metrics(test_df, group_cols=["model"]) if not test_df.empty else pd.DataFrame(columns=["model", "metric", "mean", "std", "ci95_low", "ci95_high", "n"])
     if not full_metric_summary.empty:
         full_metric_summary = full_metric_summary.sort_values(["model", "metric"], kind="stable").reset_index(drop=True)
 
@@ -567,9 +557,9 @@ def _module_interpretability(
     save_plot_specs: bool,
 ) -> AnalysisModuleResult:
     del case_limit
+    from oneehr.config.schema import TaskConfig
     from oneehr.models import TABULAR_MODELS
     from oneehr.models.tree import load_tabular_model
-    from oneehr.config.schema import TaskConfig
 
     module_dir = ensure_dir(analysis_root / "interpretability")
     tables: dict[str, pd.DataFrame] = {}
@@ -659,12 +649,15 @@ def _module_interpretability(
                 module_path = module_dir / f"{model_name}_{split_name}_{meth}.json"
                 write_json(module_path, payload)
                 legacy_path = analysis_root / f"feature_importance_{model_name}_{split_name}_{meth}.json"
-                write_json(legacy_path, {
-                    "method": result.method,
-                    "input_kind": result.input_kind,
-                    "feature_names": result.feature_names,
-                    "importances": result.importances.tolist(),
-                })
+                write_json(
+                    legacy_path,
+                    {
+                        "method": result.method,
+                        "input_kind": result.input_kind,
+                        "feature_names": result.feature_names,
+                        "importances": result.importances.tolist(),
+                    },
+                )
                 legacy_paths.append(str(legacy_path.relative_to(ctx.run_root)))
                 rows.append(
                     {
@@ -708,6 +701,7 @@ def _module_interpretability(
         save_plot_specs=save_plot_specs,
         legacy_paths=legacy_paths,
     )
+
 
 def _write_module_artifacts(
     *,
@@ -769,10 +763,7 @@ def _write_run_comparison(
     current_task = current.get("task") or {}
     other_task = other.get("task") or {}
     if current_task != other_task:
-        raise SystemExit(
-            "compare-run requires matching task settings. "
-            f"Current={current_task!r} Compare={other_task!r}"
-        )
+        raise SystemExit(f"compare-run requires matching task settings. Current={current_task!r} Compare={other_task!r}")
     comparison_dir = ensure_dir(analysis_root / "comparison")
     train_delta = _compare_summary_records(
         current_records=_read_summary_records(current_run_root / "summary.json"),
@@ -800,16 +791,8 @@ def _write_run_comparison(
     write_json(comparison_dir / "summary.json", summary)
     return {
         "summary_path": str((comparison_dir / "summary.json").relative_to(current_run_root)),
-        "train_metrics_path": (
-            None
-            if train_delta.empty
-            else str((comparison_dir / "train_metrics.csv").relative_to(current_run_root))
-        ),
-        "test_metrics_path": (
-            None
-            if test_delta.empty
-            else str((comparison_dir / "test_metrics.csv").relative_to(current_run_root))
-        ),
+        "train_metrics_path": (None if train_delta.empty else str((comparison_dir / "train_metrics.csv").relative_to(current_run_root))),
+        "test_metrics_path": (None if test_delta.empty else str((comparison_dir / "test_metrics.csv").relative_to(current_run_root))),
     }
 
 
@@ -1105,12 +1088,7 @@ def _patient_event_counts(dynamic_raw: pd.DataFrame | None) -> pd.DataFrame:
 def _summarize_metric_frame(df: pd.DataFrame, *, group_col: str, metric_col: str) -> pd.DataFrame:
     if df.empty or metric_col not in df.columns:
         return pd.DataFrame()
-    grouped = (
-        df.groupby(group_col, sort=True)[metric_col]
-        .agg(["mean", "std", "count"])
-        .reset_index()
-        .rename(columns={"mean": f"{metric_col}_mean", "std": f"{metric_col}_std", "count": "n"})
-    )
+    grouped = df.groupby(group_col, sort=True)[metric_col].agg(["mean", "std", "count"]).reset_index().rename(columns={"mean": f"{metric_col}_mean", "std": f"{metric_col}_std", "count": "n"})
     return grouped
 
 

@@ -31,6 +31,7 @@ def save_tabular_model(art: TabularArtifacts, model_dir: str | Path) -> None:
         return
     if art.kind in ("rf", "dt", "gbdt", "lr"):
         import joblib
+
         joblib.dump(art.model, d / "model.joblib")
         return
     raise ValueError(f"Unsupported tabular kind={art.kind!r}")
@@ -44,18 +45,21 @@ def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) ->
 
     if kind == "xgboost":
         from xgboost import XGBClassifier, XGBRegressor
+
         model = XGBClassifier() if task.kind == "binary" else XGBRegressor()
         model.load_model(d / "model.json")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="xgboost")
 
     if kind == "catboost":
         from catboost import CatBoostClassifier, CatBoostRegressor
+
         model = CatBoostClassifier() if task.kind == "binary" else CatBoostRegressor()
         model.load_model(d / "model.cbm")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
 
     if kind in ("rf", "dt", "gbdt", "lr"):
         import joblib
+
         model = joblib.load(d / "model.joblib")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind=kind)
 
@@ -83,9 +87,14 @@ def train_tabular_model(
 
         # Defaults merged with user params
         defaults = dict(
-            max_depth=6, n_estimators=500, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8, reg_lambda=1.0,
-            min_child_weight=1.0, random_state=seed,
+            max_depth=6,
+            n_estimators=500,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
+            min_child_weight=1.0,
+            random_state=seed,
         )
         kw = {**defaults, **params, "random_state": seed}
 
@@ -159,11 +168,13 @@ def train_tabular_model(
     if model_name == "lr":
         if task.kind == "binary":
             from sklearn.linear_model import LogisticRegression
+
             defaults = dict(C=1.0, max_iter=1000, solver="lbfgs")
             kw = {**defaults, **params, "random_state": seed}
             model = LogisticRegression(**kw)
         elif task.kind == "regression":
             from sklearn.linear_model import Ridge
+
             defaults = dict(alpha=1.0)
             kw = {**defaults, **params, "random_state": seed}
             model = Ridge(**kw)
@@ -177,8 +188,11 @@ def train_tabular_model(
         from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 
         defaults = dict(
-            n_estimators=500, max_depth=6, learning_rate=0.05,
-            subsample=0.8, min_samples_split=2,
+            n_estimators=500,
+            max_depth=6,
+            learning_rate=0.05,
+            subsample=0.8,
+            min_samples_split=2,
         )
         kw = {**defaults, **params, "random_state": seed}
 

@@ -1,10 +1,10 @@
 """Model comparison forest plot with confidence intervals."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from oneehr.visualization._style import get_palette, new_figure, save_and_close
 from oneehr.visualization._utils import load_analysis_json
@@ -40,10 +40,7 @@ def plot_forest(
     # Discover metrics with CIs.
     sample = systems[0].get("metrics", {})
     if metrics is None:
-        metrics = [
-            k for k in sample
-            if f"{k}_ci_low" in sample and f"{k}_ci_high" in sample
-        ]
+        metrics = [k for k in sample if f"{k}_ci_low" in sample and f"{k}_ci_high" in sample]
     if not metrics:
         metrics = [k for k in sample if isinstance(sample.get(k), (int, float))][:3]
 
@@ -79,9 +76,15 @@ def plot_forest(
         pos += 0.5  # gap between systems
 
     ax.barh(
-        y_pos, points, xerr=[lows, highs],
-        color=colours, height=0.6, edgecolor="none",
-        capsize=3, ecolor="#555555", alpha=0.85,
+        y_pos,
+        points,
+        xerr=[lows, highs],
+        color=colours,
+        height=0.6,
+        edgecolor="none",
+        capsize=3,
+        ecolor="#555555",
+        alpha=0.85,
     )
     ax.set_yticks(y_pos)
     ax.set_yticklabels(y_labels)
@@ -91,6 +94,7 @@ def plot_forest(
     # Legend for metrics.
     if n_metrics > 1:
         from matplotlib.patches import Patch
+
         handles = [Patch(color=palette[j], label=metrics[j]) for j in range(n_metrics)]
         ax.legend(handles=handles, loc="lower right", frameon=True)
 

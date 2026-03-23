@@ -2,10 +2,10 @@
 
 Reads test/predictions.parquet and produces analyze/{module}.json files.
 """
+
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -22,9 +22,7 @@ def run_analyze(cfg_path: str, *, module: str | None = None) -> None:
 
     preds_path = run_dir / "test" / "predictions.parquet"
     if not preds_path.exists():
-        raise SystemExit(
-            f"No predictions found at {preds_path}. Run `oneehr test` first."
-        )
+        raise SystemExit(f"No predictions found at {preds_path}. Run `oneehr test` first.")
 
     preds = pd.read_parquet(preds_path)
     analyze_dir = ensure_dir(run_dir / "analyze")
@@ -41,10 +39,7 @@ def run_analyze(cfg_path: str, *, module: str | None = None) -> None:
 
     if module is not None:
         if module not in available:
-            raise SystemExit(
-                f"Unknown analysis module: {module!r}. "
-                f"Available: {sorted(available.keys())}"
-            )
+            raise SystemExit(f"Unknown analysis module: {module!r}. Available: {sorted(available.keys())}")
         modules_to_run = {module: available[module]}
     else:
         modules_to_run = available
@@ -57,7 +52,7 @@ def run_analyze(cfg_path: str, *, module: str | None = None) -> None:
             result_dict, extra_df = result
             write_json(analyze_dir / f"{name}.json", result_dict)
             if extra_df is not None and not extra_df.empty:
-                extra_df.to_parquet(analyze_dir / f"calibrated_predictions.parquet", index=False)
+                extra_df.to_parquet(analyze_dir / "calibrated_predictions.parquet", index=False)
                 print(f"  Wrote {analyze_dir / 'calibrated_predictions.parquet'}")
         else:
             write_json(analyze_dir / f"{name}.json", result)
@@ -98,20 +93,26 @@ def _run_comparison(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
                 continue
             try:
                 br = bootstrap_metric(
-                    y_true=y_true, y_pred=y_pred,
-                    task=cfg.task, metric=m,
-                    n=1000, seed=42, ci=0.95,
+                    y_true=y_true,
+                    y_pred=y_pred,
+                    task=cfg.task,
+                    metric=m,
+                    n=1000,
+                    seed=42,
+                    ci=0.95,
                 )
                 metrics[f"{m}_ci_low"] = br.ci_low
                 metrics[f"{m}_ci_high"] = br.ci_high
             except Exception:
                 pass
 
-        systems.append({
-            "name": system_name,
-            "n": int(y_true.size),
-            "metrics": metrics,
-        })
+        systems.append(
+            {
+                "name": system_name,
+                "n": int(y_true.size),
+                "metrics": metrics,
+            }
+        )
 
     return {
         "module": "comparison",
@@ -141,11 +142,7 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
     if binned.empty:
         return {"module": "feature_importance", "models": {}}
 
-    last = (
-        binned.sort_values(["patient_id", "bin_time"], kind="stable")
-        .groupby("patient_id", sort=False)[feat_cols]
-        .last()
-    )
+    last = binned.sort_values(["patient_id", "bin_time"], kind="stable").groupby("patient_id", sort=False)[feat_cols].last()
     last.index = last.index.astype(str)
 
     # Join static features if present
@@ -173,6 +170,7 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
             X = last[stored_feat_cols]
 
             import torch
+
             if isinstance(model, torch.nn.Module):
                 # Use Integrated Gradients for DL models
                 try:
@@ -182,7 +180,9 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
                     patient_ids, seqs, lengths = build_patient_sequences(binned, stored_feat_cols)
                     X_padded = pad_sequences(seqs, lengths)
                     res = integrated_gradients_importance(
-                        model, X_padded, lengths,
+                        model,
+                        X_padded,
+                        lengths,
                         feature_names=stored_feat_cols,
                         n_steps=50,
                         max_patients=200,
@@ -198,6 +198,7 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
 
             # Try native importance first (XGBoost/CatBoost)
             from oneehr.analysis.feature_importance import xgboost_native_importance
+
             try:
                 res = xgboost_native_importance(model, X, feature_names=stored_feat_cols)
                 results[model_name] = {
@@ -211,8 +212,10 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
 
             # Fallback: SHAP
             from oneehr.analysis.feature_importance import shap_importance
+
             res = shap_importance(
-                model, X,
+                model,
+                X,
                 task_kind=cfg.task.kind,
                 feature_names=stored_feat_cols,
                 nsamples=100,

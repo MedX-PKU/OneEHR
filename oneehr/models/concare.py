@@ -78,9 +78,7 @@ class ConCareLayer(nn.Module):
         self.static_dim = static_dim
 
         # Channel-wise GRUs
-        self.grus = nn.ModuleList([
-            nn.GRU(1, hidden_dim, batch_first=True) for _ in range(lab_dim)
-        ])
+        self.grus = nn.ModuleList([nn.GRU(1, hidden_dim, batch_first=True) for _ in range(lab_dim)])
 
         if static_dim > 0:
             self.static_proj = nn.Linear(static_dim, hidden_dim)
@@ -181,7 +179,7 @@ class ConCareTimeModel(nn.Module):
         B, T, _ = x.size()
         outputs = []
         for t in range(T):
-            cur_x = x[:, :t + 1, :]
+            cur_x = x[:, : t + 1, :]
             cur_len = lengths.clamp(max=t + 1).clamp(min=1)
             cur_mask = _generate_mask(cur_len)
             c = self.layer(cur_x, cur_mask, static)

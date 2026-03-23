@@ -83,12 +83,14 @@ class MIMIC3Converter(BaseConverter):
             labs.columns = labs.columns.str.upper()
             labs["CHARTTIME"] = pd.to_datetime(labs["CHARTTIME"], errors="coerce")
             labs = labs.dropna(subset=["HADM_ID", "CHARTTIME"])
-            labs_dynamic = pd.DataFrame({
-                "patient_id": labs["HADM_ID"].astype(int).astype(str),
-                "event_time": labs["CHARTTIME"],
-                "code": "LAB_" + labs["ITEMID"].astype(str),
-                "value": labs["VALUE"],
-            })
+            labs_dynamic = pd.DataFrame(
+                {
+                    "patient_id": labs["HADM_ID"].astype(int).astype(str),
+                    "event_time": labs["CHARTTIME"],
+                    "code": "LAB_" + labs["ITEMID"].astype(str),
+                    "value": labs["VALUE"],
+                }
+            )
             dynamic_parts.append(labs_dynamic)
         except FileNotFoundError:
             warnings.warn("LABEVENTS.csv not found, skipping lab events.", stacklevel=2)
@@ -103,12 +105,14 @@ class MIMIC3Converter(BaseConverter):
                 charts.columns = charts.columns.str.upper()
                 charts["CHARTTIME"] = pd.to_datetime(charts["CHARTTIME"], errors="coerce")
                 charts = charts.dropna(subset=["HADM_ID", "CHARTTIME"])
-                charts_dynamic = pd.DataFrame({
-                    "patient_id": charts["HADM_ID"].astype(int).astype(str),
-                    "event_time": charts["CHARTTIME"],
-                    "code": "CHART_" + charts["ITEMID"].astype(str),
-                    "value": charts["VALUE"],
-                })
+                charts_dynamic = pd.DataFrame(
+                    {
+                        "patient_id": charts["HADM_ID"].astype(int).astype(str),
+                        "event_time": charts["CHARTTIME"],
+                        "code": "CHART_" + charts["ITEMID"].astype(str),
+                        "value": charts["VALUE"],
+                    }
+                )
                 dynamic_parts.append(charts_dynamic)
             except FileNotFoundError:
                 warnings.warn("CHARTEVENTS.csv not found, skipping chart events.", stacklevel=2)
@@ -124,12 +128,14 @@ class MIMIC3Converter(BaseConverter):
                 on="HADM_ID",
                 how="left",
             )
-            dx_dynamic = pd.DataFrame({
-                "patient_id": dx["HADM_ID"].astype(int).astype(str),
-                "event_time": dx["ADMITTIME"],
-                "code": "DX_" + dx["ICD9_CODE"].astype(str),
-                "value": "1",
-            })
+            dx_dynamic = pd.DataFrame(
+                {
+                    "patient_id": dx["HADM_ID"].astype(int).astype(str),
+                    "event_time": dx["ADMITTIME"],
+                    "code": "DX_" + dx["ICD9_CODE"].astype(str),
+                    "value": "1",
+                }
+            )
             dynamic_parts.append(dx_dynamic)
         except FileNotFoundError:
             warnings.warn("DIAGNOSES_ICD.csv not found.", stacklevel=2)
@@ -144,12 +150,14 @@ class MIMIC3Converter(BaseConverter):
                 on="HADM_ID",
                 how="left",
             )
-            proc_dynamic = pd.DataFrame({
-                "patient_id": proc["HADM_ID"].astype(int).astype(str),
-                "event_time": proc["ADMITTIME"],
-                "code": "PROC_" + proc["ICD9_CODE"].astype(str),
-                "value": "1",
-            })
+            proc_dynamic = pd.DataFrame(
+                {
+                    "patient_id": proc["HADM_ID"].astype(int).astype(str),
+                    "event_time": proc["ADMITTIME"],
+                    "code": "PROC_" + proc["ICD9_CODE"].astype(str),
+                    "value": "1",
+                }
+            )
             dynamic_parts.append(proc_dynamic)
         except FileNotFoundError:
             warnings.warn("PROCEDURES_ICD.csv not found.", stacklevel=2)
@@ -162,12 +170,14 @@ class MIMIC3Converter(BaseConverter):
                 rx["STARTDATE"] = pd.to_datetime(rx["STARTDATE"], errors="coerce")
                 rx = rx.dropna(subset=["HADM_ID", "STARTDATE"])
                 drug_col = "DRUG" if "DRUG" in rx.columns else "FORMULARY_DRUG_CD"
-                rx_dynamic = pd.DataFrame({
-                    "patient_id": rx["HADM_ID"].astype(int).astype(str),
-                    "event_time": rx["STARTDATE"],
-                    "code": "RX_" + rx[drug_col].astype(str),
-                    "value": "1",
-                })
+                rx_dynamic = pd.DataFrame(
+                    {
+                        "patient_id": rx["HADM_ID"].astype(int).astype(str),
+                        "event_time": rx["STARTDATE"],
+                        "code": "RX_" + rx[drug_col].astype(str),
+                        "value": "1",
+                    }
+                )
                 dynamic_parts.append(rx_dynamic)
             except FileNotFoundError:
                 warnings.warn("PRESCRIPTIONS.csv not found.", stacklevel=2)
@@ -184,9 +194,7 @@ class MIMIC3Converter(BaseConverter):
         static_base = adm_first.merge(patients, on="SUBJECT_ID", how="left")
 
         # Compute age at admission
-        static_base["age"] = (
-            (static_base["ADMITTIME"] - static_base["DOB"]).dt.days / 365.25
-        ).round(1)
+        static_base["age"] = ((static_base["ADMITTIME"] - static_base["DOB"]).dt.days / 365.25).round(1)
         # Cap unrealistic ages (MIMIC-III shifts DOB for >89)
         static_base.loc[static_base["age"] > 200, "age"] = 91.4
 
@@ -209,49 +217,51 @@ class MIMIC3Converter(BaseConverter):
         # In-hospital mortality
         mort = adm_first.copy()
         mort["died"] = mort["DEATHTIME"].notna().astype(int)
-        labels["mortality"] = pd.DataFrame({
-            "patient_id": mort["HADM_ID"].astype(str),
-            "label_time": mort["DISCHTIME"],
-            "label_code": "mortality",
-            "label_value": mort["died"],
-        }).dropna(subset=["label_time"])
+        labels["mortality"] = pd.DataFrame(
+            {
+                "patient_id": mort["HADM_ID"].astype(str),
+                "label_time": mort["DISCHTIME"],
+                "label_code": "mortality",
+                "label_value": mort["died"],
+            }
+        ).dropna(subset=["label_time"])
 
         # Length of stay
-        adm_first["los_days"] = (
-            (adm_first["DISCHTIME"] - adm_first["ADMITTIME"]).dt.total_seconds() / 86400
-        )
-        labels["los_3day"] = pd.DataFrame({
-            "patient_id": adm_first["HADM_ID"].astype(str),
-            "label_time": adm_first["DISCHTIME"],
-            "label_code": "los_3day",
-            "label_value": (adm_first["los_days"] > 3).astype(int),
-        }).dropna(subset=["label_time"])
+        adm_first["los_days"] = (adm_first["DISCHTIME"] - adm_first["ADMITTIME"]).dt.total_seconds() / 86400
+        labels["los_3day"] = pd.DataFrame(
+            {
+                "patient_id": adm_first["HADM_ID"].astype(str),
+                "label_time": adm_first["DISCHTIME"],
+                "label_code": "los_3day",
+                "label_value": (adm_first["los_days"] > 3).astype(int),
+            }
+        ).dropna(subset=["label_time"])
 
-        labels["los_7day"] = pd.DataFrame({
-            "patient_id": adm_first["HADM_ID"].astype(str),
-            "label_time": adm_first["DISCHTIME"],
-            "label_code": "los_7day",
-            "label_value": (adm_first["los_days"] > 7).astype(int),
-        }).dropna(subset=["label_time"])
+        labels["los_7day"] = pd.DataFrame(
+            {
+                "patient_id": adm_first["HADM_ID"].astype(str),
+                "label_time": adm_first["DISCHTIME"],
+                "label_code": "los_7day",
+                "label_value": (adm_first["los_days"] > 7).astype(int),
+            }
+        ).dropna(subset=["label_time"])
 
         # 30-day readmission
         adm_sorted = admissions.sort_values(["SUBJECT_ID", "ADMITTIME"])
         adm_sorted["next_admit"] = adm_sorted.groupby("SUBJECT_ID")["ADMITTIME"].shift(-1)
-        adm_sorted["days_to_readmit"] = (
-            (adm_sorted["next_admit"] - adm_sorted["DISCHTIME"]).dt.total_seconds() / 86400
-        )
-        adm_sorted["readmit_30"] = (
-            adm_sorted["days_to_readmit"].notna() & (adm_sorted["days_to_readmit"] <= 30)
-        ).astype(int)
+        adm_sorted["days_to_readmit"] = (adm_sorted["next_admit"] - adm_sorted["DISCHTIME"]).dt.total_seconds() / 86400
+        adm_sorted["readmit_30"] = (adm_sorted["days_to_readmit"].notna() & (adm_sorted["days_to_readmit"] <= 30)).astype(int)
         # Exclude patients who died (can't be readmitted)
         adm_sorted.loc[adm_sorted["DEATHTIME"].notna(), "readmit_30"] = np.nan
 
         readmit = adm_sorted.dropna(subset=["readmit_30"])
-        labels["readmission"] = pd.DataFrame({
-            "patient_id": readmit["HADM_ID"].astype(str),
-            "label_time": readmit["DISCHTIME"],
-            "label_code": "readmission",
-            "label_value": readmit["readmit_30"].astype(int),
-        }).dropna(subset=["label_time"])
+        labels["readmission"] = pd.DataFrame(
+            {
+                "patient_id": readmit["HADM_ID"].astype(str),
+                "label_time": readmit["DISCHTIME"],
+                "label_code": "readmission",
+                "label_value": readmit["readmit_30"].astype(int),
+            }
+        ).dropna(subset=["label_time"])
 
         return ConvertedDataset(dynamic=dynamic, static=static, labels=labels)

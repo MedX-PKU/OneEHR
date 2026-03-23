@@ -1,4 +1,5 @@
 """oneehr train subcommand."""
+
 from __future__ import annotations
 
 import shutil
@@ -8,8 +9,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from oneehr.models import TABULAR_MODELS, DL_MODELS
-from oneehr.utils import ensure_dir, write_json
+from oneehr.models import DL_MODELS, TABULAR_MODELS
+from oneehr.utils import ensure_dir
 
 
 def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
@@ -23,6 +24,7 @@ def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     from oneehr.data.tabular import transform_pipeline
+
     fitted = torch.load(pipeline_path, weights_only=False)
     df = transform_pipeline(df, fitted)
     # Safety net: fill any remaining numeric NaN with 0
@@ -39,10 +41,7 @@ def run_train(cfg_path: str, force: bool) -> None:
     run_dir = cfg.run_dir()
 
     if not (run_dir / "preprocess").exists():
-        raise SystemExit(
-            f"Preprocessed artifacts not found at {run_dir / 'preprocess'}. "
-            "Run `oneehr preprocess` first."
-        )
+        raise SystemExit(f"Preprocessed artifacts not found at {run_dir / 'preprocess'}. Run `oneehr preprocess` first.")
 
     train_dir = run_dir / "train"
     if train_dir.exists() and not force:
@@ -89,8 +88,11 @@ def run_train(cfg_path: str, force: bool) -> None:
             _train_tabular(
                 model_name=model_name,
                 model_cfg=model_cfg,
-                X=X, y=y, split=split,
-                cfg=cfg, model_out=model_out,
+                X=X,
+                y=y,
+                split=split,
+                cfg=cfg,
+                model_out=model_out,
                 feat_cols=feat_cols,
                 static_all=static_all,
                 time_key=time_key,
@@ -99,9 +101,13 @@ def run_train(cfg_path: str, force: bool) -> None:
             _train_dl(
                 model_name=model_name,
                 model_cfg=model_cfg,
-                binned=binned, labels_df=labels_df,
-                X=X, y=y, split=split,
-                cfg=cfg, model_out=model_out,
+                binned=binned,
+                labels_df=labels_df,
+                X=X,
+                y=y,
+                split=split,
+                cfg=cfg,
+                model_out=model_out,
                 feat_cols=feat_cols,
                 static_all=static_all,
             )
@@ -122,11 +128,7 @@ def _build_patient_tabular(
         X.index.name = "patient_id"
         return X, pd.Series(dtype=float, name="label")
 
-    last = (
-        binned.sort_values(["patient_id", "bin_time"], kind="stable")
-        .groupby("patient_id", sort=False)[feat_cols]
-        .last()
-    )
+    last = binned.sort_values(["patient_id", "bin_time"], kind="stable").groupby("patient_id", sort=False)[feat_cols].last()
     last.index = last.index.astype(str)
     last.index.name = "patient_id"
 
@@ -155,7 +157,8 @@ def _build_time_tabular(
     if labels_df is not None:
         merged = key.merge(
             labels_df[["patient_id", "bin_time", "label"]],
-            on=["patient_id", "bin_time"], how="left",
+            on=["patient_id", "bin_time"],
+            how="left",
         )
         y = merged["label"].astype(float)
     else:
@@ -177,8 +180,8 @@ def _train_tabular(
     static_all: pd.DataFrame | None,
     time_key: pd.DataFrame | None = None,
 ) -> None:
-    from oneehr.models.tree import train_tabular_model, predict_tabular
     from oneehr.eval.metrics import binary_metrics, regression_metrics
+    from oneehr.models.tree import predict_tabular, train_tabular_model
     from oneehr.training.persistence import save_checkpoint
 
     # Split data — for time-level, use the key's patient_id column
@@ -208,8 +211,10 @@ def _train_tabular(
 
     art = train_tabular_model(
         model_name=model_name,
-        X_train=X_train, y_train=y_train,
-        X_val=X_val, y_val=y_val,
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
         task=cfg.task,
         params=model_cfg.params,
         seed=cfg.trainer.seed,
@@ -246,19 +251,15 @@ def _train_dl(
     feat_cols: list[str],
     static_all: pd.DataFrame | None,
 ) -> None:
+    from oneehr.data.tabular import has_static_branch
     from oneehr.models import build_dl_model
     from oneehr.models.runtime import prepare_dl_artifacts
-    from oneehr.training.trainer import fit_model
     from oneehr.training.persistence import save_checkpoint
-    from oneehr.data.tabular import has_static_branch
+    from oneehr.training.trainer import fit_model
 
     # Auto-detect static_dim for models that support it
     _STATIC_MODELS = {"concare", "grasp", "mcgru", "dragent", "prism", "safari", "teco"}
-    if (
-        model_name in _STATIC_MODELS
-        and static_all is not None
-        and "static_dim" not in model_cfg.params
-    ):
+    if model_name in _STATIC_MODELS and static_all is not None and "static_dim" not in model_cfg.params:
         model_cfg = type(model_cfg)(
             name=model_cfg.name,
             params={**model_cfg.params, "static_dim": static_all.shape[1]},
@@ -286,9 +287,13 @@ def _train_dl(
                 y_map[str(row["patient_id"])] = float(row["label"])
 
         trained_model, train_metrics = fit_model(
-            model=model, binned=binned, split=split,
-            feat_cols=feat_cols, y_map=y_map,
-            cfg=cfg.trainer, task=cfg.task,
+            model=model,
+            binned=binned,
+            split=split,
+            feat_cols=feat_cols,
+            y_map=y_map,
+            cfg=cfg.trainer,
+            task=cfg.task,
             mode="patient",
             static=static_all if model_supports_static else None,
             train_extra=prepared.train_extra,
@@ -297,9 +302,13 @@ def _train_dl(
         )
     else:
         trained_model, train_metrics = fit_model(
-            model=model, binned=binned, split=split,
-            feat_cols=feat_cols, labels_df=labels_df,
-            cfg=cfg.trainer, task=cfg.task,
+            model=model,
+            binned=binned,
+            split=split,
+            feat_cols=feat_cols,
+            labels_df=labels_df,
+            cfg=cfg.trainer,
+            task=cfg.task,
             mode="time",
             static=static_all if model_supports_static else None,
             train_extra=prepared.train_extra,

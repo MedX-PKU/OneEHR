@@ -5,15 +5,17 @@ from __future__ import annotations
 import pytest
 import torch
 
-
 B, T, INPUT_DIM, OUT_DIM = 2, 5, 4, 1
 HIDDEN = 16
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_cnn(mode, expected_shape):
     from oneehr.models.cnn import CNNPatientModel, CNNTimeModel
 
@@ -26,10 +28,13 @@ def test_cnn(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_grud(mode, expected_shape):
     from oneehr.models.grud import GRUDModel, GRUDTimeModel
 
@@ -50,10 +55,13 @@ def test_grud(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_sand(mode, expected_shape):
     from oneehr.models.sand import SAnDModel, SAnDTimeModel
 
@@ -74,10 +82,13 @@ def test_sand(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 @pytest.mark.parametrize("attention_type", ["location", "general", "concat"])
 def test_dipole(mode, expected_shape, attention_type):
     from oneehr.models.dipole import DipoleModel, DipoleTimeModel
@@ -96,10 +107,13 @@ def test_dipole(mode, expected_shape, attention_type):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_hitanet(mode, expected_shape):
     from oneehr.models.hitanet import HiTANetModel, HiTANetTimeModel
 
@@ -119,10 +133,13 @@ def test_hitanet(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_lsan(mode, expected_shape):
     from oneehr.models.lsan import LSANModel, LSANTimeModel
 
@@ -142,10 +159,13 @@ def test_lsan(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_mtand(mode, expected_shape):
     from oneehr.models.mtand import MTANDModel, MTANDTimeModel
 
@@ -168,10 +188,13 @@ def test_mtand(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_raindrop(mode, expected_shape):
     from oneehr.models.raindrop import RaindropModel, RaindropTimeModel
 
@@ -187,10 +210,13 @@ def test_raindrop(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_contiformer(mode, expected_shape):
     from oneehr.models.contiformer import ContiFormerModel, ContiFormerTimeModel
 
@@ -211,10 +237,13 @@ def test_contiformer(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 @pytest.mark.parametrize("use_static", [False, True])
 def test_teco(mode, expected_shape, use_static):
     from oneehr.models.teco import TECOModel, TECOTimeModel
@@ -240,10 +269,13 @@ def test_teco(mode, expected_shape, use_static):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_graphcare(mode, expected_shape):
     from oneehr.models.graphcare import GraphCareModel, GraphCareTimeModel
 
@@ -265,10 +297,13 @@ def test_graphcare(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_kerprint(mode, expected_shape):
     from oneehr.models.kerprint import KerPrintModel, KerPrintTimeModel
 
@@ -290,10 +325,13 @@ def test_kerprint(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_protoehr(mode, expected_shape):
     from oneehr.models.protoehr import ProtoEHRModel, ProtoEHRTimeModel
 
@@ -316,10 +354,13 @@ def test_protoehr(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_deepr(mode, expected_shape):
     from oneehr.models.deepr import DeeprModel, DeeprTimeModel
 
@@ -333,10 +374,13 @@ def test_deepr(mode, expected_shape):
     loss.backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_mamba(mode, expected_shape):
     from oneehr.models.mamba import EHRMambaModel, EHRMambaTimeModel
 
@@ -350,17 +394,25 @@ def test_mamba(mode, expected_shape):
     loss.backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_jamba(mode, expected_shape):
     from oneehr.models.jamba import JambaModel, JambaTimeModel
 
     cls = JambaTimeModel if mode == "time" else JambaModel
     m = cls(
-        input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM,
-        num_transformer_layers=1, num_mamba_layers=2, heads=2, state_size=4,
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        num_transformer_layers=1,
+        num_mamba_layers=2,
+        heads=2,
+        state_size=4,
     )
     x = torch.randn(B, T, INPUT_DIM)
     lengths = torch.tensor([T, T - 2])
@@ -370,10 +422,13 @@ def test_jamba(mode, expected_shape):
     loss.backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_m3care(mode, expected_shape):
     from oneehr.models.m3care import M3CareModel, M3CareTimeModel
 
@@ -393,10 +448,13 @@ def test_m3care(mode, expected_shape):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 @pytest.mark.parametrize("use_static", [False, True])
 def test_safari(mode, expected_shape, use_static):
     from oneehr.models.safari import SafariModel, SafariTimeModel
@@ -419,10 +477,13 @@ def test_safari(mode, expected_shape, use_static):
     out.sum().backward()
 
 
-@pytest.mark.parametrize("mode,expected_shape", [
-    ("patient", (B, OUT_DIM)),
-    ("time", (B, T, OUT_DIM)),
-])
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_pai(mode, expected_shape):
     from oneehr.models.pai import PAIModel, PAITimeModel
 

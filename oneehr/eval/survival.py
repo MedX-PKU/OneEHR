@@ -60,6 +60,7 @@ def concordance_index_fast(
     """
     try:
         from lifelines.utils import concordance_index as _ci
+
         return float(_ci(event_times, -predicted_risk, event_observed))
     except ImportError:
         pass
@@ -147,9 +148,11 @@ def survival_metrics(
     """
     ci = concordance_index_fast(event_times, predicted_risk, event_observed)
 
-    return MetricResult(metrics={
-        "c_index": ci,
-        "n_events": int(event_observed.sum()),
-        "n_censored": int((event_observed == 0).sum()),
-        "median_time": float(np.median(event_times)),
-    })
+    return MetricResult(
+        metrics={
+            "c_index": ci,
+            "n_events": int(event_observed.sum()),
+            "n_censored": int((event_observed == 0).sum()),
+            "median_time": float(np.median(event_times)),
+        }
+    )

@@ -68,7 +68,7 @@ where = ["."]
 include = ["oneehr*"]
 
 [tool.ruff]
-line-length = 9999
+line-length = 320
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

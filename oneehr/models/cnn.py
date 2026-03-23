@@ -37,10 +37,7 @@ class CNNBackbone(nn.Module):
     ):
         super().__init__()
         self.input_proj = nn.Conv1d(input_dim, hidden_dim, kernel_size=1)
-        self.blocks = nn.ModuleList([
-            TemporalConvBlock(hidden_dim, kernel_size=kernel_size, dropout=dropout)
-            for _ in range(num_layers)
-        ])
+        self.blocks = nn.ModuleList([TemporalConvBlock(hidden_dim, kernel_size=kernel_size, dropout=dropout) for _ in range(num_layers)])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = x.transpose(1, 2)

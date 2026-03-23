@@ -42,10 +42,7 @@ class MTANDBackbone(nn.Module):
         self.input_proj = nn.Linear(input_dim, hidden_dim)
         self.time_enc = ContinuousTimeEncoding(hidden_dim)
         self.obs_proj = nn.Linear(1, hidden_dim)
-        self.layers = nn.ModuleList([
-            MTANDBlock(hidden_dim, num_heads=num_heads, dropout=dropout)
-            for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList([MTANDBlock(hidden_dim, num_heads=num_heads, dropout=dropout) for _ in range(num_layers)])
 
     def forward(
         self,

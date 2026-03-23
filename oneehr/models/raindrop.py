@@ -48,9 +48,7 @@ class RaindropBackbone(nn.Module):
         graph_tokens = torch.einsum("bij,btjh->btih", adj, sensor_tokens)
         visit_repr = graph_tokens.mean(dim=2) + self.time_enc(visit_time)
 
-        packed = nn.utils.rnn.pack_padded_sequence(
-            self.dropout(visit_repr), lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        packed = nn.utils.rnn.pack_padded_sequence(self.dropout(visit_repr), lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, _ = self.temporal_gru(packed)
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         return out

@@ -1,17 +1,18 @@
 """Tests for the train CLI contract."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
 
 def test_run_train_requires_preprocess(tmp_path: Path) -> None:
     """Train should fail if preprocess hasn't been run."""
     cfg_path = tmp_path / "exp.toml"
-    cfg_path.write_text("""
+    cfg_path.write_text(
+        """
 [dataset]
 dynamic = "dummy.csv"
 
@@ -27,7 +28,9 @@ name = "xgboost"
 [output]
 root = "{root}"
 run_name = "test"
-""".format(root=tmp_path / "runs"), encoding="utf-8")
+""".format(root=tmp_path / "runs"),
+        encoding="utf-8",
+    )
 
     from oneehr.cli.train import run_train
 
@@ -41,13 +44,21 @@ def test_run_train_requires_force_for_existing(tmp_path: Path) -> None:
     (out / "preprocess").mkdir(parents=True)
     (out / "train").mkdir(parents=True)
     # Write minimal manifest
-    (out / "manifest.json").write_text(json.dumps({
-        "config": {}, "feature_columns": [], "static_feature_columns": [],
-        "paths": {"binned": "preprocess/binned.parquet", "labels": "preprocess/labels.parquet", "split": "preprocess/split.json"},
-    }), encoding="utf-8")
+    (out / "manifest.json").write_text(
+        json.dumps(
+            {
+                "config": {},
+                "feature_columns": [],
+                "static_feature_columns": [],
+                "paths": {"binned": "preprocess/binned.parquet", "labels": "preprocess/labels.parquet", "split": "preprocess/split.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     cfg_path = tmp_path / "exp.toml"
-    cfg_path.write_text(f"""
+    cfg_path.write_text(
+        f"""
 [dataset]
 dynamic = "dummy.csv"
 
@@ -61,9 +72,11 @@ kind = "random"
 name = "xgboost"
 
 [output]
-root = "{tmp_path / 'runs'}"
+root = "{tmp_path / "runs"}"
 run_name = "test"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
     from oneehr.cli.train import run_train
 

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-from oneehr.visualization._style import new_figure, save_and_close, get_palette
+from oneehr.visualization._style import get_palette, new_figure, save_and_close
 
 
 def plot_kaplan_meier(
@@ -94,8 +94,12 @@ def plot_kaplan_meier(
 
         if ci:
             main_ax.fill_between(
-                time_points, ci_lower, ci_upper,
-                step="post", alpha=0.15, color=color,
+                time_points,
+                ci_lower,
+                ci_upper,
+                step="post",
+                alpha=0.15,
+                color=color,
             )
 
         # Mark censored observations
@@ -105,8 +109,13 @@ def plot_kaplan_meier(
             # Find survival probability at each censored time
             censor_surv = np.interp(censor_times, time_points, surv)
             main_ax.scatter(
-                censor_times, censor_surv,
-                marker="|", color=color, s=20, alpha=0.6, zorder=5,
+                censor_times,
+                censor_surv,
+                marker="|",
+                color=color,
+                s=20,
+                alpha=0.6,
+                zorder=5,
             )
 
         at_risk_data[label] = (time_points, surv, len(t[mask] if isinstance(mask, np.ndarray) else t))

@@ -42,9 +42,7 @@ class DipoleBackbone(nn.Module):
         return self.concat_score(torch.tanh(self.concat_proj(torch.cat([out, q], dim=-1)))).squeeze(-1)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-        packed = nn.utils.rnn.pack_padded_sequence(
-            x, lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, _ = self.rnn(packed)
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         query = out[torch.arange(out.size(0), device=out.device), (lengths - 1).clamp_min(0)]

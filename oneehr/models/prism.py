@@ -23,12 +23,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from oneehr.models.recurrent import last_by_lengths
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Building blocks
 # ──────────────────────────────────────────────────────────────────────
+
 
 class AdjacencyLayer(nn.Module):
     def __init__(self):
@@ -42,10 +40,7 @@ class AdjacencyLayer(nn.Module):
         x2 = x.unsqueeze(0).expand(b, -1, d)
         dc1 = dc.unsqueeze(1).expand(-1, b, d)
         dc2 = dc.unsqueeze(0).expand(b, -1, d)
-        sim = 1 / (
-            (1 - self.dc_param) * (x1 - x2) ** 2
-            + self.dc_param * torch.exp(1 - dc1) * torch.exp(1 - dc2)
-        ).mean(2)
+        sim = 1 / ((1 - self.dc_param) * (x1 - x2) ** 2 + self.dc_param * torch.exp(1 - dc1) * torch.exp(1 - dc2)).mean(2)
         eye = torch.eye(b, device=x.device)
         return sim * (1 - eye) + eye
 
@@ -101,7 +96,9 @@ class GroupPatientLearner(nn.Module):
         self.importance = SqueezeLayer(num_feat, squeeze_dim=16)
 
     def forward(
-        self, x: torch.Tensor, dc: torch.Tensor,
+        self,
+        x: torch.Tensor,
+        dc: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # x: [B, num_feat, feat_dim], dc: [B, num_feat]
         b = x.shape[0]
@@ -142,9 +139,9 @@ class ConfidenceLearner(nn.Module):
 
     def forward(
         self,
-        attn: torch.Tensor,   # [B, T, num_feat]
-        gfe: torch.Tensor,    # [num_feat]
-        td: torch.Tensor,     # [B, T, num_feat]
+        attn: torch.Tensor,  # [B, T, num_feat]
+        gfe: torch.Tensor,  # [num_feat]
+        td: torch.Tensor,  # [B, T, num_feat]
     ) -> tuple[torch.Tensor, torch.Tensor]:
         b, t, d = attn.shape
         td = td.to(attn.dtype).clamp(max=2.0)
@@ -171,17 +168,17 @@ class FeatureAttention(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,           # [B, T, num_feat, C]
+        x: torch.Tensor,  # [B, T, num_feat, C]
         gfe: torch.Tensor | None,  # [num_feat]
-        td: torch.Tensor | None,   # [B, T, num_feat]
+        td: torch.Tensor | None,  # [B, T, num_feat]
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         B, T, NF, C = x.size()
         Q = self.query(x[:, -1, :, :])  # [B, NF, C]
-        x_flat = x.view(B, -1, C)       # [B, T*NF, C]
+        x_flat = x.view(B, -1, C)  # [B, T*NF, C]
         K = self.key(x_flat)
         V = self.value(x_flat)
 
-        attn = torch.softmax(Q.bmm(K.transpose(1, 2)) / (C ** 0.5), dim=2)  # [B, NF, T*NF]
+        attn = torch.softmax(Q.bmm(K.transpose(1, 2)) / (C**0.5), dim=2)  # [B, NF, T*NF]
         attn_4d = attn.view(B, NF, T, NF)
 
         dc = None
@@ -218,9 +215,7 @@ class MCGRUEncoder(nn.Module):
         super().__init__()
         self.dim_list = dim_list
         self.feat_dim = feat_dim
-        self.grus = nn.ModuleList([
-            nn.GRU(d, feat_dim, num_layers=1, batch_first=True) for d in dim_list
-        ])
+        self.grus = nn.ModuleList([nn.GRU(d, feat_dim, num_layers=1, batch_first=True) for d in dim_list])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, _ = x.shape
@@ -235,7 +230,8 @@ class MCGRUEncoder(nn.Module):
 
 
 def _reduce_to_groups(
-    vals: torch.Tensor, dim_list: list[int],
+    vals: torch.Tensor,
+    dim_list: list[int],
 ) -> torch.Tensor:
     """Reduce per-column tensor to per-group by taking first col of each group.
 
@@ -253,6 +249,7 @@ def _reduce_to_groups(
 # ──────────────────────────────────────────────────────────────────────
 # Main model
 # ──────────────────────────────────────────────────────────────────────
+
 
 class PRISMModel(nn.Module):
     """Patient-level PRISM (ATCare) model.
@@ -334,7 +331,7 @@ class PRISMModel(nn.Module):
         static: torch.Tensor | None = None,
         **extra,
     ) -> torch.Tensor:
-        obs_rates = extra.get("obs_rates")   # [input_dim] or [num_feat]
+        obs_rates = extra.get("obs_rates")  # [input_dim] or [num_feat]
         time_delta = extra.get("time_delta")  # [B, T, input_dim] or [B, T, num_feat]
 
         B, T, D = x.shape
@@ -378,15 +375,14 @@ class PRISMModel(nn.Module):
         else:
             last_dc = torch.ones(B, self.num_feat, device=x.device)
 
-        group_scores, group_emb, group_patient_emb, group_label = \
-            self.group_patient_learner(last_visit, last_dc)
+        group_scores, group_emb, group_patient_emb, group_label = self.group_patient_learner(last_visit, last_dc)
         self._last_group_label = group_label.detach()
 
         # Project and mix with group embedding.
         h = feat.flatten(2)  # [B, T, num_feat*feat_dim]
-        h = self.proj1(h)    # [B, T, num_feat]
+        h = self.proj1(h)  # [B, T, num_feat]
         h = self.group_embed_param * group_patient_emb.unsqueeze(1) + (1 - self.group_embed_param) * h
-        h = self.proj2(h)    # [B, T, hidden_dim]
+        h = self.proj2(h)  # [B, T, hidden_dim]
         h = self.dropout(h)
 
         _, out = self.gru(h)
@@ -430,6 +426,7 @@ class PRISMTimeModel(nn.Module):
 # ──────────────────────────────────────────────────────────────────────
 # Data preparation — all PRISM-specific naming stays here
 # ──────────────────────────────────────────────────────────────────────
+
 
 def _cluster(data: np.ndarray, k: int, max_iter: int = 100) -> np.ndarray:
     """Simple K-means clustering, returns centers [K, D]."""
@@ -512,11 +509,7 @@ def prepare_prism_inputs(
 
     # 4. K-means centers from training last-visit feature vectors
     train_binned = binned[binned["patient_id"].astype(str).isin(train_pids)].copy()
-    last_visit = (
-        train_binned.sort_values(["patient_id", "bin_time"], kind="stable")
-        .groupby("patient_id", sort=False)[feat_cols]
-        .last()
-    )
+    last_visit = train_binned.sort_values(["patient_id", "bin_time"], kind="stable").groupby("patient_id", sort=False)[feat_cols].last()
     data_np = last_visit.values.astype(np.float32)
     centers_np = _cluster(data_np, n_clusters)
     centers = torch.from_numpy(centers_np)

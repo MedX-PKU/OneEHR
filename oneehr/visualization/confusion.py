@@ -1,4 +1,5 @@
 """Confusion matrix heatmap visualization."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -43,6 +44,7 @@ def plot_confusion_matrix(
     y_hat = (y_pred >= threshold).astype(int)
 
     from sklearn.metrics import confusion_matrix as _cm
+
     cm = _cm(y_true.astype(int), y_hat, labels=[0, 1])
 
     if normalize:
@@ -57,11 +59,17 @@ def plot_confusion_matrix(
     fig, ax = new_figure(style=style, figsize=figsize or (4, 3.5), ax=ax)
 
     sns.heatmap(
-        cm_display, annot=True, fmt=fmt, cmap="Blues",
+        cm_display,
+        annot=True,
+        fmt=fmt,
+        cmap="Blues",
         xticklabels=["Negative", "Positive"],
         yticklabels=["Negative", "Positive"],
-        cbar=True, ax=ax, square=True,
-        linewidths=0.5, linecolor="white",
+        cbar=True,
+        ax=ax,
+        square=True,
+        linewidths=0.5,
+        linecolor="white",
     )
     ax.set_xlabel("Predicted")
     ax.set_ylabel("Actual")
@@ -93,11 +101,11 @@ def plot_confusion_grid(
     nrows = (n + ncols - 1) // ncols
 
     from oneehr.visualization._style import apply_style
+
     preset = apply_style(style)
 
     per_w = 3.0
-    fig, axes = plt.subplots(nrows, ncols,
-                             figsize=figsize or (per_w * ncols, per_w * nrows))
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize or (per_w * ncols, per_w * nrows))
     if n == 1:
         axes = np.array([axes])
     axes = np.atleast_2d(axes)
@@ -105,8 +113,12 @@ def plot_confusion_grid(
     for idx, name in enumerate(names):
         r, c = divmod(idx, ncols)
         plot_confusion_matrix(
-            predictions, system=name, threshold=threshold,
-            normalize=normalize, ax=axes[r, c], style=style,
+            predictions,
+            system=name,
+            threshold=threshold,
+            normalize=normalize,
+            ax=axes[r, c],
+            style=style,
             title=name,
         )
 

@@ -9,9 +9,9 @@ from __future__ import annotations
 import math
 
 import torch
-from torch import nn
 import torch.nn.functional as F
 from sklearn.cluster import KMeans
+from torch import nn
 
 from oneehr.models.graph import normalize_adjacency
 from oneehr.models.recurrent import last_by_lengths
@@ -46,10 +46,7 @@ class SafariMCGRU(nn.Module):
     def __init__(self, dim_list: list[int], hidden_dim: int):
         super().__init__()
         self.dim_list = list(dim_list)
-        self.grus = nn.ModuleList([
-            nn.GRU(dim, hidden_dim, num_layers=1, batch_first=True)
-            for dim in self.dim_list
-        ])
+        self.grus = nn.ModuleList([nn.GRU(dim, hidden_dim, num_layers=1, batch_first=True) for dim in self.dim_list])
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         outputs = []
@@ -78,9 +75,7 @@ class FeatureGraphRefiner(nn.Module):
             return torch.eye(num_nodes, device=tokens.device, dtype=tokens.dtype)
 
         k = min(self.n_clu, num_nodes)
-        labels = KMeans(n_clusters=k, init="random", n_init=2, random_state=42).fit_predict(
-            node_repr.detach().cpu().numpy()
-        )
+        labels = KMeans(n_clusters=k, init="random", n_init=2, random_state=42).fit_predict(node_repr.detach().cpu().numpy())
         adj = torch.zeros(num_nodes, num_nodes, device=tokens.device, dtype=tokens.dtype)
         norm_repr = F.normalize(node_repr, dim=-1)
         sim = torch.matmul(norm_repr, norm_repr.transpose(0, 1)).clamp_min(0.0)

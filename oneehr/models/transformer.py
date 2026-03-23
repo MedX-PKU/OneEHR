@@ -53,8 +53,12 @@ class TransformerModel(nn.Module):
         self.d_model = d_model
 
         self.enc = _TransformerEncoder(
-            input_dim, d_model, nhead=nhead, num_layers=num_layers,
-            dim_feedforward=dim_feedforward, dropout=dropout,
+            input_dim,
+            d_model,
+            nhead=nhead,
+            num_layers=num_layers,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
         )
         self.head = nn.Linear(d_model, out_dim)
 
@@ -85,8 +89,12 @@ class TransformerTimeModel(nn.Module):
     ):
         super().__init__()
         self.enc = _TransformerEncoder(
-            input_dim, d_model, nhead=nhead, num_layers=num_layers,
-            dim_feedforward=dim_feedforward, dropout=dropout,
+            input_dim,
+            d_model,
+            nhead=nhead,
+            num_layers=num_layers,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
         )
         self.head = nn.Linear(d_model, out_dim)
 

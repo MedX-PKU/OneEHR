@@ -2,6 +2,7 @@
 
 Renders publication-quality figures from a completed run's artifacts.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -31,9 +32,7 @@ def run_plot(
         all_known = set(list_figures())
         for f in figures:
             if f not in all_known:
-                raise SystemExit(
-                    f"Unknown figure: {f!r}. Available: {sorted(all_known)}"
-                )
+                raise SystemExit(f"Unknown figure: {f!r}. Available: {sorted(all_known)}")
         to_render = [f for f in figures if f in available]
         skipped = [f for f in figures if f not in available]
         if skipped:

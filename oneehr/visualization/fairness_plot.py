@@ -1,4 +1,5 @@
 """Fairness radar chart for comparing metrics across demographic subgroups."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -48,6 +49,7 @@ def plot_fairness_radar(
         raise ValueError(f"No fairness attributes for system {system!r}")
 
     from oneehr.visualization._style import apply_style
+
     preset = apply_style(style)
 
     # Collect metrics across all attribute groups.
@@ -68,10 +70,7 @@ def plot_fairness_radar(
 
     # Use metrics that have values for all groups.
     n_groups = len(all_groups)
-    metric_names = [
-        k for k, v in all_metrics.items()
-        if len(v) == n_groups
-    ][:8]  # Limit to 8 metrics for readability.
+    metric_names = [k for k, v in all_metrics.items() if len(v) == n_groups][:8]  # Limit to 8 metrics for readability.
 
     if not metric_names:
         raise ValueError("No consistent metrics across groups")
@@ -89,15 +88,13 @@ def plot_fairness_radar(
     for i, group_label in enumerate(all_groups):
         vals = [all_metrics[m][i] for m in metric_names]
         vals.append(vals[0])  # Close the polygon.
-        ax.plot(angles, vals, "o-", color=palette[i], lw=1.2, ms=3,
-                label=group_label)
+        ax.plot(angles, vals, "o-", color=palette[i], lw=1.2, ms=3, label=group_label)
         ax.fill(angles, vals, color=palette[i], alpha=0.08)
 
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(metric_names, fontsize=preset.get("xtick.labelsize", 8))
     ax.set_title(title, pad=20)
-    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1),
-              frameon=True, fontsize=preset.get("legend.fontsize", 7))
+    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1), frameon=True, fontsize=preset.get("legend.fontsize", 7))
 
     fig.tight_layout()
     save_and_close(fig, save_path)

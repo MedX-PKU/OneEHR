@@ -99,10 +99,7 @@ def bin_events(
     df = df[df["code"].isin(code_vocab)].copy()
 
     if df.empty:
-        raise ValueError(
-            "No events left after applying code vocab filters. "
-            "Try adjusting `code_selection`, increasing `top_k_codes`, or decreasing `min_code_count`."
-        )
+        raise ValueError("No events left after applying code vocab filters. Try adjusting `code_selection`, increasing `top_k_codes`, or decreasing `min_code_count`.")
 
     # Filter patients with too few events.
     min_events = preprocess.min_events_per_patient
@@ -114,15 +111,13 @@ def bin_events(
         n_after = df["patient_id"].nunique()
         if n_after < n_before:
             import warnings
+
             warnings.warn(
-                f"min_events_per_patient={min_events}: dropped {n_before - n_after} patients "
-                f"({n_before} → {n_after})",
+                f"min_events_per_patient={min_events}: dropped {n_before - n_after} patients ({n_before} → {n_after})",
                 stacklevel=2,
             )
         if df.empty:
-            raise ValueError(
-                f"No patients left after min_events_per_patient={min_events} filter."
-            )
+            raise ValueError(f"No patients left after min_events_per_patient={min_events} filter.")
 
     # Infer type per code.
     code_types: dict[str, str] = {}
@@ -158,10 +153,7 @@ def bin_events(
         elif strategy == "count":
             agg = grp.count().reset_index()
         else:
-            raise ValueError(
-                f"Unsupported preprocess.numeric_strategy={strategy!r}. "
-                "Expected one of: mean, last, median, min, max, std, count."
-            )
+            raise ValueError(f"Unsupported preprocess.numeric_strategy={strategy!r}. Expected one of: mean, last, median, min, max, std, count.")
 
         wide = agg.pivot(index=["patient_id", "bin_time"], columns="code", values="value_num")
         wide = wide.add_prefix("num__").reset_index()
@@ -187,20 +179,12 @@ def bin_events(
             feats.append(wide)
         elif preprocess.categorical_strategy == "count":
             # Per-bin count of events for that code.
-            agg = (
-                cat.groupby(["patient_id", "bin_time", "code"], sort=False)
-                .size()
-                .rename("count")
-                .reset_index()
-            )
+            agg = cat.groupby(["patient_id", "bin_time", "code"], sort=False).size().rename("count").reset_index()
             wide = agg.pivot(index=["patient_id", "bin_time"], columns="code", values="count")
             wide = wide.fillna(0.0).add_prefix("cat__").reset_index()
             feats.append(wide)
         else:
-            raise ValueError(
-                f"Unsupported preprocess.categorical_strategy={preprocess.categorical_strategy!r}. "
-                "Expected 'onehot' or 'count'."
-            )
+            raise ValueError(f"Unsupported preprocess.categorical_strategy={preprocess.categorical_strategy!r}. Expected 'onehot' or 'count'.")
 
     # Merge numeric + categorical features.
     out = feats[0]
@@ -211,11 +195,7 @@ def bin_events(
 
     # Attach label if provided in the raw events table.
     if "label" in df.columns:
-        labels = (
-            df[["patient_id", "label"]]
-            .dropna(subset=["label"])
-            .drop_duplicates(subset=["patient_id"], keep="last")
-        )
+        labels = df[["patient_id", "label"]].dropna(subset=["label"]).drop_duplicates(subset=["patient_id"], keep="last")
         out = out.merge(labels, on="patient_id", how="left")
     else:
         out["label"] = np.nan

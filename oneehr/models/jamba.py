@@ -8,7 +8,7 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from oneehr.models.mamba import MambaBlock, RMSNorm
+from oneehr.models.mamba import MambaBlock
 from oneehr.models.recurrent import last_by_lengths
 
 
@@ -65,9 +65,7 @@ class JambaEncoder(nn.Module):
                     )
                 )
             else:
-                self.layers.append(
-                    MambaBlock(hidden_dim, state_size=state_size, conv_kernel=conv_kernel)
-                )
+                self.layers.append(MambaBlock(hidden_dim, state_size=state_size, conv_kernel=conv_kernel))
         self.norm = nn.LayerNorm(hidden_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -94,8 +92,14 @@ class JambaModel(nn.Module):
     ):
         super().__init__()
         self.encoder = JambaEncoder(
-            input_dim, hidden_dim, num_transformer_layers, num_mamba_layers,
-            heads, state_size, conv_kernel, dropout,
+            input_dim,
+            hidden_dim,
+            num_transformer_layers,
+            num_mamba_layers,
+            heads,
+            state_size,
+            conv_kernel,
+            dropout,
         )
         self.head = nn.Linear(hidden_dim, out_dim)
 
@@ -127,8 +131,14 @@ class JambaTimeModel(nn.Module):
     ):
         super().__init__()
         self.encoder = JambaEncoder(
-            input_dim, hidden_dim, num_transformer_layers, num_mamba_layers,
-            heads, state_size, conv_kernel, dropout,
+            input_dim,
+            hidden_dim,
+            num_transformer_layers,
+            num_mamba_layers,
+            heads,
+            state_size,
+            conv_kernel,
+            dropout,
         )
         self.head = nn.Linear(hidden_dim, out_dim)
 

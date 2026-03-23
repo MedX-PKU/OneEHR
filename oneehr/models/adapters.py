@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
-import json
 
 import numpy as np
 import pandas as pd
@@ -83,9 +83,13 @@ def resolve_feature_groups(
 
 def _sorted_feature_frame(df: pd.DataFrame, feat_cols: list[str]) -> pd.DataFrame:
     cols = [c for c in feat_cols if c in df.columns]
-    return df[["patient_id", "bin_time", *cols]].copy().sort_values(
-        ["patient_id", "bin_time"],
-        kind="stable",
+    return (
+        df[["patient_id", "bin_time", *cols]]
+        .copy()
+        .sort_values(
+            ["patient_id", "bin_time"],
+            kind="stable",
+        )
     )
 
 
@@ -109,10 +113,7 @@ def build_missing_mask_tensor(
 ) -> torch.Tensor:
     obs = _sorted_feature_frame(obs_mask, feat_cols)
     seq_pids, seqs, _ = build_patient_sequences(obs, feat_cols)
-    seq_map = {
-        str(pid): (1.0 - seq.astype(np.float32, copy=False))
-        for pid, seq in zip(seq_pids, seqs, strict=True)
-    }
+    seq_map = {str(pid): (1.0 - seq.astype(np.float32, copy=False)) for pid, seq in zip(seq_pids, seqs, strict=True)}
 
     aligned_pids = [str(pid) for pid in (patient_ids or list(seq_pids))]
     out_max_len = _infer_max_len(patient_ids=aligned_pids, seq_map=seq_map, max_len=max_len)

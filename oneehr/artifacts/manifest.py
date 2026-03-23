@@ -38,7 +38,5 @@ def write_manifest(
 def read_manifest(run_dir: Path) -> dict[str, Any]:
     path = run_dir / "manifest.json"
     if not path.exists():
-        raise SystemExit(
-            f"Missing manifest.json at {run_dir}. Run `oneehr preprocess` first."
-        )
+        raise SystemExit(f"Missing manifest.json at {run_dir}. Run `oneehr preprocess` first.")
     return json.loads(path.read_text(encoding="utf-8"))

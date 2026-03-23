@@ -5,7 +5,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, TypeVar
 
-import numpy as np
 import pandas as pd
 
 from oneehr.agent.client import AgentClientError, OpenAICompatibleAgentClient

@@ -1,10 +1,10 @@
 """CONSORT-style cohort flow diagram."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 
 from oneehr.visualization._style import save_and_close
 from oneehr.visualization._utils import load_split
@@ -23,6 +23,7 @@ def plot_cohort_flow(
     Reads split.json and labels.parquet from the run directory.
     """
     import pandas as pd
+
     from oneehr.visualization._style import apply_style
 
     preset = apply_style(style)
@@ -66,13 +67,10 @@ def plot_cohort_flow(
     )
 
     # Total cohort box.
-    ax.text(5, 9, f"Total Cohort\nn={total}", ha="center", va="center",
-            fontsize=preset.get("font.size", 10), fontweight="bold",
-            bbox=box_style)
+    ax.text(5, 9, f"Total Cohort\nn={total}", ha="center", va="center", fontsize=preset.get("font.size", 10), fontweight="bold", bbox=box_style)
 
     # Arrow from total to split.
-    ax.annotate("", xy=(5, 7.6), xytext=(5, 8.3),
-                arrowprops=dict(arrowstyle="->", lw=1.2, color="#555"))
+    ax.annotate("", xy=(5, 7.6), xytext=(5, 8.3), arrowprops=dict(arrowstyle="->", lw=1.2, color="#555"))
 
     # Split boxes.
     positions = [(1.5, 6.5), (5, 6.5), (8.5, 6.5)]
@@ -85,11 +83,8 @@ def plot_cohort_flow(
     for (x, y), (label, ids) in zip(positions, split_data):
         n = len(ids)
         info = _label_info(ids)
-        ax.text(x, y, f"{label}\nn={n}{info}", ha="center", va="center",
-                fontsize=preset.get("font.size", 10) - 1,
-                bbox=split_style)
-        ax.annotate("", xy=(x, y + 0.6), xytext=(5, 7.6),
-                    arrowprops=dict(arrowstyle="->", lw=0.8, color="#888"))
+        ax.text(x, y, f"{label}\nn={n}{info}", ha="center", va="center", fontsize=preset.get("font.size", 10) - 1, bbox=split_style)
+        ax.annotate("", xy=(x, y + 0.6), xytext=(5, 7.6), arrowprops=dict(arrowstyle="->", lw=0.8, color="#888"))
 
     ax.set_title(title, fontsize=preset.get("axes.titlesize", 12), pad=10)
 

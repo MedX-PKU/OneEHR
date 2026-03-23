@@ -7,6 +7,7 @@ import pytest
 
 def test_config_defaults():
     from oneehr.config.schema import ExperimentConfig
+
     cfg = ExperimentConfig()
     assert cfg.task.kind == "binary"
     assert cfg.task.prediction_mode == "patient"
@@ -18,12 +19,14 @@ def test_config_defaults():
 
 def test_config_run_dir():
     from oneehr.config.schema import ExperimentConfig, OutputConfig
+
     cfg = ExperimentConfig(output=OutputConfig(root=Path("/tmp/runs"), run_name="test01"))
     assert cfg.run_dir() == Path("/tmp/runs/test01")
 
 
 def test_config_task_kinds():
     from oneehr.config.schema import TaskConfig
+
     for kind in ("binary", "regression", "multiclass", "survival", "multilabel"):
         t = TaskConfig(kind=kind)
         assert t.kind == kind
@@ -31,6 +34,7 @@ def test_config_task_kinds():
 
 def test_config_model_params():
     from oneehr.config.schema import ModelConfig
+
     cfg = ModelConfig(name="xgboost", params={"max_depth": 6, "n_estimators": 100})
     assert cfg.name == "xgboost"
     assert cfg.params["max_depth"] == 6
@@ -38,6 +42,7 @@ def test_config_model_params():
 
 def test_config_frozen():
     from oneehr.config.schema import TaskConfig
+
     t = TaskConfig()
     with pytest.raises(AttributeError):
         t.kind = "regression"  # type: ignore[misc]
@@ -88,6 +93,7 @@ run_name = "test01"
 
 def test_trainer_config_defaults():
     from oneehr.config.schema import TrainerConfig
+
     t = TrainerConfig()
     assert t.early_stopping is True
     assert t.patience == 5

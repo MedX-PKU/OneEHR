@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 # Level 1 ATC main groups
 _ATC_LEVEL1: dict[str, str] = {
     "A": "Alimentary tract and metabolism",

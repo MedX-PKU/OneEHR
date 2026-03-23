@@ -67,9 +67,7 @@ class HiTANetBackbone(nn.Module):
         delta_mean = torch.log1p(time_delta.mean(dim=-1))
         time_feat = torch.stack([torch.log1p(visit_time), delta_mean], dim=-1)
         packed_in = visits + self.time_proj(time_feat)
-        packed = nn.utils.rnn.pack_padded_sequence(
-            packed_in, lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        packed = nn.utils.rnn.pack_padded_sequence(packed_in, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, _ = self.temporal_gru(packed)
         seq, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         query = seq[torch.arange(seq.size(0), device=seq.device), (lengths - 1).clamp_min(0)]

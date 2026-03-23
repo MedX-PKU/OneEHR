@@ -54,13 +54,18 @@ def preprocess(config: ExperimentConfig | str | Path) -> PreprocessResult:
     run_dir = cfg.run_dir()
 
     materialize_preprocess_artifacts(
-        dynamic=dynamic, static=static, label=label, cfg=cfg, run_dir=run_dir,
+        dynamic=dynamic,
+        static=static,
+        label=label,
+        cfg=cfg,
+        run_dir=run_dir,
     )
 
     manifest = read_manifest(run_dir)
     feat_cols = manifest["feature_columns"]
 
     import pandas as pd
+
     binned = pd.read_parquet(run_dir / "preprocess" / "binned.parquet")
     n_patients = binned["patient_id"].nunique()
 
@@ -90,6 +95,7 @@ def train(config: ExperimentConfig | str | Path, *, force: bool = False) -> Trai
     cfg_path = _config_path(config)
 
     from oneehr.cli.train import run_train
+
     run_train(str(cfg_path), force)
 
     model_names = [m.name for m in cfg.models]
@@ -115,6 +121,7 @@ def test(config: ExperimentConfig | str | Path, *, force: bool = False) -> TestR
     cfg_path = _config_path(config)
 
     from oneehr.cli.test import run_test
+
     run_test(str(cfg_path), force)
 
     test_dir = cfg.run_dir() / "test"
@@ -148,10 +155,12 @@ def analyze(
     cfg_path = _config_path(config)
 
     from oneehr.cli.analyze import run_analyze
+
     run_analyze(str(cfg_path), module=module)
 
     # Load results
     import json
+
     analyze_dir = cfg.run_dir() / "analyze"
     results = {}
     modules_run = []
@@ -172,6 +181,7 @@ def analyze(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _resolve_config(config: ExperimentConfig | str | Path) -> ExperimentConfig:
     if isinstance(config, ExperimentConfig):
         return config
@@ -184,7 +194,4 @@ def _config_path(config: ExperimentConfig | str | Path) -> Path:
         return Path(config)
     # For ExperimentConfig objects, we can't recover the path.
     # The CLI functions need the path, so this is a limitation.
-    raise TypeError(
-        "When using ExperimentConfig objects directly, call the underlying "
-        "CLI functions or pass a config file path instead."
-    )
+    raise TypeError("When using ExperimentConfig objects directly, call the underlying CLI functions or pass a config file path instead.")

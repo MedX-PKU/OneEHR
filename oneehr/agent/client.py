@@ -105,7 +105,7 @@ class OpenAICompatibleAgentClient:
                 break
             if not last_error.retryable or attempt >= spec.max_retries:
                 raise last_error
-            time.sleep(min(2.0 ** attempt, 8.0) * 0.5)
+            time.sleep(min(2.0**attempt, 8.0) * 0.5)
 
         assert last_error is not None
         raise last_error

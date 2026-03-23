@@ -1,4 +1,5 @@
 """ROC curve visualization with multi-system overlay and bootstrap CI."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -44,15 +45,16 @@ def plot_roc(
 
         fpr, tpr, _ = roc_curve(y_true, y_pred)
         auc = roc_auc_score(y_true, y_pred)
-        ax.plot(fpr, tpr, color=palette[i], lw=1.5,
-                label=f"{name} (AUC={auc:.3f})")
+        ax.plot(fpr, tpr, color=palette[i], lw=1.5, label=f"{name} (AUC={auc:.3f})")
 
         if ci:
             x_common, y_low, y_high = bootstrap_curve(
-                y_true, y_pred, _roc_xy, n_boot=n_boot,
+                y_true,
+                y_pred,
+                _roc_xy,
+                n_boot=n_boot,
             )
-            ax.fill_between(x_common, y_low, y_high,
-                            color=palette[i], alpha=0.12)
+            ax.fill_between(x_common, y_low, y_high, color=palette[i], alpha=0.12)
 
     ax.plot([0, 1], [0, 1], "k--", lw=0.8, alpha=0.4, label="Random")
     ax.set_xlabel("False Positive Rate")

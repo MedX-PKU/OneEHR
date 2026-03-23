@@ -14,6 +14,7 @@ class MetricResult:
 # Calibration
 # ---------------------------------------------------------------------------
 
+
 def _ece_binary(y_true: np.ndarray, y_score: np.ndarray, n_bins: int = 15) -> float:
     """Expected Calibration Error with equal-width binning."""
     bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
@@ -35,6 +36,7 @@ def _ece_binary(y_true: np.ndarray, y_score: np.ndarray, n_bins: int = 15) -> fl
 # ---------------------------------------------------------------------------
 # Binary classification
 # ---------------------------------------------------------------------------
+
 
 def binary_metrics(y_true: np.ndarray, y_score: np.ndarray) -> MetricResult:
     """Standard binary classification metrics.
@@ -162,6 +164,7 @@ def net_benefit(
 # Multiclass classification
 # ---------------------------------------------------------------------------
 
+
 def multiclass_metrics(
     y_true: np.ndarray,
     y_score: np.ndarray,
@@ -198,12 +201,22 @@ def multiclass_metrics(
     # Per-class and macro AUROC (one-vs-rest)
     if y_score.ndim == 2 and len(np.unique(y_true)) >= 2:
         try:
-            out["auroc_macro"] = float(roc_auc_score(
-                y_true, y_score, multi_class="ovr", average="macro",
-            ))
-            out["auroc_weighted"] = float(roc_auc_score(
-                y_true, y_score, multi_class="ovr", average="weighted",
-            ))
+            out["auroc_macro"] = float(
+                roc_auc_score(
+                    y_true,
+                    y_score,
+                    multi_class="ovr",
+                    average="macro",
+                )
+            )
+            out["auroc_weighted"] = float(
+                roc_auc_score(
+                    y_true,
+                    y_score,
+                    multi_class="ovr",
+                    average="weighted",
+                )
+            )
         except ValueError:
             out["auroc_macro"] = float("nan")
             out["auroc_weighted"] = float("nan")
@@ -217,6 +230,7 @@ def multiclass_metrics(
 # ---------------------------------------------------------------------------
 # Regression
 # ---------------------------------------------------------------------------
+
 
 def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> MetricResult:
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -234,6 +248,7 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> MetricResult:
 # ---------------------------------------------------------------------------
 # Multi-label classification
 # ---------------------------------------------------------------------------
+
 
 def multilabel_metrics(
     y_true: np.ndarray,

@@ -8,9 +8,7 @@ import numpy as np
 import pandas as pd
 
 
-def _delong_roc_test(
-    y_true: np.ndarray, y_pred_a: np.ndarray, y_pred_b: np.ndarray
-) -> tuple[float, float]:
+def _delong_roc_test(y_true: np.ndarray, y_pred_a: np.ndarray, y_pred_b: np.ndarray) -> tuple[float, float]:
     """DeLong test for comparing two AUROCs.
 
     Returns (z_stat, p_value).
@@ -55,9 +53,7 @@ def _delong_roc_test(
     return float(z), float(p)
 
 
-def _mcnemar_test(
-    y_true: np.ndarray, y_pred_a: np.ndarray, y_pred_b: np.ndarray
-) -> tuple[float, float]:
+def _mcnemar_test(y_true: np.ndarray, y_pred_a: np.ndarray, y_pred_b: np.ndarray) -> tuple[float, float]:
     """McNemar test comparing error rates of two classifiers.
 
     Returns (chi2, p_value).
@@ -85,6 +81,7 @@ def _mcnemar_test(
 # ---------------------------------------------------------------------------
 # Bootstrap confidence intervals
 # ---------------------------------------------------------------------------
+
 
 def bootstrap_metric_ci(
     y_true: np.ndarray,
@@ -135,7 +132,7 @@ def bootstrap_all_metrics(
     seed: int = 42,
 ) -> dict[str, dict[str, float]]:
     """Compute bootstrap CI for all standard metrics."""
-    from sklearn.metrics import roc_auc_score, average_precision_score, matthews_corrcoef
+    from sklearn.metrics import average_precision_score, matthews_corrcoef, roc_auc_score
 
     results = {}
     if task_kind == "binary":
@@ -147,6 +144,7 @@ def bootstrap_all_metrics(
         }
     else:
         from sklearn.metrics import mean_absolute_error, mean_squared_error
+
         metric_fns = {
             "mae": lambda yt, yp: mean_absolute_error(yt, yp),
             "rmse": lambda yt, yp: np.sqrt(mean_squared_error(yt, yp)),
@@ -154,7 +152,11 @@ def bootstrap_all_metrics(
 
     for name, fn in metric_fns.items():
         results[name] = bootstrap_metric_ci(
-            y_true, y_pred, fn, n_bootstrap=n_bootstrap, seed=seed,
+            y_true,
+            y_pred,
+            fn,
+            n_bootstrap=n_bootstrap,
+            seed=seed,
         )
     return results
 
@@ -162,6 +164,7 @@ def bootstrap_all_metrics(
 # ---------------------------------------------------------------------------
 # Multiple comparison correction
 # ---------------------------------------------------------------------------
+
 
 def _bonferroni_correction(p_values: list[float]) -> list[float]:
     """Bonferroni correction: multiply p-values by number of comparisons."""
@@ -250,13 +253,15 @@ def compute_statistical_tests(
         delong_pvals.append(delong_p)
         mcnemar_pvals.append(mcnemar_p)
 
-        pairwise.append({
-            "system_a": a,
-            "system_b": b,
-            "n": int(n),
-            "delong": {"z_stat": z, "p_value": delong_p},
-            "mcnemar": {"chi2": chi2, "p_value": mcnemar_p},
-        })
+        pairwise.append(
+            {
+                "system_a": a,
+                "system_b": b,
+                "n": int(n),
+                "delong": {"z_stat": z, "p_value": delong_p},
+                "mcnemar": {"chi2": chi2, "p_value": mcnemar_p},
+            }
+        )
 
     # Apply multiple comparison correction
     if correction == "bonferroni":

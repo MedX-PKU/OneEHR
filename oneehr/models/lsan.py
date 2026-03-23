@@ -6,7 +6,6 @@ import torch
 from torch import nn
 
 from oneehr.models.grouped import GroupedVisitEncoder
-from oneehr.models.recurrent import last_by_lengths
 
 
 class LSANBackbone(nn.Module):

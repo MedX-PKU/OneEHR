@@ -52,9 +52,7 @@ class RecurrentModel(nn.Module):
         self.head = nn.Linear(hidden_dim, out_dim)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor, static: torch.Tensor | None = None) -> torch.Tensor:
-        packed = nn.utils.rnn.pack_padded_sequence(
-            x, lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, _ = self.rnn(packed)
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         last = last_by_lengths(out, lengths)
@@ -86,9 +84,7 @@ class RecurrentTimeModel(nn.Module):
         self.head = nn.Linear(hidden_dim, out_dim)
 
     def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-        packed = nn.utils.rnn.pack_padded_sequence(
-            x, lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, _ = self.rnn(packed)
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         return self.head(out)

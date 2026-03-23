@@ -69,15 +69,17 @@ class EICUConverter(BaseConverter):
                 on="patientunitstayid",
                 how="left",
             )
-            lab["event_time"] = lab["base_time"] + pd.to_timedelta(
-                lab["labresultoffset"].fillna(0), unit="min"
+            lab["event_time"] = lab["base_time"] + pd.to_timedelta(lab["labresultoffset"].fillna(0), unit="min")
+            dynamic_parts.append(
+                pd.DataFrame(
+                    {
+                        "patient_id": lab["patientunitstayid"].astype(str),
+                        "event_time": lab["event_time"],
+                        "code": "LAB_" + lab["labname"].astype(str),
+                        "value": lab["labresult"],
+                    }
+                )
             )
-            dynamic_parts.append(pd.DataFrame({
-                "patient_id": lab["patientunitstayid"].astype(str),
-                "event_time": lab["event_time"],
-                "code": "LAB_" + lab["labname"].astype(str),
-                "value": lab["labresult"],
-            }))
         except FileNotFoundError:
             warnings.warn("lab.csv not found.", stacklevel=2)
 
@@ -90,27 +92,34 @@ class EICUConverter(BaseConverter):
                     on="patientunitstayid",
                     how="left",
                 )
-                vitals["event_time"] = vitals["base_time"] + pd.to_timedelta(
-                    vitals["observationoffset"].fillna(0), unit="min"
-                )
+                vitals["event_time"] = vitals["base_time"] + pd.to_timedelta(vitals["observationoffset"].fillna(0), unit="min")
                 # Melt vital columns into long format
                 vital_cols = [
-                    c for c in vitals.columns
-                    if c not in {
-                        "patientunitstayid", "vitalperiodicid",
-                        "observationoffset", "base_time", "event_time",
+                    c
+                    for c in vitals.columns
+                    if c
+                    not in {
+                        "patientunitstayid",
+                        "vitalperiodicid",
+                        "observationoffset",
+                        "base_time",
+                        "event_time",
                     }
                 ]
                 for col in vital_cols:
                     part = vitals[["patientunitstayid", "event_time", col]].dropna(subset=[col])
                     if part.empty:
                         continue
-                    dynamic_parts.append(pd.DataFrame({
-                        "patient_id": part["patientunitstayid"].astype(str),
-                        "event_time": part["event_time"],
-                        "code": f"VITAL_{col}",
-                        "value": part[col],
-                    }))
+                    dynamic_parts.append(
+                        pd.DataFrame(
+                            {
+                                "patient_id": part["patientunitstayid"].astype(str),
+                                "event_time": part["event_time"],
+                                "code": f"VITAL_{col}",
+                                "value": part[col],
+                            }
+                        )
+                    )
             except FileNotFoundError:
                 warnings.warn("vitalPeriodic.csv not found.", stacklevel=2)
 
@@ -122,26 +131,33 @@ class EICUConverter(BaseConverter):
                     on="patientunitstayid",
                     how="left",
                 )
-                avitals["event_time"] = avitals["base_time"] + pd.to_timedelta(
-                    avitals["observationoffset"].fillna(0), unit="min"
-                )
+                avitals["event_time"] = avitals["base_time"] + pd.to_timedelta(avitals["observationoffset"].fillna(0), unit="min")
                 avital_cols = [
-                    c for c in avitals.columns
-                    if c not in {
-                        "patientunitstayid", "vitalaperiodicid",
-                        "observationoffset", "base_time", "event_time",
+                    c
+                    for c in avitals.columns
+                    if c
+                    not in {
+                        "patientunitstayid",
+                        "vitalaperiodicid",
+                        "observationoffset",
+                        "base_time",
+                        "event_time",
                     }
                 ]
                 for col in avital_cols:
                     part = avitals[["patientunitstayid", "event_time", col]].dropna(subset=[col])
                     if part.empty:
                         continue
-                    dynamic_parts.append(pd.DataFrame({
-                        "patient_id": part["patientunitstayid"].astype(str),
-                        "event_time": part["event_time"],
-                        "code": f"VITAL_{col}",
-                        "value": part[col],
-                    }))
+                    dynamic_parts.append(
+                        pd.DataFrame(
+                            {
+                                "patient_id": part["patientunitstayid"].astype(str),
+                                "event_time": part["event_time"],
+                                "code": f"VITAL_{col}",
+                                "value": part[col],
+                            }
+                        )
+                    )
             except FileNotFoundError:
                 warnings.warn("vitalAperiodic.csv not found.", stacklevel=2)
 
@@ -153,16 +169,18 @@ class EICUConverter(BaseConverter):
                 on="patientunitstayid",
                 how="left",
             )
-            dx["event_time"] = dx["base_time"] + pd.to_timedelta(
-                dx["diagnosisoffset"].fillna(0), unit="min"
-            )
+            dx["event_time"] = dx["base_time"] + pd.to_timedelta(dx["diagnosisoffset"].fillna(0), unit="min")
             code_col = "icd9code" if "icd9code" in dx.columns else "diagnosisstring"
-            dynamic_parts.append(pd.DataFrame({
-                "patient_id": dx["patientunitstayid"].astype(str),
-                "event_time": dx["event_time"],
-                "code": "DX_" + dx[code_col].astype(str),
-                "value": "1",
-            }))
+            dynamic_parts.append(
+                pd.DataFrame(
+                    {
+                        "patient_id": dx["patientunitstayid"].astype(str),
+                        "event_time": dx["event_time"],
+                        "code": "DX_" + dx[code_col].astype(str),
+                        "value": "1",
+                    }
+                )
+            )
         except FileNotFoundError:
             warnings.warn("diagnosis.csv not found.", stacklevel=2)
 
@@ -176,16 +194,18 @@ class EICUConverter(BaseConverter):
                     how="left",
                 )
                 offset_col = "drugstartoffset" if "drugstartoffset" in med.columns else "drugorderoffset"
-                med["event_time"] = med["base_time"] + pd.to_timedelta(
-                    med[offset_col].fillna(0), unit="min"
-                )
+                med["event_time"] = med["base_time"] + pd.to_timedelta(med[offset_col].fillna(0), unit="min")
                 drug_col = "drugname" if "drugname" in med.columns else "drughiclseqno"
-                dynamic_parts.append(pd.DataFrame({
-                    "patient_id": med["patientunitstayid"].astype(str),
-                    "event_time": med["event_time"],
-                    "code": "RX_" + med[drug_col].astype(str),
-                    "value": "1",
-                }))
+                dynamic_parts.append(
+                    pd.DataFrame(
+                        {
+                            "patient_id": med["patientunitstayid"].astype(str),
+                            "event_time": med["event_time"],
+                            "code": "RX_" + med[drug_col].astype(str),
+                            "value": "1",
+                        }
+                    )
+                )
             except FileNotFoundError:
                 warnings.warn("medication.csv not found.", stacklevel=2)
 
@@ -221,28 +241,30 @@ class EICUConverter(BaseConverter):
 
         # Discharge time
         if "unitdischargeoffset" in patient.columns:
-            disch_time = patient["base_time"] + pd.to_timedelta(
-                patient["unitdischargeoffset"].fillna(0), unit="min"
-            )
+            disch_time = patient["base_time"] + pd.to_timedelta(patient["unitdischargeoffset"].fillna(0), unit="min")
         else:
             disch_time = patient["base_time"] + pd.Timedelta(days=1)
 
-        labels["mortality"] = pd.DataFrame({
-            "patient_id": patient["patient_id"],
-            "label_time": disch_time,
-            "label_code": "mortality",
-            "label_value": died,
-        })
+        labels["mortality"] = pd.DataFrame(
+            {
+                "patient_id": patient["patient_id"],
+                "label_time": disch_time,
+                "label_code": "mortality",
+                "label_value": died,
+            }
+        )
 
         # LOS
         if "unitdischargeoffset" in patient.columns:
             los_days = patient["unitdischargeoffset"].fillna(0) / (60 * 24)
             for threshold in (3, 7):
-                labels[f"los_{threshold}day"] = pd.DataFrame({
-                    "patient_id": patient["patient_id"],
-                    "label_time": disch_time,
-                    "label_code": f"los_{threshold}day",
-                    "label_value": (los_days > threshold).astype(int),
-                })
+                labels[f"los_{threshold}day"] = pd.DataFrame(
+                    {
+                        "patient_id": patient["patient_id"],
+                        "label_time": disch_time,
+                        "label_code": f"los_{threshold}day",
+                        "label_value": (los_days > threshold).astype(int),
+                    }
+                )
 
         return ConvertedDataset(dynamic=dynamic, static=static, labels=labels)

@@ -22,11 +22,13 @@ def make_patient_index(events: pd.DataFrame) -> pd.DataFrame:
     df["patient_id"] = df["patient_id"].astype(str)
     df["event_time"] = pd.to_datetime(df["event_time"], errors="raise")
     g = df.groupby("patient_id", sort=False)["event_time"]
-    return pd.DataFrame({
-        "patient_id": g.min().index.astype(str),
-        "min_time": g.min().to_numpy(),
-        "max_time": g.max().to_numpy(),
-    })
+    return pd.DataFrame(
+        {
+            "patient_id": g.min().index.astype(str),
+            "min_time": g.min().to_numpy(),
+            "max_time": g.max().to_numpy(),
+        }
+    )
 
 
 def make_split(patient_index: pd.DataFrame, cfg: SplitConfig) -> Split:
@@ -92,8 +94,5 @@ def load_split(path: Path) -> Split:
 def require_split(path: Path, *, context: str = "") -> Split:
     path = Path(path)
     if not path.exists():
-        raise SystemExit(
-            f"Missing split.json at {path}. Run `oneehr preprocess` first"
-            + (f" before {context}." if context else ".")
-        )
+        raise SystemExit(f"Missing split.json at {path}. Run `oneehr preprocess` first" + (f" before {context}." if context else "."))
     return load_split(path)

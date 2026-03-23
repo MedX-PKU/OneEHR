@@ -55,9 +55,7 @@ class ProtoEHRBackbone(nn.Module):
         summary, local_summary, _ = self.graph_summary(nodes, patient_mask)
         if visit_time is not None:
             visits = visits + self.time_enc(visit_time)
-        packed = nn.utils.rnn.pack_padded_sequence(
-            self.dropout(visits), lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        packed = nn.utils.rnn.pack_padded_sequence(self.dropout(visits), lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, _ = self.temporal_gru(packed)
         seq, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         patient_repr = last_by_lengths(seq, lengths)

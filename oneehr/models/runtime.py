@@ -273,9 +273,7 @@ def prepare_dl_artifacts(
                     bin_size=preprocess_cfg.bin_size,
                 ),
             )
-        return PreparedDLArtifacts(
-            model_cfg=_updated_model_cfg(model_cfg, **params)
-        )
+        return PreparedDLArtifacts(model_cfg=_updated_model_cfg(model_cfg, **params))
 
     time_extra_models = {"mtand", "raindrop", "contiformer", "teco"}
     if model_name in time_extra_models:

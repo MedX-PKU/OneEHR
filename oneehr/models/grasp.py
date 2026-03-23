@@ -10,7 +10,6 @@ from __future__ import annotations
 import math
 import random
 
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -92,7 +91,10 @@ class GRASPLayer(nn.Module):
         static: torch.Tensor | None = None,
     ) -> torch.Tensor:
         packed = nn.utils.rnn.pack_padded_sequence(
-            x, lengths.cpu(), batch_first=True, enforce_sorted=False,
+            x,
+            lengths.cpu(),
+            batch_first=True,
+            enforce_sorted=False,
         )
         out, _ = self.rnn(packed)
         out, _ = nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
@@ -173,7 +175,7 @@ class GRASPTimeModel(nn.Module):
         B, T, _ = x.size()
         outputs = []
         for t in range(T):
-            cur_x = x[:, :t + 1, :]
+            cur_x = x[:, : t + 1, :]
             cur_len = lengths.clamp(max=t + 1).clamp(min=1)
             h = self.layer(cur_x, cur_len, static)
             outputs.append(self.head(h))

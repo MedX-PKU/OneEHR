@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from oneehr.medcode.icd import ICD9, ICD10
-from oneehr.medcode.ccs import CCSGrouper
 from oneehr.medcode.atc import ATCHierarchy
+from oneehr.medcode.ccs import CCSGrouper
+from oneehr.medcode.icd import ICD9, ICD10
 
 
 @dataclass
@@ -49,7 +49,7 @@ class CodeMapper:
         def _map_fn(code: str) -> str:
             if not code.startswith(prefix):
                 return code
-            raw = code[len(prefix):]
+            raw = code[len(prefix) :]
             chapter = icd.chapter(raw)
             return f"{prefix}CHAPTER_{chapter.replace(' ', '_').replace('/', '_')}"
 
@@ -62,7 +62,7 @@ class CodeMapper:
         def _map_fn(code: str) -> str:
             if not code.startswith(prefix):
                 return code
-            raw = code[len(prefix):]
+            raw = code[len(prefix) :]
             cat = icd.category(raw)
             return f"{prefix}CAT_{cat}"
 
@@ -74,7 +74,7 @@ class CodeMapper:
         def _map_fn(code: str) -> str:
             if not code.startswith(prefix):
                 return code
-            raw = code[len(prefix):]
+            raw = code[len(prefix) :]
             ccs = grouper.group(raw)
             if ccs is not None:
                 label = grouper.label(ccs) or ccs
@@ -83,15 +83,13 @@ class CodeMapper:
 
         self._prefix_rules.append((prefix, _map_fn))
 
-    def add_atc_mapping(
-        self, hierarchy: ATCHierarchy, *, level: int = 1, prefix: str = "RX_"
-    ) -> None:
+    def add_atc_mapping(self, hierarchy: ATCHierarchy, *, level: int = 1, prefix: str = "RX_") -> None:
         """Map drug codes to ATC groups at the given level."""
 
         def _map_fn(code: str) -> str:
             if not code.startswith(prefix):
                 return code
-            raw = code[len(prefix):]
+            raw = code[len(prefix) :]
             group = hierarchy.group(raw, level)
             name = hierarchy.group_name(raw, level) or group
             return f"{prefix}ATC{level}_{group}_{name.replace(' ', '_')}"

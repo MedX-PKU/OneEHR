@@ -27,9 +27,7 @@ class MCGRULayer(nn.Module):
 
         self.static_proj = nn.Linear(static_dim, hidden_dim)
         self.lab_proj = nn.Linear(input_dim, input_dim)
-        self.grus = nn.ModuleList([
-            nn.GRU(1, feat_dim, batch_first=True) for _ in range(input_dim)
-        ])
+        self.grus = nn.ModuleList([nn.GRU(1, feat_dim, batch_first=True) for _ in range(input_dim)])
         self.out_proj = nn.Linear(input_dim * feat_dim + hidden_dim, hidden_dim)
         self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 

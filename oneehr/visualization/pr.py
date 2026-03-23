@@ -1,4 +1,5 @@
 """Precision-Recall curve visualization with multi-system overlay and CI."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -50,18 +51,18 @@ def plot_pr(
 
         precision, recall, _ = precision_recall_curve(y_true, y_pred)
         ap = average_precision_score(y_true, y_pred)
-        ax.plot(recall, precision, color=palette[i], lw=1.5,
-                label=f"{name} (AP={ap:.3f})")
+        ax.plot(recall, precision, color=palette[i], lw=1.5, label=f"{name} (AP={ap:.3f})")
 
         if ci:
             x_common, y_low, y_high = bootstrap_curve(
-                y_true, y_pred, _pr_xy, n_boot=n_boot,
+                y_true,
+                y_pred,
+                _pr_xy,
+                n_boot=n_boot,
             )
-            ax.fill_between(x_common, y_low, y_high,
-                            color=palette[i], alpha=0.12)
+            ax.fill_between(x_common, y_low, y_high, color=palette[i], alpha=0.12)
 
-    ax.axhline(prevalence, color="k", ls="--", lw=0.8, alpha=0.4,
-               label=f"Baseline ({prevalence:.2f})")
+    ax.axhline(prevalence, color="k", ls="--", lw=0.8, alpha=0.4, label=f"Baseline ({prevalence:.2f})")
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_title(title)

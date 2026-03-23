@@ -1,4 +1,5 @@
 """Decision Curve Analysis (DCA) for clinical utility assessment."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -55,10 +56,7 @@ def plot_decision_curve(
     # "Treat All" reference.
     all_true = predictions.drop_duplicates("patient_id")["y_true"].dropna().to_numpy(float)
     prevalence = all_true.mean() if len(all_true) > 0 else 0.5
-    treat_all_nb = [
-        prevalence - (1 - prevalence) * (t / (1 - t)) if t < 1 else 0
-        for t in thresholds
-    ]
+    treat_all_nb = [prevalence - (1 - prevalence) * (t / (1 - t)) if t < 1 else 0 for t in thresholds]
     ax.plot(thresholds, treat_all_nb, "k-", lw=1, alpha=0.5, label="Treat All")
     ax.axhline(0, color="k", ls="--", lw=0.8, alpha=0.4, label="Treat None")
 

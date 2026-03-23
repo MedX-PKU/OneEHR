@@ -1,4 +1,5 @@
 """Unified DL model trainer."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -23,6 +24,7 @@ def _select_device(cfg: TrainerConfig):
 # Loss functions
 # ---------------------------------------------------------------------------
 
+
 class FocalLoss(torch.nn.Module):
     """Binary focal loss (Lin et al., 2017)."""
 
@@ -33,7 +35,9 @@ class FocalLoss(torch.nn.Module):
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce = torch.nn.functional.binary_cross_entropy_with_logits(
-            logits, targets, reduction="none",
+            logits,
+            targets,
+            reduction="none",
         )
         p = torch.sigmoid(logits)
         pt = targets * p + (1 - targets) * (1 - p)
@@ -54,7 +58,10 @@ class FocalLossMulticlass(torch.nn.Module):
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         ce = torch.nn.functional.cross_entropy(
-            logits, targets, weight=self.weight, reduction="none",
+            logits,
+            targets,
+            weight=self.weight,
+            reduction="none",
         )
         pt = torch.exp(-ce)
         return ((1 - pt) ** self.gamma) * ce
@@ -104,13 +111,15 @@ def _compute_class_weights(y: torch.Tensor, task: TaskConfig) -> torch.Tensor | 
 # LR scheduler
 # ---------------------------------------------------------------------------
 
+
 def _build_scheduler(cfg: TrainerConfig, optimizer: torch.optim.Optimizer):
     if cfg.scheduler == "none":
         return None
     params = cfg.scheduler_params
     if cfg.scheduler == "cosine":
         return torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=params.get("T_max", cfg.max_epochs),
+            optimizer,
+            T_max=params.get("T_max", cfg.max_epochs),
             eta_min=params.get("eta_min", 0),
         )
     if cfg.scheduler == "step":
@@ -133,6 +142,7 @@ def _build_scheduler(cfg: TrainerConfig, optimizer: torch.optim.Optimizer):
 # Mixed precision
 # ---------------------------------------------------------------------------
 
+
 def _get_amp_dtype(cfg: TrainerConfig):
     if cfg.precision == "fp16":
         return torch.float16
@@ -146,6 +156,7 @@ def _get_amp_dtype(cfg: TrainerConfig):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def sigmoid(x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
@@ -170,7 +181,9 @@ def _metric_value(task: TaskConfig, monitor: str, y_true: np.ndarray, y_score: n
         raise ValueError(f"Unsupported monitor metric for binary: {monitor!r}")
     if task.kind == "multiclass":
         mets = multiclass_metrics(
-            y_true.astype(int), y_score, num_classes=task.num_classes or int(y_true.max()) + 1,
+            y_true.astype(int),
+            y_score,
+            num_classes=task.num_classes or int(y_true.max()) + 1,
         ).metrics
         if monitor in ("val_auroc", "auroc"):
             return float(mets["auroc_macro"])
@@ -214,10 +227,8 @@ def fit_model(
 
     Handles both patient-level and time-level training.
     """
-    from oneehr.data.sequence import build_patient_sequences, build_time_sequences, pad_sequences
     from oneehr.data.tabular import has_static_branch
     from oneehr.eval.metrics import binary_metrics, multiclass_metrics, regression_metrics
-
     from oneehr.utils import set_seed
 
     device = _select_device(cfg)
@@ -232,11 +243,19 @@ def fit_model(
 
     if mode == "patient":
         X_train, len_train, y_train, static_train = _prep_patient(
-            binned_train, feat_cols, y_map or {}, split.train, static if use_static else None,
+            binned_train,
+            feat_cols,
+            y_map or {},
+            split.train,
+            static if use_static else None,
             max_seq_length=max_seq_length,
         )
         X_val, len_val, y_val, static_val = _prep_patient(
-            binned_val, feat_cols, y_map or {}, split.val, static if use_static else None,
+            binned_val,
+            feat_cols,
+            y_map or {},
+            split.val,
+            static if use_static else None,
             max_seq_length=max_seq_length,
         )
         mask_train = mask_val = None
@@ -247,11 +266,19 @@ def fit_model(
         labels_val = labels_df[labels_df["patient_id"].astype(str).isin(set(split.val))]
 
         X_train, len_train, y_train, mask_train, static_train = _prep_time(
-            binned_train, labels_train, feat_cols, split.train, static if use_static else None,
+            binned_train,
+            labels_train,
+            feat_cols,
+            split.train,
+            static if use_static else None,
             max_seq_length=max_seq_length,
         )
         X_val, len_val, y_val, mask_val, static_val = _prep_time(
-            binned_val, labels_val, feat_cols, split.val, static if use_static else None,
+            binned_val,
+            labels_val,
+            feat_cols,
+            split.val,
+            static if use_static else None,
             max_seq_length=max_seq_length,
         )
 
@@ -289,10 +316,7 @@ def fit_model(
                 Sv = None if static_val is None else static_val.to(device)
                 kw = {}
                 if val_extra:
-                    kw = {
-                        k: v.to(device) if isinstance(v, torch.Tensor) and v.dim() > 0 else v
-                        for k, v in val_extra.items()
-                    }
+                    kw = {k: v.to(device) if isinstance(v, torch.Tensor) and v.dim() > 0 else v for k, v in val_extra.items()}
                 logits = model(Xv, Lv, **kw) if Sv is None else model(Xv, Lv, Sv, **kw)
                 logits = logits.squeeze(-1).detach().cpu().float().numpy()
 
@@ -319,6 +343,7 @@ def fit_model(
     # Progress bar
     try:
         from tqdm import tqdm
+
         epoch_iter = tqdm(range(cfg.max_epochs), desc="Training", unit="epoch")
     except ImportError:
         epoch_iter = range(cfg.max_epochs)
@@ -327,17 +352,41 @@ def fit_model(
         # Train
         model.train()
         train_loss = _run_epoch(
-            model, X_train, len_train, y_train, static_train, mask_train,
-            loss_fn, optim, cfg, device, task, train=True, extra=train_extra,
-            amp_dtype=amp_dtype, scaler=scaler,
+            model,
+            X_train,
+            len_train,
+            y_train,
+            static_train,
+            mask_train,
+            loss_fn,
+            optim,
+            cfg,
+            device,
+            task,
+            train=True,
+            extra=train_extra,
+            amp_dtype=amp_dtype,
+            scaler=scaler,
         )
         # Validate
         model.eval()
         with torch.no_grad():
             val_loss = _run_epoch(
-                model, X_val, len_val, y_val, static_val, mask_val,
-                loss_fn, None, cfg, device, task, train=False, extra=val_extra,
-                amp_dtype=amp_dtype, scaler=None,
+                model,
+                X_val,
+                len_val,
+                y_val,
+                static_val,
+                mask_val,
+                loss_fn,
+                None,
+                cfg,
+                device,
+                task,
+                train=False,
+                extra=val_extra,
+                amp_dtype=amp_dtype,
+                scaler=None,
             )
 
         row: dict[str, float] = {"train_loss": float(train_loss), "val_loss": float(val_loss)}
@@ -383,7 +432,8 @@ def fit_model(
         metrics = binary_metrics(yv_final.astype(float), yp_final.astype(float)).metrics
     elif task.kind == "multiclass":
         metrics = multiclass_metrics(
-            yv_final.astype(int), yp_final,
+            yv_final.astype(int),
+            yp_final,
             num_classes=task.num_classes or int(yv_final.max()) + 1,
         ).metrics
     else:
@@ -396,8 +446,22 @@ def fit_model(
 
 
 def _run_epoch(
-    model, X, L, y, S, mask, loss_fn, optim, cfg, device, task, *,
-    train: bool, extra=None, amp_dtype=None, scaler=None,
+    model,
+    X,
+    L,
+    y,
+    S,
+    mask,
+    loss_fn,
+    optim,
+    cfg,
+    device,
+    task,
+    *,
+    train: bool,
+    extra=None,
+    amp_dtype=None,
+    scaler=None,
 ) -> float:
     idx = torch.randperm(X.shape[0]) if train else torch.arange(X.shape[0])
     total_loss = 0.0
@@ -406,7 +470,7 @@ def _run_epoch(
     use_amp = amp_dtype is not None and device.type == "cuda"
 
     for i in range(0, len(idx), bs):
-        b = idx[i:i + bs]
+        b = idx[i : i + bs]
         xb = X[b].to(device)
         lb = L[b].to(device)
         yb = y[b].to(device)
@@ -414,12 +478,7 @@ def _run_epoch(
 
         kw = {}
         if extra:
-            kw = {
-                k: v[b].to(device) if isinstance(v, torch.Tensor) and v.dim() > 1 else (
-                    v.to(device) if isinstance(v, torch.Tensor) else v
-                )
-                for k, v in extra.items()
-            }
+            kw = {k: v[b].to(device) if isinstance(v, torch.Tensor) and v.dim() > 1 else (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in extra.items()}
 
         ctx = torch.amp.autocast("cuda", dtype=amp_dtype) if use_amp else _nullcontext()
         with ctx:
@@ -470,8 +529,10 @@ def _run_epoch(
 
 class _nullcontext:
     """Minimal no-op context manager (avoid importing contextlib)."""
+
     def __enter__(self):
         return self
+
     def __exit__(self, *args):
         pass
 
@@ -496,6 +557,7 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_leng
     static_t = None
     if static is not None:
         import numpy as np
+
         static_arr = static.reindex(index=np.array(valid_pids, dtype=str)).to_numpy(dtype=np.float32, copy=True)
         static_t = torch.from_numpy(static_arr)
 
@@ -503,11 +565,15 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_leng
 
 
 def _prep_time(binned, labels_df, feat_cols, patient_ids, static, *, max_seq_length=None):
-    from oneehr.data.sequence import build_time_sequences, pad_sequences
     import numpy as np
 
+    from oneehr.data.sequence import build_time_sequences, pad_sequences
+
     pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
-        binned, labels_df, feat_cols, label_time_col="bin_time",
+        binned,
+        labels_df,
+        feat_cols,
+        label_time_col="bin_time",
         max_seq_length=max_seq_length,
     )
     X_seq = pad_sequences(seqs, lens)

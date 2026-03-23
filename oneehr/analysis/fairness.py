@@ -7,7 +7,6 @@ import pandas as pd
 
 from oneehr.eval.metrics import binary_metrics
 
-
 _SENSITIVE_PATTERNS = ("age", "sex", "gender", "race", "ethnicity")
 
 
@@ -77,9 +76,7 @@ def _smd_predictions(groups: dict[str, np.ndarray]) -> float:
     pooled_std = np.sqrt(np.mean(np.array(stds) ** 2))
     if pooled_std < 1e-12:
         return 0.0
-    return float(abs(means[0] - means[1]) / pooled_std) if len(means) == 2 else float(
-        (max(means) - min(means)) / pooled_std
-    )
+    return float(abs(means[0] - means[1]) / pooled_std) if len(means) == 2 else float((max(means) - min(means)) / pooled_std)
 
 
 def compute_fairness(
@@ -114,9 +111,7 @@ def compute_fairness(
     results = {"sensitive_columns": sensitive_columns, "systems": []}
 
     for system_name in preds["system"].unique():
-        sdf = preds[preds["system"] == system_name].merge(
-            static[["patient_id", *sensitive_columns]], on="patient_id", how="left"
-        )
+        sdf = preds[preds["system"] == system_name].merge(static[["patient_id", *sensitive_columns]], on="patient_id", how="left")
         y_true = sdf["y_true"].to_numpy(dtype=float)
         y_pred = sdf["y_pred"].to_numpy(dtype=float)
         finite = np.isfinite(y_true) & np.isfinite(y_pred)
@@ -154,10 +149,12 @@ def compute_fairness(
                 "smd_predictions": _smd_predictions(pred_groups),
             }
 
-        results["systems"].append({
-            "name": system_name,
-            "n": int(y_true.size),
-            "attributes": attr_results,
-        })
+        results["systems"].append(
+            {
+                "name": system_name,
+                "n": int(y_true.size),
+                "attributes": attr_results,
+            }
+        )
 
     return results

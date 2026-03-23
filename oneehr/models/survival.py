@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import numpy as np
 
 
 class DeepSurv(nn.Module):
@@ -29,12 +28,14 @@ class DeepSurv(nn.Module):
         layers: list[nn.Module] = []
         in_d = input_dim
         for _ in range(num_layers):
-            layers.extend([
-                nn.Linear(in_d, hidden_dim),
-                nn.ReLU(),
-                nn.BatchNorm1d(hidden_dim),
-                nn.Dropout(dropout),
-            ])
+            layers.extend(
+                [
+                    nn.Linear(in_d, hidden_dim),
+                    nn.ReLU(),
+                    nn.BatchNorm1d(hidden_dim),
+                    nn.Dropout(dropout),
+                ]
+            )
             in_d = hidden_dim
         layers.append(nn.Linear(hidden_dim, out_dim))
         self.net = nn.Sequential(*layers)
@@ -68,12 +69,14 @@ class DeepHit(nn.Module):
         layers: list[nn.Module] = []
         in_d = input_dim
         for _ in range(num_layers):
-            layers.extend([
-                nn.Linear(in_d, hidden_dim),
-                nn.ReLU(),
-                nn.BatchNorm1d(hidden_dim),
-                nn.Dropout(dropout),
-            ])
+            layers.extend(
+                [
+                    nn.Linear(in_d, hidden_dim),
+                    nn.ReLU(),
+                    nn.BatchNorm1d(hidden_dim),
+                    nn.Dropout(dropout),
+                ]
+            )
             in_d = hidden_dim
         self.shared = nn.Sequential(*layers)
         self.output = nn.Linear(hidden_dim, num_time_bins)
@@ -88,6 +91,7 @@ class DeepHit(nn.Module):
 
 
 # --- Loss Functions ---
+
 
 class CoxPHLoss(nn.Module):
     """Negative log partial likelihood for Cox PH models."""
@@ -147,7 +151,7 @@ class DeepHitLoss(nn.Module):
             if events[i] == 1:
                 nll[i] = -torch.log(pmf[i, bin_idx[i]] + eps)
             else:
-                surv = pmf[i, bin_idx[i]:].sum()
+                surv = pmf[i, bin_idx[i] :].sum()
                 nll[i] = -torch.log(surv + eps)
 
         loss = nll.mean()

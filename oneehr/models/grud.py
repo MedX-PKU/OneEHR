@@ -37,10 +37,7 @@ class GRUDBackbone(nn.Module):
         if missing_mask is None or time_delta is None:
             raise ValueError("GRU-D requires missing_mask and time_delta in forward()")
         if missing_mask.shape != x.shape or time_delta.shape != x.shape:
-            raise ValueError(
-                "GRU-D expects missing_mask and time_delta to match x shape "
-                f"{tuple(x.shape)}, got {tuple(missing_mask.shape)} and {tuple(time_delta.shape)}"
-            )
+            raise ValueError(f"GRU-D expects missing_mask and time_delta to match x shape {tuple(x.shape)}, got {tuple(missing_mask.shape)} and {tuple(time_delta.shape)}")
 
         batch_size, steps, input_dim = x.shape
         observed = 1.0 - missing_mask.to(dtype=x.dtype, device=x.device)

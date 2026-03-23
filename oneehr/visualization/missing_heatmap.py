@@ -1,10 +1,10 @@
 """Missing data heatmap visualization."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -52,11 +52,7 @@ def plot_missing_heatmap(
     top_feats = miss_rate.index[:max_features].tolist()
 
     # Patient-level last-observation view.
-    last_obs = (
-        binned.sort_values(["patient_id", "bin_time"], kind="stable")
-        .groupby("patient_id", sort=False)[top_feats]
-        .last()
-    )
+    last_obs = binned.sort_values(["patient_id", "bin_time"], kind="stable").groupby("patient_id", sort=False)[top_feats].last()
 
     # Sample patients if too many.
     if len(last_obs) > max_patients:
@@ -69,9 +65,11 @@ def plot_missing_heatmap(
     fig, ax = new_figure(style=style, figsize=figsize or (fig_w, fig_h), ax=ax)
 
     sns.heatmap(
-        mask, cmap=["#FFFFFF", "#CC3311"],
+        mask,
+        cmap=["#FFFFFF", "#CC3311"],
         cbar_kws={"label": "Missing", "ticks": [0, 1]},
-        xticklabels=True, yticklabels=False,
+        xticklabels=True,
+        yticklabels=False,
         ax=ax,
     )
     ax.set_xlabel("Feature")
@@ -112,10 +110,10 @@ def plot_missingness_bar(
     fig, ax = new_figure(style=style, figsize=figsize or (5, fig_h), ax=ax)
 
     from oneehr.visualization._style import get_palette
+
     palette = get_palette(1, style)
 
-    ax.barh(range(len(miss_rate)), miss_rate.values, color=palette[0],
-            edgecolor="none", height=0.7, alpha=0.85)
+    ax.barh(range(len(miss_rate)), miss_rate.values, color=palette[0], edgecolor="none", height=0.7, alpha=0.85)
     ax.set_yticks(range(len(miss_rate)))
     ax.set_yticklabels(miss_rate.index)
     ax.set_xlabel("Missing Rate")

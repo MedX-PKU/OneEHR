@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-
 # ─── Feature utilities ───────────────────────────────────────────────────────
 
 
@@ -195,10 +194,7 @@ def fit_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, object]]) -> Fi
             fallback_value = fallback.get("value")
 
             if group_key not in X.columns or order_key not in X.columns:
-                raise ValueError(
-                    f"forward_fill requires X to include columns {group_key!r} and {order_key!r}. "
-                    "Use forward_fill only for time-level features with explicit time ordering."
-                )
+                raise ValueError(f"forward_fill requires X to include columns {group_key!r} and {order_key!r}. Use forward_fill only for time-level features with explicit time ordering.")
 
             ff_cols = [c for c in cols if c not in {group_key, order_key}]
             _ensure_numeric_frame(X, ff_cols)
@@ -236,9 +232,7 @@ def fit_pipeline(X_train: pd.DataFrame, pipeline: list[dict[str, object]]) -> Fi
                 raise ValueError("winsorize requires 0 <= lower_q < upper_q <= 1")
             lo = X[cols].quantile(lower_q, interpolation="linear")
             hi = X[cols].quantile(upper_q, interpolation="linear")
-            fitted_steps.append(
-                {"op": "winsorize", "cols": cols, "lower_q": lower_q, "upper_q": upper_q, "lo": lo, "hi": hi}
-            )
+            fitted_steps.append({"op": "winsorize", "cols": cols, "lower_q": lower_q, "upper_q": upper_q, "lo": lo, "hi": hi})
             X.loc[:, cols] = X[cols].clip(lower=lo, upper=hi, axis=1)
             continue
 
@@ -351,11 +345,7 @@ def transform_pipeline(X: pd.DataFrame, fitted: FittedPipeline) -> pd.DataFrame:
             X_out = X_out.copy()
             X_out[cols] = X_out[cols].apply(pd.to_numeric, errors="coerce").astype(float)
             mean_s = pd.Series(mean, dtype=float) if isinstance(mean, dict) else pd.Series(mean).astype(float)
-            std_s = (
-                pd.Series(std, dtype=float).replace(0.0, 1.0)
-                if isinstance(std, dict)
-                else pd.Series(std).astype(float).replace(0.0, 1.0)
-            )
+            std_s = pd.Series(std, dtype=float).replace(0.0, 1.0) if isinstance(std, dict) else pd.Series(std).astype(float).replace(0.0, 1.0)
             mean_s = mean_s.reindex(cols)
             std_s = std_s.reindex(cols)
             X_out[cols] = ((X_out[cols] - mean_s) / std_s).astype(float)
@@ -367,9 +357,7 @@ def transform_pipeline(X: pd.DataFrame, fitted: FittedPipeline) -> pd.DataFrame:
             order_key = str(step["order_key"])
             fill = step["fill"]
             if group_key not in X_out.columns or order_key not in X_out.columns:
-                raise ValueError(
-                    f"forward_fill requires columns {group_key!r} and {order_key!r} in X."
-                )
+                raise ValueError(f"forward_fill requires columns {group_key!r} and {order_key!r} in X.")
             X_out = X_out.sort_values([group_key, order_key], kind="stable")
             X_out.loc[:, cols] = X_out.groupby(group_key, sort=False)[cols].ffill()
             X_out.loc[:, cols] = X_out[cols].fillna(fill)

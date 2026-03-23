@@ -63,4 +63,3 @@ def bootstrap_metric(
         ci_high=ci_high,
         values=mvals,
     )
-

@@ -10,8 +10,8 @@ from __future__ import annotations
 import math
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 from oneehr.models.graph import GraphConvolution, normalize_adjacency
 from oneehr.models.recurrent import last_by_lengths

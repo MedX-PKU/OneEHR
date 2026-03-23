@@ -3,6 +3,7 @@
 Provides journal-specific rcParams, colorblind-safe palettes, and helper
 functions for consistent figure styling across all visualization modules.
 """
+
 from __future__ import annotations
 
 from typing import Any

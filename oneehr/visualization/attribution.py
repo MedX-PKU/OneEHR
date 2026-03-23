@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-from oneehr.visualization._style import new_figure, save_and_close, get_palette
+from oneehr.visualization._style import get_palette, new_figure, save_and_close
 
 
 def plot_attribution_heatmap(

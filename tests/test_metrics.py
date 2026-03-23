@@ -110,16 +110,20 @@ def test_sensitivity_specificity_at_thresholds():
 
 
 def test_bootstrap_ci():
-    from oneehr.eval.bootstrap import bootstrap_metric
     from oneehr.config.schema import TaskConfig
+    from oneehr.eval.bootstrap import bootstrap_metric
 
     rng = np.random.default_rng(42)
     y_true = rng.integers(0, 2, size=100).astype(float)
     y_pred = np.clip(y_true + rng.normal(0, 0.3, size=100), 0, 1)
 
     result = bootstrap_metric(
-        y_true=y_true, y_pred=y_pred,
-        task=TaskConfig(kind="binary"), metric="auroc", n=50, seed=42,
+        y_true=y_true,
+        y_pred=y_pred,
+        task=TaskConfig(kind="binary"),
+        metric="auroc",
+        n=50,
+        seed=42,
     )
     assert result.ci_low < result.mean < result.ci_high
     assert result.n == 50

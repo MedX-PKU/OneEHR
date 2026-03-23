@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import import_module
 
-from oneehr.config.schema import ModelConfig, TaskConfig as TaskConfig
+from oneehr.config.schema import ModelConfig
+from oneehr.config.schema import TaskConfig as TaskConfig
 
 TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt", "lr"})
 DL_MODELS: frozenset[str] = frozenset(

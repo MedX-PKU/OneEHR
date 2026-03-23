@@ -1,4 +1,5 @@
 """Pairwise statistical significance heatmap."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -38,9 +39,7 @@ def plot_significance_matrix(
         raise ValueError("No pairwise test results found")
 
     # Collect unique system names.
-    systems = sorted(set(
-        s for p in pairwise for s in (p["system_a"], p["system_b"])
-    ))
+    systems = sorted(set(s for p in pairwise for s in (p["system_a"], p["system_b"])))
     n = len(systems)
     idx = {s: i for i, s in enumerate(systems)}
 
@@ -72,12 +71,18 @@ def plot_significance_matrix(
                 annot[i, j] = f"{p:.3f}\n{stars}"
 
     sns.heatmap(
-        matrix, annot=annot, fmt="",
-        xticklabels=systems, yticklabels=systems,
-        cmap="RdYlGn_r", vmin=0, vmax=0.1,
+        matrix,
+        annot=annot,
+        fmt="",
+        xticklabels=systems,
+        yticklabels=systems,
+        cmap="RdYlGn_r",
+        vmin=0,
+        vmax=0.1,
         mask=np.eye(n, dtype=bool),
         cbar_kws={"label": "p-value"},
-        linewidths=0.5, linecolor="white",
+        linewidths=0.5,
+        linecolor="white",
         ax=ax,
     )
     ax.set_title(f"{title} ({test})")

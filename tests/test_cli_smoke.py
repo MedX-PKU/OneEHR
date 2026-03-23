@@ -1,4 +1,5 @@
 """Smoke tests for the new 4-command CLI pipeline."""
+
 from __future__ import annotations
 
 import json
@@ -6,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
 
 def _make_dynamic(tmp_path: Path, n_patients: int = 40, seed: int = 0) -> Path:
@@ -27,12 +27,14 @@ def _make_dynamic(tmp_path: Path, n_patients: int = 40, seed: int = 0) -> Path:
 def _make_label(tmp_path: Path, n_patients: int = 40) -> Path:
     rows = []
     for pid in range(n_patients):
-        rows.append({
-            "patient_id": f"p{pid:04d}",
-            "label_time": "2020-01-02",
-            "label_code": "outcome",
-            "label_value": pid % 2,  # balanced binary labels
-        })
+        rows.append(
+            {
+                "patient_id": f"p{pid:04d}",
+                "label_time": "2020-01-02",
+                "label_code": "outcome",
+                "label_value": pid % 2,  # balanced binary labels
+            }
+        )
     path = tmp_path / "label.csv"
     pd.DataFrame(rows).to_csv(path, index=False)
     return path
@@ -40,7 +42,8 @@ def _make_label(tmp_path: Path, n_patients: int = 40) -> Path:
 
 def _write_config(tmp_path: Path, dynamic_csv: Path, label_csv: Path, out_root: Path) -> Path:
     cfg = tmp_path / "exp.toml"
-    cfg.write_text(f"""
+    cfg.write_text(
+        f"""
 [dataset]
 dynamic = "{dynamic_csv}"
 label = "{label_csv}"
@@ -74,7 +77,9 @@ batch_size = 16
 [output]
 root = "{out_root}"
 run_name = "test_run"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     return cfg
 
 
@@ -85,6 +90,7 @@ def test_preprocess_writes_artifacts(tmp_path: Path) -> None:
     cfg = _write_config(tmp_path, dynamic_csv, label_csv, out_root)
 
     from oneehr.cli.main import main
+
     main(["preprocess", "--config", str(cfg)])
 
     run_dir = out_root / "test_run"

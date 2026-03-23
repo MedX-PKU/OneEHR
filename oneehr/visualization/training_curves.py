@@ -1,10 +1,10 @@
 """Training loss and metric curves over epochs for DL models."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from oneehr.visualization._style import get_palette, new_figure, save_and_close
 from oneehr.visualization._utils import load_training_meta
@@ -56,12 +56,12 @@ def plot_training_curves(
         groups.setdefault(base, []).append(k)
 
     n_plots = len(groups)
-    fig, axes = plt.subplots(1, n_plots,
-                             figsize=figsize or (4 * n_plots, 3.5))
+    fig, axes = plt.subplots(1, n_plots, figsize=figsize or (4 * n_plots, 3.5))
     if n_plots == 1:
         axes = [axes]
 
     from oneehr.visualization._style import apply_style
+
     apply_style(style)
     palette = get_palette(2, style)
 
@@ -71,7 +71,8 @@ def plot_training_curves(
             epochs = list(range(1, len(vals) + 1))
             is_val = k.startswith("val_")
             ax_i.plot(
-                epochs, vals,
+                epochs,
+                vals,
                 color=palette[1] if is_val else palette[0],
                 lw=1.5,
                 ls="--" if is_val else "-",
@@ -101,14 +102,12 @@ def plot_training_curves_multi(
 ) -> plt.Figure:
     """Overlay a single metric across multiple models on one plot."""
     from oneehr.visualization._style import apply_style
+
     apply_style(style)
 
     train_dir = run_dir / "train"
     if model_names is None:
-        model_names = sorted(
-            d.name for d in train_dir.iterdir()
-            if d.is_dir() and (d / "meta.json").exists()
-        )
+        model_names = sorted(d.name for d in train_dir.iterdir() if d.is_dir() and (d / "meta.json").exists())
 
     fig, ax = new_figure(style=style, figsize=figsize, ax=ax)
     palette = get_palette(len(model_names), style)

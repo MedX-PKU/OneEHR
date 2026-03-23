@@ -48,26 +48,32 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "preprocess":
         from oneehr.cli.preprocess import run_preprocess
+
         run_preprocess(args.config)
 
     elif args.command == "train":
         from oneehr.cli.train import run_train
+
         run_train(args.config, force=args.force)
 
     elif args.command == "test":
         from oneehr.cli.test import run_test
+
         run_test(args.config, force=args.force)
 
     elif args.command == "analyze":
         from oneehr.cli.analyze import run_analyze
+
         run_analyze(args.config, module=args.module)
 
     elif args.command == "plot":
         from oneehr.cli.plot import run_plot
+
         run_plot(args.config, figures=args.figure, style=args.style, output=args.output)
 
     elif args.command == "convert":
         from oneehr.cli.convert import run_convert
+
         run_convert(args.dataset, args.raw_dir, args.output_dir, task=args.task)
 
     else:

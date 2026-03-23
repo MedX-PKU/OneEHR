@@ -1,4 +1,5 @@
 """Calibration (reliability) diagram with ECE annotation."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -71,8 +72,7 @@ def plot_calibration(
             continue
 
         centers, accs, counts, ece = _reliability_data(y_true, y_pred, n_bins)
-        ax.plot(centers, accs, "o-", color=palette[i], lw=1.5, ms=4,
-                label=f"{name} (ECE={ece:.3f})")
+        ax.plot(centers, accs, "o-", color=palette[i], lw=1.5, ms=4, label=f"{name} (ECE={ece:.3f})")
 
     ax.plot([0, 1], [0, 1], "k--", lw=0.8, alpha=0.4, label="Perfectly calibrated")
     ax.set_xlabel("Mean Predicted Probability")

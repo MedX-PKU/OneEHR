@@ -6,8 +6,8 @@ import torch
 
 from oneehr.data.features import has_static_branch
 
-
 # -- ConCare -----------------------------------------------------------------
+
 
 def test_concare_patient_no_static():
     from oneehr.models.concare import ConCareModel
@@ -53,6 +53,7 @@ def test_concare_time_with_static():
 
 # -- GRASP -------------------------------------------------------------------
 
+
 def test_grasp_patient_no_static():
     from oneehr.models.grasp import GRASPModel
 
@@ -97,6 +98,7 @@ def test_grasp_time_with_static():
 
 # -- TCN patient-level -------------------------------------------------------
 
+
 def test_tcn_patient_forward():
     from oneehr.models.tcn import TCNPatientModel
 
@@ -119,10 +121,11 @@ def test_tcn_patient_accepts_static_kwarg():
 
 # -- has_static_branch -------------------------------------------------------
 
+
 def test_has_static_branch_true():
     from oneehr.models.concare import ConCareModel
-    from oneehr.models.grasp import GRASPModel
     from oneehr.models.dragent import DrAgentModel
+    from oneehr.models.grasp import GRASPModel
     from oneehr.models.safari import SafariModel
 
     assert has_static_branch(ConCareModel(input_dim=4, hidden_dim=16, num_heads=4, static_dim=3))

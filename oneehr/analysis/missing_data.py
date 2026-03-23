@@ -59,11 +59,13 @@ def compute_missing_data(*, binned: pd.DataFrame) -> dict:
                     seen.add(key)
                     r = corr.loc[c1, c2]
                     if np.isfinite(r) and abs(r) > 0.1:
-                        corr_pairs.append({
-                            "feature_a": c1,
-                            "feature_b": c2,
-                            "correlation": round(float(r), 4),
-                        })
+                        corr_pairs.append(
+                            {
+                                "feature_a": c1,
+                                "feature_b": c2,
+                                "correlation": round(float(r), 4),
+                            }
+                        )
 
     corr_pairs.sort(key=lambda x: abs(x["correlation"]), reverse=True)
 

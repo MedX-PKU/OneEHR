@@ -4,12 +4,13 @@ import warnings
 
 import numpy as np
 import pandas as pd
-
 import torch
 
 
 def _truncate_seqs(
-    seqs: list[np.ndarray], lengths: np.ndarray, max_len: int | None,
+    seqs: list[np.ndarray],
+    lengths: np.ndarray,
+    max_len: int | None,
 ) -> tuple[list[np.ndarray], np.ndarray]:
     """Truncate sequences to at most *max_len* time steps (keep most recent)."""
     if max_len is None or max_len <= 0:
@@ -159,9 +160,7 @@ def pad_sequences(seqs: list[np.ndarray], lengths: np.ndarray):
     if np.isnan(out).any():
         nan_count = int(np.isnan(out).sum())
         warnings.warn(
-            f"pad_sequences: {nan_count} residual NaN values found after preprocessing. "
-            "Consider adding an impute step to your pipeline config. "
-            "Filling with 0 as safety net.",
+            f"pad_sequences: {nan_count} residual NaN values found after preprocessing. Consider adding an impute step to your pipeline config. Filling with 0 as safety net.",
             stacklevel=2,
         )
         out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)

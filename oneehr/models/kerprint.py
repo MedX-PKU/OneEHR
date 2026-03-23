@@ -40,9 +40,7 @@ class KerPrintBackbone(nn.Module):
         visits, nodes, patient_mask = self.visit_encoder(group_values, group_mask)
         summary, local_summary, global_summary = self.graph_summary(nodes, patient_mask)
         visits = visits + self.time_enc(visit_time)
-        packed = nn.utils.rnn.pack_padded_sequence(
-            self.dropout(visits), lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        packed = nn.utils.rnn.pack_padded_sequence(self.dropout(visits), lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, _ = self.temporal_gru(packed)
         seq, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
         seq = self.context_proj(seq)
@@ -50,13 +48,7 @@ class KerPrintBackbone(nn.Module):
 
         recency = visit_time[:, : seq.size(1)]
         recency = recency.max(dim=1, keepdim=True).values - recency
-        scores = self.score_proj(
-            torch.tanh(
-                self.key_proj(seq)
-                + self.query_proj(query).unsqueeze(1)
-                + self.time_proj(torch.log1p(recency).unsqueeze(-1))
-            )
-        ).squeeze(-1)
+        scores = self.score_proj(torch.tanh(self.key_proj(seq) + self.query_proj(query).unsqueeze(1) + self.time_proj(torch.log1p(recency).unsqueeze(-1)))).squeeze(-1)
         mask = torch.arange(seq.size(1), device=lengths.device).unsqueeze(0) >= lengths.unsqueeze(1)
         scores = scores.masked_fill(mask, float("-inf"))
         weights = torch.softmax(scores, dim=-1)

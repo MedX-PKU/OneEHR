@@ -14,14 +14,13 @@ import json
 from pathlib import Path
 
 import pandas as pd
-
 import torch
 
 from oneehr.artifacts.manifest import write_manifest
 from oneehr.config.schema import ExperimentConfig
 from oneehr.data.binning import bin_events
 from oneehr.data.labels import normalize_patient_labels, normalize_time_labels
-from oneehr.data.splits import make_patient_index, make_split, save_split, load_split
+from oneehr.data.splits import load_split, make_patient_index, make_split, save_split
 from oneehr.data.tabular import fit_pipeline, fit_transform_static_features
 from oneehr.utils import ensure_dir
 
@@ -54,7 +53,8 @@ def materialize_preprocess_artifacts(
     # Save feature schema and observation mask from binning.
     if dynamic is not None:
         (pp_dir / "feature_schema.json").write_text(
-            json.dumps(binned_res.feature_schema, indent=2), encoding="utf-8",
+            json.dumps(binned_res.feature_schema, indent=2),
+            encoding="utf-8",
         )
         binned_res.obs_mask.to_parquet(pp_dir / "obs_mask.parquet", index=False)
 
@@ -102,12 +102,14 @@ def materialize_preprocess_artifacts(
         _TIME_OPS = {"forward_fill"}
         static_pipeline = [s for s in cfg.preprocess.pipeline if s.get("op") not in _TIME_OPS]
         static_all, _, _, static_art = fit_transform_static_features(
-            raw_train=static_raw, raw_val=None, raw_test=None,
+            raw_train=static_raw,
+            raw_val=None,
+            raw_test=None,
             pipeline=static_pipeline,
         )
         static_feat_cols = list(static_all.columns)
         # Set patient_id as index before saving
-        static_all.index = static["patient_id"].astype(str).values[:len(static_all)]
+        static_all.index = static["patient_id"].astype(str).values[: len(static_all)]
         static_all.index.name = "patient_id"
         static_all.to_parquet(pp_dir / "static.parquet", index=True)
 

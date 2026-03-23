@@ -1,4 +1,5 @@
 """Shared utility functions for OneEHR visualization modules."""
+
 from __future__ import annotations
 
 import json

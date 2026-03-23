@@ -22,10 +22,7 @@ class ContiFormerBackbone(nn.Module):
         self.input_proj = nn.Linear(input_dim, hidden_dim)
         self.time_enc = ContinuousTimeEncoding(hidden_dim)
         self.state_decay = nn.Linear(1, hidden_dim)
-        self.attn_layers = nn.ModuleList([
-            RelativeTimeAttention(hidden_dim, num_heads=num_heads, dropout=dropout)
-            for _ in range(num_layers)
-        ])
+        self.attn_layers = nn.ModuleList([RelativeTimeAttention(hidden_dim, num_heads=num_heads, dropout=dropout) for _ in range(num_layers)])
         self.norms = nn.ModuleList([nn.LayerNorm(hidden_dim) for _ in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
 

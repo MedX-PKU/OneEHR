@@ -5,8 +5,6 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from oneehr.models.recurrent import last_by_lengths
-
 
 class DeeprEncoder(nn.Module):
     """Linear projection → Conv1d → ReLU → Dropout."""

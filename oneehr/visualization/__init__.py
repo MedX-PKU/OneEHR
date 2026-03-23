@@ -12,6 +12,7 @@ Quick start::
     fig = plot_roc("runs/my_run/test/predictions.parquet")
     fig = plot_pr("runs/my_run/test/predictions.parquet", style="nature")
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -153,9 +154,7 @@ def render_figure(
 ) -> None:
     """Render a named figure and save to *save_dir*."""
     if name not in _FIGURE_REGISTRY:
-        raise ValueError(
-            f"Unknown figure {name!r}. Available: {sorted(_FIGURE_REGISTRY)}"
-        )
+        raise ValueError(f"Unknown figure {name!r}. Available: {sorted(_FIGURE_REGISTRY)}")
     entry = _FIGURE_REGISTRY[name]
     fn_name = entry["fn"]
     fn = globals()[fn_name]
@@ -168,6 +167,7 @@ def render_figure(
 # ---------------------------------------------------------------------------
 # Internal render wrappers (called by render_figure).
 # ---------------------------------------------------------------------------
+
 
 def _render_roc(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) -> None:
     preds = run_dir / "test" / "predictions.parquet"
@@ -198,7 +198,9 @@ def _render_feature_importance(*, run_dir: Path, style: str, save_dir: Path, **k
         if "error" in entry:
             continue
         plot_feature_importance(
-            fi, model=model_name, style=style,
+            fi,
+            model=model_name,
+            style=style,
             save_path=save_dir / f"feature_importance_{model_name}.png",
             **kw,
         )
@@ -218,11 +220,14 @@ def _render_training_curves(*, run_dir: Path, style: str, save_dir: Path, **kw: 
         if not meta_path.exists():
             continue
         import json
+
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         if not meta.get("train_metrics", {}).get("history"):
             continue
         plot_training_curves(
-            meta, model_name=model_dir.name, style=style,
+            meta,
+            model_name=model_dir.name,
+            style=style,
             save_path=save_dir / f"training_{model_dir.name}.png",
             **kw,
         )
@@ -234,7 +239,9 @@ def _render_fairness(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) ->
     for sys_info in systems:
         name = sys_info["name"]
         plot_fairness_radar(
-            fairness_data, system=name, style=style,
+            fairness_data,
+            system=name,
+            style=style,
             save_path=save_dir / f"fairness_{name}.png",
             **kw,
         )
@@ -260,7 +267,10 @@ def _render_decision_curve(*, run_dir: Path, style: str, save_dir: Path, **kw: A
 def _render_significance(*, run_dir: Path, style: str, save_dir: Path, **kw: Any) -> None:
     stats_data = load_analysis_json(run_dir, "statistical_tests")
     plot_significance_matrix(
-        stats_data, style=style, save_path=save_dir / "significance.png", **kw,
+        stats_data,
+        style=style,
+        save_path=save_dir / "significance.png",
+        **kw,
     )
 
 
