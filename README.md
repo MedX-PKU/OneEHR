@@ -1,6 +1,5 @@
 # OneEHR
 
-[![CI](https://github.com/MedXLab/OneEHR/actions/workflows/ci.yml/badge.svg)](https://github.com/MedXLab/OneEHR/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](https://medxlab.github.io/OneEHR)
@@ -145,11 +144,11 @@ OneEHR uses TOML as the experiment contract:
 
 | Tutorial | Description |
 |----------|-------------|
-| [01 Quickstart](tutorials/01_quickstart.ipynb) | End-to-end TJH mortality prediction |
-| [02 Custom Dataset](tutorials/02_custom_dataset.ipynb) | Bring your own data + medical code mapping |
-| [03 Model Comparison](tutorials/03_model_comparison.ipynb) | ML vs DL with bootstrap CI and statistical tests |
-| [04 Fairness & Explainability](tutorials/04_fairness_analysis.ipynb) | Bias detection + feature importance |
-| [05 Survival Analysis](tutorials/05_survival_analysis.ipynb) | DeepSurv, C-index, Kaplan-Meier curves |
+| [01 Quickstart](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/01_quickstart.ipynb) | End-to-end TJH mortality prediction |
+| [02 Custom Dataset](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/02_custom_dataset.ipynb) | Bring your own data + medical code mapping |
+| [03 Model Comparison](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/03_model_comparison.ipynb) | ML vs DL with bootstrap CI and statistical tests |
+| [04 Fairness & Explainability](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/04_fairness_analysis.ipynb) | Bias detection + feature importance |
+| [05 Survival Analysis](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/05_survival_analysis.ipynb) | DeepSurv, C-index, Kaplan-Meier curves |
 
 ## Documentation
 

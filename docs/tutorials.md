@@ -4,11 +4,11 @@ Step-by-step Jupyter notebooks covering the full OneEHR workflow.
 
 | # | Tutorial | Description |
 |---|----------|-------------|
-| 1 | [Quickstart](../tutorials/01_quickstart.ipynb) | End-to-end mortality prediction on the TJH COVID-19 dataset |
-| 2 | [Custom Dataset](../tutorials/02_custom_dataset.ipynb) | Bring your own data into OneEHR's three-table format + medical code mapping |
-| 3 | [Model Comparison](../tutorials/03_model_comparison.ipynb) | Compare ML vs DL models with bootstrap CI and DeLong/McNemar statistical tests |
-| 4 | [Fairness & Explainability](../tutorials/04_fairness_analysis.ipynb) | Bias detection across demographic groups + feature importance visualization |
-| 5 | [Survival Analysis](../tutorials/05_survival_analysis.ipynb) | DeepSurv, DeepHit, concordance index, and Kaplan-Meier curves |
+| 1 | [Quickstart](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/01_quickstart.ipynb) | End-to-end mortality prediction on the TJH COVID-19 dataset |
+| 2 | [Custom Dataset](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/02_custom_dataset.ipynb) | Bring your own data into OneEHR's three-table format + medical code mapping |
+| 3 | [Model Comparison](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/03_model_comparison.ipynb) | Compare ML vs DL models with bootstrap CI and DeLong/McNemar statistical tests |
+| 4 | [Fairness & Explainability](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/04_fairness_analysis.ipynb) | Bias detection across demographic groups + feature importance visualization |
+| 5 | [Survival Analysis](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/05_survival_analysis.ipynb) | DeepSurv, DeepHit, concordance index, and Kaplan-Meier curves |
 
 ## Running Tutorials
 
