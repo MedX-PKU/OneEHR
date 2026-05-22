@@ -164,7 +164,6 @@ Full documentation: [medx-pku.github.io/OneEHR/](https://medx-pku.github.io/OneE
 - [Artifacts](docs/reference/artifacts.md)
 - [Dataset Converters](docs/reference/datasets.md)
 - [Medical Codes](docs/reference/medcode.md)
-- [Publishing](docs/reference/publishing.md)
 
 Build docs locally:
 
