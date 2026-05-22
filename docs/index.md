@@ -1,3 +1,11 @@
+<a class="kdd-announcement-bar" href="https://kdd2026.kdd.org/call-for-hands-on-tutorials/">
+  <span class="kdd-announcement-status">Accepted at KDD 2026</span>
+  <strong>OneEHR</strong>
+  <span>Tuesday, August 11, 2026</span>
+  <span>1:30 PM - 4:30 PM</span>
+  <span>Jeju, Korea</span>
+</a>
+
 <div class="landing-hero">
   <div class="landing-hero-copy">
     <p class="landing-eyebrow">EHR AI platform</p>
@@ -14,7 +22,6 @@
     <div class="landing-actions">
       <a class="landing-button landing-button-primary" href="./getting-started/quickstart/">Run the quickstart</a>
       <a class="landing-button landing-button-secondary" href="./guide/core-workflows/">Core workflows guide</a>
-      <a class="landing-button landing-button-secondary" href="#kdd-2026-hands-on-tutorial">KDD tutorial</a>
     </div>
   </div>
   <div class="landing-hero-panel">
@@ -50,140 +57,59 @@
   </div>
 </div>
 
-## KDD 2026 Hands-on Tutorial
-
-<section class="tutorial-announcement">
-  <div class="tutorial-announcement-copy">
-    <p class="landing-eyebrow">Accepted tutorial</p>
-    <h3>OneEHR: Reproducible and AI Agent-Ready Longitudinal EHR Analysis Toolkit</h3>
-    <p>
-      OneEHR has been accepted as a KDD 2026 Hands-on Tutorial. We will organize the
-      tutorial in Jeju, Korea, introducing an artifact-first workflow for reproducible
-      longitudinal EHR analysis, model evaluation, evidence inspection, and agent-ready review.
-    </p>
-  </div>
-  <div class="tutorial-meta-grid">
-    <article>
-      <span>Venue</span>
-      <strong>ACM KDD 2026</strong>
-      <p>Jeju, Korea</p>
-    </article>
-    <article>
-      <span>Format</span>
-      <strong>3-hour hands-on tutorial</strong>
-      <p>Local and browser-based participation tracks</p>
-    </article>
-    <article>
-      <span>Presenter</span>
-      <strong>Yinghao Zhu</strong>
-      <p>Lead developer and in-person presenter</p>
-    </article>
-  </div>
-</section>
-
 ## Tutorial Tutors
 
 <div class="tutor-grid">
-  <article class="tutor-card">
+  <a class="tutor-card" href="https://yhzhu99.github.io/">
     <img class="tutor-avatar" src="images/team/yinghao-zhu.jpg" alt="Yinghao Zhu">
-    <div class="tutor-card-body">
-      <p class="tutor-role">In-person presenter</p>
-      <h3><a href="https://yhzhu99.github.io/">Yinghao Zhu</a></h3>
-      <p class="tutor-affiliation">Peking University; University of Hong Kong</p>
-      <p>PhD student working on AI for healthcare, medical LLMs, clinical agents, and trustworthy EHR modeling.</p>
-      <a class="tutor-link" href="https://yhzhu99.github.io/">Homepage</a>
-    </div>
-  </article>
-  <article class="tutor-card">
+    <span class="tutor-name">Yinghao Zhu</span>
+    <span class="tutor-affiliation">Peking University; University of Hong Kong</span>
+  </a>
+  <a class="tutor-card" href="https://fieldry.github.io/">
     <img class="tutor-avatar" src="images/team/zixiang-wang.jpg" alt="Zixiang Wang">
-    <div class="tutor-card-body">
-      <p class="tutor-role">Contributor</p>
-      <h3><a href="https://fieldry.github.io/">Zixiang Wang</a></h3>
-      <p class="tutor-affiliation">Peking University</p>
-      <p>Master's student focusing on AI for healthcare, medical LLMs, and clinical predictive modeling.</p>
-      <a class="tutor-link" href="https://fieldry.github.io/">Homepage</a>
-    </div>
-  </article>
-  <article class="tutor-card">
+    <span class="tutor-name">Zixiang Wang</span>
+    <span class="tutor-affiliation">Peking University</span>
+  </a>
+  <a class="tutor-card" href="https://openreview.net/profile?id=~Lei_Gu5">
     <img class="tutor-avatar" src="images/team/lei-gu.jpg" alt="Lei Gu">
-    <div class="tutor-card-body">
-      <p class="tutor-role">Contributor</p>
-      <h3><a href="https://openreview.net/profile?id=~Lei_Gu5">Lei Gu</a></h3>
-      <p class="tutor-affiliation">Peking University</p>
-      <p>Researcher building medical LLM agent workflows and human-AI collaborative decision-support systems.</p>
-      <a class="tutor-link" href="https://openreview.net/profile?id=~Lei_Gu5">Profile</a>
-    </div>
-  </article>
-  <article class="tutor-card">
+    <span class="tutor-name">Lei Gu</span>
+    <span class="tutor-affiliation">Peking University</span>
+  </a>
+  <a class="tutor-card" href="https://openreview.net/profile?id=~Dehao_Sui1">
     <img class="tutor-avatar" src="images/team/dehao-sui.jpg" alt="Dehao Sui">
-    <div class="tutor-card-body">
-      <p class="tutor-role">Contributor</p>
-      <h3><a href="https://openreview.net/profile?id=~Dehao_Sui1">Dehao Sui</a></h3>
-      <p class="tutor-affiliation">Peking University</p>
-      <p>Student researcher focused on LLM applications for clinical predictive modeling and EHR analysis.</p>
-      <a class="tutor-link" href="https://openreview.net/profile?id=~Dehao_Sui1">Profile</a>
-    </div>
-  </article>
-  <article class="tutor-card">
+    <span class="tutor-name">Dehao Sui</span>
+    <span class="tutor-affiliation">Peking University</span>
+  </a>
+  <a class="tutor-card" href="http://scholar.pku.edu.cn/wangyasha/">
     <img class="tutor-avatar" src="images/team/yasha-wang.jpg" alt="Yasha Wang">
-    <div class="tutor-card-body">
-      <p class="tutor-role">Supervising tutor</p>
-      <h3><a href="http://scholar.pku.edu.cn/wangyasha/">Yasha Wang</a></h3>
-      <p class="tutor-affiliation">Peking University</p>
-      <p>Professor whose research spans data mining, big data analytics, artificial intelligence, and software engineering.</p>
-      <a class="tutor-link" href="http://scholar.pku.edu.cn/wangyasha/">Homepage</a>
-    </div>
-  </article>
-  <article class="tutor-card">
-    <div class="tutor-avatar tutor-avatar-fallback" aria-label="Ewen M Harrison">EH</div>
-    <div class="tutor-card-body">
-      <p class="tutor-role">Supervising tutor</p>
-      <h3><a href="https://www.ed.ac.uk/profile/ewen-harrison">Ewen M. Harrison</a></h3>
-      <p class="tutor-affiliation">University of Edinburgh</p>
-      <p>Professor of Surgery and Data Science and consultant surgeon working on data-driven clinical research.</p>
-      <a class="tutor-link" href="https://www.ed.ac.uk/profile/ewen-harrison">Homepage</a>
-    </div>
-  </article>
-  <article class="tutor-card">
-    <div class="tutor-avatar tutor-avatar-fallback" aria-label="Tianfan Fu">TF</div>
-    <div class="tutor-card-body">
-      <p class="tutor-role">Supervising tutor</p>
-      <h3><a href="https://futianfan.github.io/">Tianfan Fu</a></h3>
-      <p class="tutor-affiliation">Nanjing University</p>
-      <p>Associate professor working on AI for science and healthcare, including drug discovery, clinical trials, and EHR analysis.</p>
-      <a class="tutor-link" href="https://futianfan.github.io/">Homepage</a>
-    </div>
-  </article>
-  <article class="tutor-card">
+    <span class="tutor-name">Yasha Wang</span>
+    <span class="tutor-affiliation">Peking University</span>
+  </a>
+  <a class="tutor-card" href="https://www.ed.ac.uk/profile/ewen-harrison">
+    <img class="tutor-avatar" src="images/team/ewen-harrison.jpg" alt="Ewen M. Harrison">
+    <span class="tutor-name">Ewen M. Harrison</span>
+    <span class="tutor-affiliation">University of Edinburgh</span>
+  </a>
+  <a class="tutor-card" href="https://futianfan.github.io/">
+    <img class="tutor-avatar" src="images/team/tianfan-fu.jpg" alt="Tianfan Fu">
+    <span class="tutor-name">Tianfan Fu</span>
+    <span class="tutor-affiliation">Nanjing University</span>
+  </a>
+  <a class="tutor-card" href="https://aboutme.vixerunt.org/">
     <img class="tutor-avatar" src="images/team/junyi-gao.jpg" alt="Junyi Gao">
-    <div class="tutor-card-body">
-      <p class="tutor-role">Contributor</p>
-      <h3><a href="https://aboutme.vixerunt.org/">Junyi Gao</a></h3>
-      <p class="tutor-affiliation">University of Edinburgh; Health Data Research UK</p>
-      <p>PhD student working on clinical predictive modeling with EHR data and population-level healthcare prediction.</p>
-      <a class="tutor-link" href="https://aboutme.vixerunt.org/">Homepage</a>
-    </div>
-  </article>
-  <article class="tutor-card">
-    <div class="tutor-avatar tutor-avatar-fallback" aria-label="Lequan Yu">LY</div>
-    <div class="tutor-card-body">
-      <p class="tutor-role">Supervising tutor</p>
-      <h3><a href="https://yulequan.github.io/">Lequan Yu</a></h3>
-      <p class="tutor-affiliation">University of Hong Kong</p>
-      <p>Assistant professor working on multimodal learning, foundation models, and agentic AI for medical informatics.</p>
-      <a class="tutor-link" href="https://yulequan.github.io/">Homepage</a>
-    </div>
-  </article>
-  <article class="tutor-card">
+    <span class="tutor-name">Junyi Gao</span>
+    <span class="tutor-affiliation">University of Edinburgh; Health Data Research UK</span>
+  </a>
+  <a class="tutor-card" href="https://yulequan.github.io/">
+    <img class="tutor-avatar" src="images/team/lequan-yu.jpg" alt="Lequan Yu">
+    <span class="tutor-name">Lequan Yu</span>
+    <span class="tutor-affiliation">University of Hong Kong</span>
+  </a>
+  <a class="tutor-card" href="https://medx-pku.com/malt">
     <img class="tutor-avatar" src="images/team/liantao-ma.jpg" alt="Liantao Ma">
-    <div class="tutor-card-body">
-      <p class="tutor-role">Supervising tutor</p>
-      <h3><a href="http://scholar.pku.edu.cn/malt/">Liantao Ma</a></h3>
-      <p class="tutor-affiliation">Peking University</p>
-      <p>Research assistant professor focused on EHR-based prognosis prediction and clinical decision-support systems.</p>
-      <a class="tutor-link" href="http://scholar.pku.edu.cn/malt/">Homepage</a>
-    </div>
-  </article>
+    <span class="tutor-name">Liantao Ma</span>
+    <span class="tutor-affiliation">Peking University</span>
+  </a>
 </div>
 
 ## Why OneEHR
