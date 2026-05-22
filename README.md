@@ -1,6 +1,7 @@
 # OneEHR
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/oneehr.svg)](https://pypi.org/project/oneehr/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](https://medx-pku.github.io/OneEHR/)
 
@@ -31,7 +32,7 @@ All commands operate on the same run directory under `{output.root}/{output.run_
 
 ## Install
 
-OneEHR requires Python 3.12+.
+OneEHR requires Python 3.12+ and is published on [PyPI](https://pypi.org/project/oneehr/).
 
 ```bash
 pip install oneehr
