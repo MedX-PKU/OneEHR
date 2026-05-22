@@ -11,7 +11,7 @@ pip install oneehr
 ## From Source
 
 ```bash
-git clone https://github.com/MedXLab/OneEHR.git
+git clone https://github.com/MedX-PKU/OneEHR.git
 cd OneEHR
 uv venv .venv --python 3.12
 uv pip install -e .

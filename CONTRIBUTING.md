@@ -6,7 +6,7 @@ Thank you for your interest in contributing to OneEHR! This guide will help you 
 
 ```bash
 # Clone the repository
-git clone https://github.com/MedXLab/OneEHR.git
+git clone https://github.com/MedX-PKU/OneEHR.git
 cd OneEHR
 
 # Create a virtual environment

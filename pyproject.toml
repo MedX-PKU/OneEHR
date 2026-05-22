@@ -46,10 +46,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/MedXLab/OneEHR"
-Documentation = "https://medxlab.github.io/OneEHR"
-Repository = "https://github.com/MedXLab/OneEHR"
-Issues = "https://github.com/MedXLab/OneEHR/issues"
+Homepage = "https://medx-pku.github.io/OneEHR/"
+Documentation = "https://medx-pku.github.io/OneEHR/"
+Repository = "https://github.com/MedX-PKU/OneEHR"
+Issues = "https://github.com/MedX-PKU/OneEHR/issues"
 
 [project.scripts]
 oneehr = "oneehr.cli.main:main"

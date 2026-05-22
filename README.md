@@ -2,7 +2,7 @@
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](https://medxlab.github.io/OneEHR)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](https://medx-pku.github.io/OneEHR/)
 
 OneEHR is a unified Python platform for longitudinal EHR experiments across ML, DL, and LLM agents. It provides shared infrastructure for preprocessing, modeling, testing, and analysis on one shared run contract — the first toolkit bridging classical machine learning, deep learning, and agentic AI for clinical prediction.
 
@@ -152,7 +152,7 @@ OneEHR uses TOML as the experiment contract:
 
 ## Documentation
 
-Full documentation: [medxlab.github.io/OneEHR](https://medxlab.github.io/OneEHR)
+Full documentation: [medx-pku.github.io/OneEHR/](https://medx-pku.github.io/OneEHR/)
 
 - [Installation](docs/getting-started/installation.md)
 - [Quickstart](docs/getting-started/quickstart.md)
