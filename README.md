@@ -166,10 +166,22 @@ Full documentation: [medx-pku.github.io/OneEHR/](https://medx-pku.github.io/OneE
 - [Dataset Converters](docs/reference/datasets.md)
 - [Medical Codes](docs/reference/medcode.md)
 
-Build docs locally:
+Run the documentation website locally:
 
 ```bash
 uv run --group docs mkdocs serve
+```
+
+Then open the local preview URL printed by MkDocs, usually:
+
+```text
+http://127.0.0.1:5000/
+```
+
+Build the static documentation site without serving it:
+
+```bash
+uv run --group docs mkdocs build
 ```
 
 ## Contributing
