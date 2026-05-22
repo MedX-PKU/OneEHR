@@ -58,6 +58,9 @@ oneehr = "oneehr.cli.main:main"
 test = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4"]
 survival = ["lifelines>=0.29"]
 
+[dependency-groups]
+docs = ["mkdocs @ git+https://github.com/encode/mkdocs.git"]
+
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"

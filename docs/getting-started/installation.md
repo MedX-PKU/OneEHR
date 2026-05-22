@@ -45,7 +45,7 @@ pip install oneehr[survival]
 ## Build Documentation From Source
 
 ```bash
-uvx --from "mkdocs @ git+https://github.com/encode/mkdocs.git" mkdocs serve
+uv run --group docs mkdocs serve
 ```
 
 ## GPU Support

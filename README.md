@@ -168,7 +168,7 @@ Full documentation: [medx-pku.github.io/OneEHR/](https://medx-pku.github.io/OneE
 Build docs locally:
 
 ```bash
-uvx --from "mkdocs @ git+https://github.com/encode/mkdocs.git" mkdocs serve
+uv run --group docs mkdocs serve
 ```
 
 ## Contributing
