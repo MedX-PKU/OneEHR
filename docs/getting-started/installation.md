@@ -38,11 +38,14 @@ You should see these top-level commands:
 # Development and testing
 pip install oneehr[test]
 
-# Documentation
-pip install oneehr[docs]
-
 # Survival analysis (lifelines for fast C-index)
 pip install oneehr[survival]
+```
+
+## Build Documentation From Source
+
+```bash
+uvx --from "mkdocs @ git+https://github.com/encode/mkdocs.git" mkdocs serve
 ```
 
 ## GPU Support

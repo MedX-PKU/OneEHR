@@ -168,8 +168,7 @@ Full documentation: [medx-pku.github.io/OneEHR/](https://medx-pku.github.io/OneE
 Build docs locally:
 
 ```bash
-uv pip install -e ".[docs]"
-uv run mkdocs serve
+uvx --from "mkdocs @ git+https://github.com/encode/mkdocs.git" mkdocs serve
 ```
 
 ## Contributing
@@ -179,6 +178,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 ## Validation
 
 ```bash
-pytest tests/ -v                                                    # 114 tests
+pytest tests/ -v                                                    # 150 tests
 oneehr preprocess --config examples/tjh/mortality_patient.toml      # End-to-end
 ```

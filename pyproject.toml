@@ -1,6 +1,6 @@
 [project]
 name = "oneehr"
-version = "0.1.0"
+version = "0.1.1"
 description = "Unified platform for longitudinal EHR experiments across ML, DL, and LLM agents"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -55,7 +55,6 @@ Issues = "https://github.com/MedX-PKU/OneEHR/issues"
 oneehr = "oneehr.cli.main:main"
 
 [project.optional-dependencies]
-docs = ["mkdocs @ git+https://github.com/encode/mkdocs.git"]
 test = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4"]
 survival = ["lifelines>=0.29"]
 
