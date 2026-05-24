@@ -74,6 +74,8 @@ The latest model family additions concentrate on three gaps in longitudinal EHR 
 
 For KG-enhanced models, `kg_source = "lightweight"` builds an internal concept graph from train-split co-occurrence plus available ontology hints. `kg_source = "external"` reads a user-supplied graph from `external_kg_path`.
 
+External KG files can be CSV, TSV, or JSON. CSV/TSV files should provide `source` and `target` columns, with optional `weight`; `head` and `tail` are also accepted. JSON can be either a list of edge objects or an object with an `edges` list. OneEHR projects external KG nodes onto feature groups using medical-code aliases such as `DX_ICD9_25000`, `ICD9:25000`, `ICD9::25000`, and `25000`. Checkpoint metadata includes `extra.kg_coverage` so runs report how many KG edges matched model features.
+
 ---
 
 ## Tabular models

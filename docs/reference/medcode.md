@@ -160,3 +160,20 @@ Then point your TOML config to the mapped file:
 [dataset]
 dynamic = "data/dynamic_mapped.csv"
 ```
+
+---
+
+## Feature Code Resolution
+
+Model-side KG adapters use the same medcode parser to resolve feature names into stable code identities. This keeps MIMIC-III style names such as `DX_25000` and MIMIC-IV style names such as `DX_ICD9_25000` or `DX_ICD10_E119` consistent.
+
+```python
+from oneehr.medcode import parse_feature_code, feature_code_aliases
+
+code = parse_feature_code("DX_ICD10_E119")
+code.system           # "ICD10"
+code.normalized_code  # "E119"
+
+feature_code_aliases("DX_ICD9_25000")
+# includes "DX_ICD9_25000", "ICD9:25000", "ICD9::25000", and "25000"
+```
