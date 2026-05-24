@@ -55,4 +55,7 @@ def load_label_table(path: Path | None) -> pd.DataFrame | None:
     df["patient_id"] = df["patient_id"].astype(str)
     df["label_time"] = pd.to_datetime(df["label_time"], errors="raise")
     df["label_code"] = df["label_code"].astype(str)
-    return df[required]
+    cols = [*required]
+    if "mask" in df.columns:
+        cols.append("mask")
+    return df[cols]

@@ -147,3 +147,64 @@ def test_fit_model_time_multiclass_preserves_probability_rows():
 
     assert "accuracy" in metrics
     assert metrics["history"][0]["val_loss"] >= 0
+
+
+def test_multilabel_label_codes_become_training_matrix():
+    from oneehr.config.schema import TaskConfig, TrainerConfig
+    from oneehr.data.labels import normalize_multilabel_patient_labels
+    from oneehr.data.splits import Split
+    from oneehr.models.recurrent import RecurrentModel
+    from oneehr.training.trainer import fit_model
+
+    raw_labels = pd.DataFrame(
+        {
+            "patient_id": ["p1", "p1", "p2", "p2", "p3", "p3", "p4", "p4"],
+            "label_time": pd.to_datetime(["2020-01-03"] * 8),
+            "label_code": ["dx_a", "dx_b"] * 4,
+            "label": [1, 0, 0, 1, 1, 1, 0, 0],
+        }
+    )
+    labels = normalize_multilabel_patient_labels(raw_labels, num_classes=2)
+    assert [c for c in labels.columns if c.startswith("label_")] == ["label_0_dx_a", "label_1_dx_b"]
+
+    binned = pd.DataFrame(
+        {
+            "patient_id": ["p1", "p1", "p2", "p2", "p3", "p3", "p4", "p4"],
+            "bin_time": pd.to_datetime(["2020-01-01", "2020-01-02"] * 4),
+            "num__x": [0.0, 0.1, 1.0, 1.1, 2.0, 2.1, 3.0, 3.1],
+        }
+    )
+    y_map = {
+        str(row["patient_id"]): row[["label_0_dx_a", "label_1_dx_b"]].to_numpy(dtype=np.float32)
+        for _, row in labels.iterrows()
+    }
+    split = Split(train=np.array(["p1", "p2"], dtype=str), val=np.array(["p3", "p4"], dtype=str), test=np.array([], dtype=str))
+    model = RecurrentModel(input_dim=1, hidden_dim=4, out_dim=2, cell="gru")
+
+    _, metrics = fit_model(
+        model=model,
+        binned=binned,
+        split=split,
+        feat_cols=["num__x"],
+        y_map=y_map,
+        cfg=TrainerConfig(device="cpu", max_epochs=1, batch_size=2, monitor="val_loss", early_stopping=False),
+        task=TaskConfig(kind="multilabel", prediction_mode="patient", num_classes=2),
+        mode="patient",
+    )
+
+    assert "f1_macro" in metrics
+    assert metrics["history"][0]["val_loss"] >= 0
+
+
+def test_compute_metrics_uses_multilabel_truth_and_probability_columns():
+    from oneehr.cli.test import _compute_metrics
+
+    rows = [
+        {"system": "m", "patient_id": "p1", "y_true": np.nan, "y_true_0": 1, "y_true_1": 0, "y_pred": 1, "y_prob_0": 0.8, "y_prob_1": 0.2},
+        {"system": "m", "patient_id": "p2", "y_true": np.nan, "y_true_0": 0, "y_true_1": 1, "y_pred": 1, "y_prob_0": 0.1, "y_prob_1": 0.7},
+    ]
+
+    metrics = _compute_metrics(rows, "multilabel", "patient", [])
+    system = metrics["systems"][0]
+    assert system["n"] == 2
+    assert system["metrics"]["f1_macro"] == pytest.approx(1.0)

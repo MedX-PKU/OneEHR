@@ -87,13 +87,14 @@ def build_time_sequences(
     - patient_ids: list[str]
     - time_seqs: list[np.ndarray] of shape (T_i,) containing bin_time values
     - seqs: list[np.ndarray] of shape (T_i, D)
-    - y_seqs: list[np.ndarray] of shape (T_i,)
+    - y_seqs: list[np.ndarray] of shape (T_i,) or (T_i, L)
     - mask_seqs: list[np.ndarray] of shape (T_i,) where 1.0 means valid label
     - lengths: np.ndarray (N,)
 
     Notes:
     - `binned` is the binned feature table (long) with patient_id/bin_time and feature columns.
-    - `labels` should contain columns: patient_id, label, and a time column (default `bin_time`).
+    - `labels` should contain patient_id, a time column (default `bin_time`),
+      and either a scalar `label` column or one or more label matrix columns.
       It may also contain `mask` (bool) to indicate which labels are valid.
     """
 
@@ -102,15 +103,20 @@ def build_time_sequences(
     if missing_b:
         raise ValueError(f"binned missing columns: {missing_b}")
 
-    if "patient_id" not in labels.columns or "label" not in labels.columns:
-        raise ValueError("labels must contain patient_id and label")
+    if "patient_id" not in labels.columns:
+        raise ValueError("labels must contain patient_id")
     if label_time_col not in labels.columns:
         raise ValueError(f"labels missing time column: {label_time_col!r}")
+    label_cols = [c for c in labels.columns if c not in {"patient_id", label_time_col, "label_time", "mask"}]
+    if "label" in labels.columns:
+        label_cols = ["label"]
+    if not label_cols:
+        raise ValueError("labels must contain at least one label column")
 
     feat = binned[["patient_id", "bin_time", *feature_columns]].copy()
     feat = feat.sort_values(["patient_id", "bin_time"], kind="stable")
 
-    lab_cols = ["patient_id", label_time_col, "label"]
+    lab_cols = ["patient_id", label_time_col, *label_cols]
     if "mask" in labels.columns:
         lab_cols.append("mask")
     lab = labels[lab_cols].copy()
@@ -121,16 +127,19 @@ def build_time_sequences(
     if "mask" in df.columns:
         valid = df["mask"].fillna(False).to_numpy(dtype=bool)
     else:
-        valid = df["label"].notna().to_numpy(dtype=bool)
+        valid = df[label_cols].notna().any(axis=1).to_numpy(dtype=bool)
 
     df["_mask"] = valid
-    df["_label"] = df["label"].fillna(0.0)
+    df[label_cols] = df[label_cols].fillna(0.0)
 
     groups = list(df.groupby("patient_id", sort=False))
     patient_ids = [str(pid) for pid, _ in groups]
     time_seqs = [g["bin_time"].to_numpy() for _, g in groups]
     seqs = [g[feature_columns].to_numpy(dtype=np.float32) for _, g in groups]
-    y_seqs = [g["_label"].to_numpy(dtype=np.float32) for _, g in groups]
+    if len(label_cols) == 1:
+        y_seqs = [g[label_cols[0]].to_numpy(dtype=np.float32) for _, g in groups]
+    else:
+        y_seqs = [g[label_cols].to_numpy(dtype=np.float32) for _, g in groups]
     mask_seqs = [g["_mask"].to_numpy(dtype=np.float32) for _, g in groups]
     lengths = np.array([len(s) for s in seqs], dtype=np.int64)
 

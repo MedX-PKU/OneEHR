@@ -21,6 +21,10 @@ def _task_out_dim(task) -> int:
     return 1
 
 
+def _label_matrix_columns(labels_df: pd.DataFrame) -> list[str]:
+    return [c for c in labels_df.columns if c not in {"patient_id", "bin_time", "label_time", "label", "mask"}]
+
+
 def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
     """Load fitted pipeline and apply to dataframe, then fill residual NaN."""
     pipeline_path = run_dir / "preprocess" / "fitted_pipeline.pt"
@@ -162,7 +166,7 @@ def _build_time_tabular(
     key = df[["patient_id", "bin_time"]].reset_index(drop=True)
     X = df[feat_cols].reset_index(drop=True)
 
-    if labels_df is not None:
+    if labels_df is not None and "label" in labels_df.columns:
         merged = key.merge(
             labels_df[["patient_id", "bin_time", "label"]],
             on=["patient_id", "bin_time"],
@@ -297,8 +301,15 @@ def _train_dl(
     if cfg.task.prediction_mode == "patient":
         y_map = {}
         if labels_df is not None:
-            for _, row in labels_df.iterrows():
-                y_map[str(row["patient_id"])] = float(row["label"])
+            if cfg.task.kind == "multilabel":
+                label_cols = _label_matrix_columns(labels_df)
+                if not label_cols:
+                    raise ValueError("multilabel training requires label matrix columns")
+                for _, row in labels_df.iterrows():
+                    y_map[str(row["patient_id"])] = row[label_cols].to_numpy(dtype=np.float32)
+            else:
+                for _, row in labels_df.iterrows():
+                    y_map[str(row["patient_id"])] = float(row["label"])
 
         trained_model, train_metrics = fit_model(
             model=model,

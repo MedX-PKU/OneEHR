@@ -654,10 +654,27 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_leng
     lens_t = torch.from_numpy(lens)
 
     # Build y from y_map
-    y = torch.tensor([float(y_map.get(str(p), float("nan"))) for p in pids], dtype=torch.float32)
+    values = [y_map.get(str(p), float("nan")) for p in pids]
+    vector_dim = None
+    for value in values:
+        arr = np.asarray(value)
+        if arr.ndim > 0 and arr.size > 1:
+            vector_dim = int(arr.size)
+            break
+    if vector_dim is None:
+        y = torch.tensor([float(v) for v in values], dtype=torch.float32)
+    else:
+        rows = []
+        for value in values:
+            arr = np.asarray(value, dtype=np.float32).reshape(-1)
+            if arr.size == vector_dim:
+                rows.append(arr)
+            else:
+                rows.append(np.full(vector_dim, np.nan, dtype=np.float32))
+        y = torch.from_numpy(np.stack(rows).astype(np.float32))
 
     # Filter out NaN labels
-    valid = ~torch.isnan(y)
+    valid = ~torch.isnan(y).any(dim=1) if y.ndim > 1 else ~torch.isnan(y)
     X_seq = X_seq[valid]
     lens_t = lens_t[valid]
     y = y[valid]
@@ -665,8 +682,6 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_leng
 
     static_t = None
     if static is not None:
-        import numpy as np
-
         static_arr = static.reindex(index=np.array(valid_pids, dtype=str)).to_numpy(dtype=np.float32, copy=True)
         static_t = torch.from_numpy(static_arr)
 
@@ -674,8 +689,6 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_leng
 
 
 def _prep_time(binned, labels_df, feat_cols, patient_ids, static, *, max_seq_length=None):
-    import numpy as np
-
     from oneehr.data.sequence import build_time_sequences, pad_sequences
 
     pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
@@ -686,7 +699,10 @@ def _prep_time(binned, labels_df, feat_cols, patient_ids, static, *, max_seq_len
         max_seq_length=max_seq_length,
     )
     X_seq = pad_sequences(seqs, lens)
-    Y_seq = pad_sequences([yy[:, None] for yy in y_seqs], lens).squeeze(-1)
+    if y_seqs and np.asarray(y_seqs[0]).ndim > 1:
+        Y_seq = pad_sequences(y_seqs, lens)
+    else:
+        Y_seq = pad_sequences([yy[:, None] for yy in y_seqs], lens).squeeze(-1)
     M_seq = pad_sequences([mm[:, None] for mm in mask_seqs], lens).squeeze(-1)
     lens_t = torch.from_numpy(lens)
 

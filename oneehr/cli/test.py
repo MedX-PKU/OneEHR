@@ -57,6 +57,20 @@ def _prediction_payload(raw_pred, task_kind: str, *, is_probability: bool = Fals
     return {"y_pred": float(arr.reshape(-1)[0])}
 
 
+def _label_matrix_columns(labels_df: pd.DataFrame) -> list[str]:
+    return [c for c in labels_df.columns if c not in {"patient_id", "bin_time", "label_time", "label", "mask"}]
+
+
+def _truth_payload(raw_true, task_kind: str) -> dict:
+    if task_kind == "multilabel":
+        arr = np.asarray(raw_true, dtype=float)
+        if arr.ndim > 0 and arr.size > 1:
+            payload = {"y_true": float("nan")}
+            payload.update({f"y_true_{i}": float(v) for i, v in enumerate(arr.reshape(-1).tolist())})
+            return payload
+    return {"y_true": float(raw_true)}
+
+
 def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
     """Load fitted pipeline and apply to dataframe, then fill residual NaN."""
     pipeline_path = run_dir / "preprocess" / "fitted_pipeline.pt"
@@ -192,17 +206,18 @@ def _predict_trained_model(
     binned_test = binned[binned["patient_id"].astype(str).isin(test_pids)].copy()
 
     # Build y_true map
-    y_true_map: dict[str, float] = {}  # patient-level
-    y_true_time_map: dict[tuple[str, str], float] = {}  # (patient_id, bin_time) -> label
+    y_true_map: dict[str, object] = {}  # patient-level
+    y_true_time_map: dict[tuple[str, str], object] = {}  # (patient_id, bin_time) -> label
     if labels_df is not None:
+        label_cols = _label_matrix_columns(labels_df) if task_kind == "multilabel" else []
         for _, row in labels_df.iterrows():
             pid = str(row["patient_id"])
             if pid in test_pids:
                 if "bin_time" in labels_df.columns:
                     bt = str(row["bin_time"])
-                    y_true_time_map[(pid, bt)] = float(row["label"])
+                    y_true_time_map[(pid, bt)] = row[label_cols].to_numpy(dtype=float) if label_cols else float(row["label"])
                 else:
-                    y_true_map[pid] = float(row["label"])
+                    y_true_map[pid] = row[label_cols].to_numpy(dtype=float) if label_cols else float(row["label"])
 
     rows: list[dict] = []
 
@@ -252,8 +267,8 @@ def _predict_trained_model(
                 row = {
                     "system": model_name,
                     "patient_id": str(pid),
-                    "y_true": y_true_map.get(str(pid), float("nan")),
                 }
+                row.update(_truth_payload(y_true_map.get(str(pid), float("nan")), task_kind))
                 row.update(_prediction_payload(raw, task_kind))
                 rows.append(row)
         else:
@@ -298,8 +313,8 @@ def _predict_trained_model(
                     row = {
                         "system": model_name,
                         "patient_id": str(pid),
-                        "y_true": y_true_time_map.get((str(pid), bt), float("nan")),
                     }
+                    row.update(_truth_payload(y_true_time_map.get((str(pid), bt), float("nan")), task_kind))
                     row.update(_prediction_payload(val, task_kind))
                     rows.append(row)
     else:
@@ -345,8 +360,8 @@ def _predict_trained_model(
                 row = {
                     "system": model_name,
                     "patient_id": str(pid),
-                    "y_true": y_true_map.get(str(pid), float("nan")),
                 }
+                row.update(_truth_payload(y_true_map.get(str(pid), float("nan")), task_kind))
                 row.update(_prediction_payload(yp, task_kind, is_probability=pred_is_prob))
                 rows.append(row)
         else:
@@ -381,8 +396,8 @@ def _predict_trained_model(
                 row = {
                     "system": model_name,
                     "patient_id": pid,
-                    "y_true": y_true_time_map.get((pid, bt), float("nan")),
                 }
+                row.update(_truth_payload(y_true_time_map.get((pid, bt), float("nan")), task_kind))
                 row.update(_prediction_payload(yp, task_kind, is_probability=pred_is_prob))
                 rows.append(row)
 
@@ -438,6 +453,31 @@ def _compute_metrics(
 
     for system_name in df["system"].unique():
         sdf = df[df["system"] == system_name].copy()
+
+        if task_kind == "multilabel":
+            true_cols = _prob_cols(sdf, "y_true_")
+            prob_cols = _prob_cols(sdf, "y_prob_")
+            if true_cols and prob_cols:
+                n_labels = min(len(true_cols), len(prob_cols))
+                y_true_ml = sdf[true_cols[:n_labels]].to_numpy(dtype=float)
+                y_score_ml = sdf[prob_cols[:n_labels]].to_numpy(dtype=float)
+                finite_ml = np.isfinite(y_true_ml).all(axis=1) & np.isfinite(y_score_ml).all(axis=1)
+                y_true_ml = y_true_ml[finite_ml].astype(int)
+                y_score_ml = y_score_ml[finite_ml]
+                metrics = multilabel_metrics(y_true_ml, y_score_ml).metrics if y_true_ml.size else {}
+                n_eval = int(y_true_ml.shape[0])
+            else:
+                metrics = {}
+                n_eval = 0
+
+            kind = "trained_model"
+            for sc in systems_cfg:
+                if sc.name == system_name:
+                    kind = sc.kind
+                    break
+            system_results.append({"name": system_name, "kind": kind, "n": n_eval, "metrics": metrics})
+            continue
+
         y_true = sdf["y_true"].to_numpy(dtype=float)
         y_pred = sdf["y_pred"].to_numpy(dtype=float)
 
@@ -467,20 +507,6 @@ def _compute_metrics(
                 y_probs = y_pred  # fallback: argmax-style
             num_classes = max(int(y_true.max()) + 1, len(prob_cols))
             metrics = multiclass_metrics(y_true.astype(int), y_probs, num_classes=num_classes).metrics
-        elif task_kind == "multilabel":
-            true_cols = _prob_cols(sdf, "y_true_")
-            prob_cols = _prob_cols(sdf, "y_prob_")
-            if true_cols and prob_cols:
-                n_labels = min(len(true_cols), len(prob_cols))
-                y_true_ml = sdf[true_cols[:n_labels]].to_numpy(dtype=float)
-                y_score_ml = sdf[prob_cols[:n_labels]].to_numpy(dtype=float)
-                finite_ml = np.isfinite(y_true_ml).all(axis=1) & np.isfinite(y_score_ml).all(axis=1)
-                y_true_ml = y_true_ml[finite_ml].astype(int)
-                y_score_ml = y_score_ml[finite_ml]
-                metrics = multilabel_metrics(y_true_ml, y_score_ml).metrics if y_true_ml.size else {}
-                y_true = np.arange(y_true_ml.shape[0], dtype=float)
-            else:
-                metrics = {}
         else:
             metrics = regression_metrics(y_true, y_pred).metrics
 
