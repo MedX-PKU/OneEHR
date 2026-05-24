@@ -163,14 +163,14 @@ def sigmoid(x):
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
-    """Row-wise softmax for 2-D arrays."""
+    """Softmax over the final dimension."""
     e = np.exp(x - x.max(axis=-1, keepdims=True))
     return e / e.sum(axis=-1, keepdims=True)
 
 
 def _metric_value(task: TaskConfig, monitor: str, y_true: np.ndarray, y_score: np.ndarray) -> float:
     """Compute the monitored metric from val predictions."""
-    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, regression_metrics
+    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, multilabel_metrics, regression_metrics
 
     if task.kind == "binary":
         mets = binary_metrics(y_true.astype(float), y_score.astype(float)).metrics
@@ -190,12 +190,58 @@ def _metric_value(task: TaskConfig, monitor: str, y_true: np.ndarray, y_score: n
         if monitor in ("val_f1", "f1"):
             return float(mets["f1_macro"])
         raise ValueError(f"Unsupported monitor metric for multiclass: {monitor!r}")
-    mets = regression_metrics(y_true.astype(float), y_score.astype(float)).metrics
-    if monitor in ("val_rmse", "rmse"):
-        return float(mets["rmse"])
-    if monitor in ("val_mae", "mae"):
-        return float(mets["mae"])
-    raise ValueError(f"Unsupported monitor metric for regression: {monitor!r}")
+    if task.kind == "multilabel":
+        mets = multilabel_metrics(y_true.astype(int), y_score.astype(float)).metrics
+        if monitor in ("val_auroc", "auroc"):
+            return float(mets["auroc_macro"])
+        if monitor in ("val_auprc", "auprc"):
+            return float(mets["auprc_macro"])
+        if monitor in ("val_f1", "f1"):
+            return float(mets["f1_macro"])
+        raise ValueError(f"Unsupported monitor metric for multilabel: {monitor!r}")
+    if task.kind == "regression":
+        mets = regression_metrics(y_true.astype(float), y_score.astype(float)).metrics
+        if monitor in ("val_rmse", "rmse"):
+            return float(mets["rmse"])
+        if monitor in ("val_mae", "mae"):
+            return float(mets["mae"])
+        raise ValueError(f"Unsupported monitor metric for regression: {monitor!r}")
+    raise ValueError(f"Unsupported task.kind={task.kind!r}")
+
+
+def _prepare_logits_for_task(logits: torch.Tensor, task: TaskConfig) -> torch.Tensor:
+    if task.kind in ("binary", "regression"):
+        return logits.squeeze(-1)
+    return logits
+
+
+def _align_time_tensors(
+    logits: torch.Tensor,
+    y: torch.Tensor,
+    mask: torch.Tensor | None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    if mask is None or logits.ndim < 2 or y.ndim < 2:
+        return logits, y, mask
+    t = min(int(logits.shape[1]), int(y.shape[1]), int(mask.shape[1]))
+    return logits[:, :t, ...], y[:, :t, ...], mask[:, :t]
+
+
+def _align_time_arrays(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    mask: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if y_true.ndim < 2 or y_score.ndim < 2:
+        return y_true, y_score, mask
+    t = min(int(y_true.shape[1]), int(y_score.shape[1]), int(mask.shape[1]))
+    return y_true[:, :t, ...], y_score[:, :t, ...], mask[:, :t]
+
+
+def _expand_loss_mask(mask: torch.Tensor, losses: torch.Tensor) -> torch.Tensor:
+    loss_mask = mask
+    while loss_mask.ndim < losses.ndim:
+        loss_mask = loss_mask.unsqueeze(-1)
+    return loss_mask.expand_as(losses)
 
 
 def _is_better(mode: str, a: float, b: float) -> bool:
@@ -228,7 +274,7 @@ def fit_model(
     Handles both patient-level and time-level training.
     """
     from oneehr.data.tabular import has_static_branch
-    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, regression_metrics
+    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, multilabel_metrics, regression_metrics
     from oneehr.utils import set_seed
 
     device = _select_device(cfg)
@@ -288,7 +334,10 @@ def fit_model(
     # Class weights
     class_weights = None
     if cfg.class_weight == "balanced" and task.kind in ("binary", "multiclass"):
-        class_weights = _compute_class_weights(y_train, task)
+        weight_y = y_train
+        if mask_train is not None:
+            weight_y = y_train[mask_train.bool()]
+        class_weights = _compute_class_weights(weight_y, task)
         if class_weights is not None:
             class_weights = class_weights.to(device)
 
@@ -321,9 +370,9 @@ def fit_model(
                 if val_extra:
                     kw = _model_extra_kwargs(val_extra, torch.arange(X_val.shape[0]), device)
                 logits = model(Xv, Lv, **kw) if Sv is None else model(Xv, Lv, Sv, **kw)
-                logits = logits.squeeze(-1).detach().cpu().float().numpy()
+                logits = _prepare_logits_for_task(logits, task).detach().cpu().float().numpy()
 
-        if task.kind == "binary":
+        if task.kind in ("binary", "multilabel"):
             y_score = sigmoid(logits)
         elif task.kind == "multiclass":
             y_score = softmax(logits)
@@ -333,12 +382,17 @@ def fit_model(
         y_val_np = y_val.detach().cpu().numpy()
         if mask_val is not None:
             m_np = mask_val.detach().cpu().numpy()
-            if y_score.ndim > 1 and y_val_np.ndim > 1 and y_score.shape[-1] != y_val_np.shape[-1]:
-                t = y_score.shape[-1]
-                y_val_np = y_val_np[:, :t]
-                m_np = m_np[:, :t]
+            y_val_np, y_score, m_np = _align_time_arrays(y_val_np, y_score, m_np)
             m = m_np.reshape(-1).astype(bool)
-            return y_val_np.reshape(-1)[m], y_score.reshape(-1)[m]
+            if y_val_np.ndim >= 3:
+                y_true_flat = y_val_np.reshape(-1, y_val_np.shape[-1])[m]
+            else:
+                y_true_flat = y_val_np.reshape(-1)[m]
+            if y_score.ndim >= 3:
+                y_score_flat = y_score.reshape(-1, y_score.shape[-1])[m]
+            else:
+                y_score_flat = y_score.reshape(-1)[m]
+            return y_true_flat, y_score_flat
         return y_val_np, y_score
 
     monitor_needs_preds = cfg.monitor != "val_loss"
@@ -439,6 +493,8 @@ def fit_model(
             yp_final,
             num_classes=task.num_classes or int(yv_final.max()) + 1,
         ).metrics
+    elif task.kind == "multilabel":
+        metrics = multilabel_metrics(yv_final.astype(int), yp_final.astype(float)).metrics
     else:
         metrics = regression_metrics(yv_final.astype(float), yp_final.astype(float)).metrics
 
@@ -486,24 +542,25 @@ def _run_epoch(
         ctx = torch.amp.autocast("cuda", dtype=amp_dtype) if use_amp else _nullcontext()
         with ctx:
             logits = model(xb, lb, **kw) if sb is None else model(xb, lb, sb, **kw)
-            logits = logits.squeeze(-1)
-            # Align time dimensions: pack/unpack may return shorter sequences
+            logits = _prepare_logits_for_task(logits, task)
             mb = mask[b].to(device) if mask is not None else None
-            if logits.ndim > 1 and yb.ndim > 1 and logits.shape[-1] != yb.shape[-1]:
-                t = logits.shape[-1]
-                yb = yb[:, :t]
-                if mb is not None:
-                    mb = mb[:, :t]
+            logits, yb, mb = _align_time_tensors(logits, yb, mb)
 
             # For multiclass, targets must be long
             if task.kind == "multiclass":
                 yb = yb.long()
+            elif task.kind == "multilabel":
+                yb = yb.float()
 
-            losses = loss_fn(logits, yb)
+            if task.kind == "multiclass" and logits.ndim == yb.ndim + 1 and yb.ndim > 1:
+                losses = loss_fn(logits.movedim(-1, 1), yb)
+            else:
+                losses = loss_fn(logits, yb)
 
             if mb is not None:
-                losses = losses * mb
-                denom = mb.sum().clamp_min(1.0)
+                loss_mask = _expand_loss_mask(mb, losses)
+                losses = losses * loss_mask
+                denom = loss_mask.sum().clamp_min(1.0)
                 loss = losses.sum() / denom
             else:
                 loss = losses.mean()

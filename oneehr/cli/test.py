@@ -17,6 +17,46 @@ import torch
 from oneehr.utils import ensure_dir, write_json
 
 
+def _sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
+
+
+def _softmax(x: np.ndarray) -> np.ndarray:
+    e = np.exp(x - x.max(axis=-1, keepdims=True))
+    return e / e.sum(axis=-1, keepdims=True)
+
+
+def _prob_cols(df: pd.DataFrame, prefix: str) -> list[str]:
+    def _key(col: str):
+        suffix = col.rsplit("_", 1)[-1]
+        return (0, int(suffix)) if suffix.isdigit() else (1, col)
+
+    return sorted(
+        [c for c in df.columns if c.startswith(prefix)],
+        key=_key,
+    )
+
+
+def _prediction_payload(raw_pred, task_kind: str, *, is_probability: bool = False) -> dict:
+    arr = np.asarray(raw_pred, dtype=float)
+    if task_kind == "binary":
+        score = arr.reshape(-1)[0] if is_probability else _sigmoid(arr).reshape(-1)[0]
+        return {"y_pred": float(score)}
+    if task_kind == "multiclass":
+        if arr.ndim == 0:
+            return {"y_pred": float(arr)}
+        probs = arr if is_probability else _softmax(arr)
+        payload = {"y_pred": float(int(probs.argmax()))}
+        payload.update({f"y_prob_{i}": float(p) for i, p in enumerate(probs.reshape(-1).tolist())})
+        return payload
+    if task_kind == "multilabel":
+        probs = _sigmoid(arr).reshape(-1)
+        payload = {"y_pred": float(int((probs >= 0.5).sum()))}
+        payload.update({f"y_prob_{i}": float(p) for i, p in enumerate(probs.tolist())})
+        return payload
+    return {"y_pred": float(arr.reshape(-1)[0])}
+
+
 def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
     """Load fitted pipeline and apply to dataframe, then fill residual NaN."""
     pipeline_path = run_dir / "preprocess" / "fitted_pipeline.pt"
@@ -145,7 +185,6 @@ def _predict_trained_model(
 ) -> list[dict]:
     """Load a checkpoint and produce prediction rows for test patients."""
     from oneehr.training.persistence import load_checkpoint
-    from oneehr.training.trainer import sigmoid
 
     model, meta = load_checkpoint(model_dir)
 
@@ -209,20 +248,14 @@ def _predict_trained_model(
                 else:
                     logits = model(X_seq, lens_t, **extra_kw).squeeze(-1).detach().cpu().numpy()
 
-            if task_kind == "binary":
-                y_pred_all = sigmoid(logits)
-            else:
-                y_pred_all = logits
-
-            for pid, yp in zip(pids, y_pred_all.tolist()):
-                rows.append(
-                    {
-                        "system": model_name,
-                        "patient_id": str(pid),
-                        "y_true": y_true_map.get(str(pid), float("nan")),
-                        "y_pred": float(yp),
-                    }
-                )
+            for pid, raw in zip(pids, logits.tolist()):
+                row = {
+                    "system": model_name,
+                    "patient_id": str(pid),
+                    "y_true": y_true_map.get(str(pid), float("nan")),
+                }
+                row.update(_prediction_payload(raw, task_kind))
+                rows.append(row)
         else:
             # Time mode DL
             from oneehr.data.sequence import build_time_sequences, pad_sequences
@@ -261,16 +294,14 @@ def _predict_trained_model(
             for i, (pid, seq_len) in enumerate(zip(pids, lens)):
                 for t in range(seq_len):
                     val = logits[i, t] if logits.ndim > 1 else logits[i]
-                    yp = float(sigmoid(val)) if task_kind == "binary" else float(val)
                     bt = str(time_seqs[i][t])
-                    rows.append(
-                        {
-                            "system": model_name,
-                            "patient_id": str(pid),
-                            "y_true": y_true_time_map.get((str(pid), bt), float("nan")),
-                            "y_pred": yp,
-                        }
-                    )
+                    row = {
+                        "system": model_name,
+                        "patient_id": str(pid),
+                        "y_true": y_true_time_map.get((str(pid), bt), float("nan")),
+                    }
+                    row.update(_prediction_payload(val, task_kind))
+                    rows.append(row)
     else:
         # ML model (XGBoost, CatBoost etc.) — loaded via torch.save
         if binned_test.empty:
@@ -297,22 +328,27 @@ def _predict_trained_model(
             last = _join_static(last)
 
             try:
+                pred_is_prob = False
                 if task_kind == "binary":
                     y_pred = model.predict_proba(last[stored_feat_cols])[:, 1]
+                    pred_is_prob = True
+                elif task_kind == "multiclass" and hasattr(model, "predict_proba"):
+                    y_pred = model.predict_proba(last[stored_feat_cols])
+                    pred_is_prob = True
                 else:
                     y_pred = model.predict(last[stored_feat_cols])
             except Exception:
                 y_pred = model.predict(last[stored_feat_cols])
+                pred_is_prob = False
 
             for pid, yp in zip(last.index.tolist(), y_pred.tolist()):
-                rows.append(
-                    {
-                        "system": model_name,
-                        "patient_id": str(pid),
-                        "y_true": y_true_map.get(str(pid), float("nan")),
-                        "y_pred": float(yp),
-                    }
-                )
+                row = {
+                    "system": model_name,
+                    "patient_id": str(pid),
+                    "y_true": y_true_map.get(str(pid), float("nan")),
+                }
+                row.update(_prediction_payload(yp, task_kind, is_probability=pred_is_prob))
+                rows.append(row)
         else:
             # Time-level ML prediction
             df = binned_test[["patient_id", "bin_time", *feat_cols]].copy()
@@ -326,24 +362,29 @@ def _predict_trained_model(
             X_test = X_test.reset_index(drop=True)
 
             try:
+                pred_is_prob = False
                 if task_kind == "binary":
                     y_pred = model.predict_proba(X_test[stored_feat_cols])[:, 1]
+                    pred_is_prob = True
+                elif task_kind == "multiclass" and hasattr(model, "predict_proba"):
+                    y_pred = model.predict_proba(X_test[stored_feat_cols])
+                    pred_is_prob = True
                 else:
                     y_pred = model.predict(X_test[stored_feat_cols])
             except Exception:
                 y_pred = model.predict(X_test[stored_feat_cols])
+                pred_is_prob = False
 
             for i, yp in enumerate(y_pred.tolist()):
                 pid = str(key.iloc[i]["patient_id"])
                 bt = str(key.iloc[i]["bin_time"])
-                rows.append(
-                    {
-                        "system": model_name,
-                        "patient_id": pid,
-                        "y_true": y_true_time_map.get((pid, bt), float("nan")),
-                        "y_pred": float(yp),
-                    }
-                )
+                row = {
+                    "system": model_name,
+                    "patient_id": pid,
+                    "y_true": y_true_time_map.get((pid, bt), float("nan")),
+                }
+                row.update(_prediction_payload(yp, task_kind, is_probability=pred_is_prob))
+                rows.append(row)
 
     return rows
 
@@ -387,7 +428,7 @@ def _compute_metrics(
     systems_cfg: list,
 ) -> dict:
     """Compute per-system metrics from prediction rows."""
-    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, regression_metrics
+    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, multilabel_metrics, regression_metrics
 
     if not rows:
         return {"task": {"kind": task_kind, "prediction_mode": mode}, "systems": []}
@@ -419,13 +460,27 @@ def _compute_metrics(
             metrics = binary_metrics(y_true, y_pred).metrics
         elif task_kind == "multiclass":
             # For multiclass, y_pred columns may be stored as separate prob cols
-            prob_cols = [c for c in sdf.columns if c.startswith("y_prob_")]
+            prob_cols = _prob_cols(sdf, "y_prob_")
             if prob_cols:
                 y_probs = sdf[prob_cols].to_numpy(dtype=float)[finite]
             else:
                 y_probs = y_pred  # fallback: argmax-style
-            num_classes = int(y_true.max()) + 1
+            num_classes = max(int(y_true.max()) + 1, len(prob_cols))
             metrics = multiclass_metrics(y_true.astype(int), y_probs, num_classes=num_classes).metrics
+        elif task_kind == "multilabel":
+            true_cols = _prob_cols(sdf, "y_true_")
+            prob_cols = _prob_cols(sdf, "y_prob_")
+            if true_cols and prob_cols:
+                n_labels = min(len(true_cols), len(prob_cols))
+                y_true_ml = sdf[true_cols[:n_labels]].to_numpy(dtype=float)
+                y_score_ml = sdf[prob_cols[:n_labels]].to_numpy(dtype=float)
+                finite_ml = np.isfinite(y_true_ml).all(axis=1) & np.isfinite(y_score_ml).all(axis=1)
+                y_true_ml = y_true_ml[finite_ml].astype(int)
+                y_score_ml = y_score_ml[finite_ml]
+                metrics = multilabel_metrics(y_true_ml, y_score_ml).metrics if y_true_ml.size else {}
+                y_true = np.arange(y_true_ml.shape[0], dtype=float)
+            else:
+                metrics = {}
         else:
             metrics = regression_metrics(y_true, y_pred).metrics
 

@@ -103,7 +103,7 @@ Defines the prediction task.
 |-----------|------|---------|-------------|
 | `kind` | `str` | `"binary"` | Task type: `binary`, `regression`, `multiclass`, `survival`, or `multilabel` |
 | `prediction_mode` | `str` | `"patient"` | Prediction granularity: `patient` or `time` |
-| `num_classes` | `int` | `None` | Number of classes (required when `kind = "multiclass"`) |
+| `num_classes` | `int` | `None` | Number of classes/labels (required when `kind = "multiclass"` or `kind = "multilabel"`) |
 | `loss` | `str` | `"default"` | Loss function: `default` or `focal` |
 | `focal_gamma` | `float` | `2.0` | Gamma for focal loss |
 
@@ -134,6 +134,7 @@ prediction_mode = "patient"
 [task]
 kind = "multilabel"
 prediction_mode = "patient"
+num_classes = 8
 ```
 
 ---

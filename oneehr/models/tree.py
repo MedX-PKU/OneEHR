@@ -46,14 +46,14 @@ def load_tabular_model(model_dir: str | Path, *, task: TaskConfig, kind: str) ->
     if kind == "xgboost":
         from xgboost import XGBClassifier, XGBRegressor
 
-        model = XGBClassifier() if task.kind == "binary" else XGBRegressor()
+        model = XGBClassifier() if task.kind in ("binary", "multiclass") else XGBRegressor()
         model.load_model(d / "model.json")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="xgboost")
 
     if kind == "catboost":
         from catboost import CatBoostClassifier, CatBoostRegressor
 
-        model = CatBoostClassifier() if task.kind == "binary" else CatBoostRegressor()
+        model = CatBoostClassifier() if task.kind in ("binary", "multiclass") else CatBoostRegressor()
         model.load_model(d / "model.cbm")
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="catboost")
 
@@ -98,8 +98,8 @@ def train_tabular_model(
         )
         kw = {**defaults, **params, "random_state": seed}
 
-        if task.kind == "binary":
-            kw["eval_metric"] = "logloss"
+        if task.kind in ("binary", "multiclass"):
+            kw["eval_metric"] = "logloss" if task.kind == "binary" else "mlogloss"
             model = XGBClassifier(**kw)
         elif task.kind == "regression":
             model = XGBRegressor(**kw)
@@ -119,7 +119,7 @@ def train_tabular_model(
         defaults = dict(depth=6, n_estimators=500, learning_rate=0.05)
         kw = {**defaults, **params, "random_state": seed, "verbose": False, "allow_writing_files": False}
 
-        if task.kind == "binary":
+        if task.kind in ("binary", "multiclass"):
             model = CatBoostClassifier(**kw)
         elif task.kind == "regression":
             model = CatBoostRegressor(**kw)
@@ -139,7 +139,7 @@ def train_tabular_model(
         defaults = dict(n_estimators=500, max_depth=None, min_samples_split=2, n_jobs=-1)
         kw = {**defaults, **params, "random_state": seed}
 
-        if task.kind == "binary":
+        if task.kind in ("binary", "multiclass"):
             model = RandomForestClassifier(**kw)
         elif task.kind == "regression":
             model = RandomForestRegressor(**kw)
@@ -155,7 +155,7 @@ def train_tabular_model(
         defaults = dict(max_depth=10, min_samples_split=2)
         kw = {**defaults, **params, "random_state": seed}
 
-        if task.kind == "binary":
+        if task.kind in ("binary", "multiclass"):
             model = DecisionTreeClassifier(**kw)
         elif task.kind == "regression":
             model = DecisionTreeRegressor(**kw)
@@ -166,7 +166,7 @@ def train_tabular_model(
         return TabularArtifacts(feature_columns=feature_columns, model=model, kind="dt")
 
     if model_name == "lr":
-        if task.kind == "binary":
+        if task.kind in ("binary", "multiclass"):
             from sklearn.linear_model import LogisticRegression
 
             defaults = dict(C=1.0, max_iter=1000, solver="lbfgs")
@@ -196,7 +196,7 @@ def train_tabular_model(
         )
         kw = {**defaults, **params, "random_state": seed}
 
-        if task.kind == "binary":
+        if task.kind in ("binary", "multiclass"):
             model = GradientBoostingClassifier(**kw)
         elif task.kind == "regression":
             model = GradientBoostingRegressor(**kw)
@@ -213,6 +213,10 @@ def predict_tabular(art: TabularArtifacts, X: pd.DataFrame, task: TaskConfig) ->
     X = X[art.feature_columns]
     if task.kind == "binary":
         return art.model.predict_proba(X)[:, 1]
+    if task.kind == "multiclass":
+        if hasattr(art.model, "predict_proba"):
+            return art.model.predict_proba(X)
+        return art.model.predict(X)
     if task.kind == "regression":
         return art.model.predict(X)
     raise ValueError(f"Unsupported task.kind={task.kind!r}")

@@ -267,6 +267,7 @@ def multilabel_metrics(
     """
     from sklearn.metrics import (
         accuracy_score,
+        average_precision_score,
         f1_score,
         hamming_loss,
         precision_score,
@@ -293,5 +294,14 @@ def multilabel_metrics(
     except ValueError:
         out["auroc_macro"] = float("nan")
         out["auroc_micro"] = float("nan")
+
+    try:
+        out["auprc_macro"] = float(average_precision_score(y_true, y_score, average="macro"))
+        out["auprc_micro"] = float(average_precision_score(y_true, y_score, average="micro"))
+        out["auprc_samples"] = float(average_precision_score(y_true, y_score, average="samples"))
+    except ValueError:
+        out["auprc_macro"] = float("nan")
+        out["auprc_micro"] = float("nan")
+        out["auprc_samples"] = float("nan")
 
     return MetricResult(metrics=out)

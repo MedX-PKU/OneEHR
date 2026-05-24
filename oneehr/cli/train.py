@@ -13,6 +13,14 @@ from oneehr.models import DL_MODELS, TABULAR_MODELS
 from oneehr.utils import ensure_dir
 
 
+def _task_out_dim(task) -> int:
+    if task.kind in ("multiclass", "multilabel"):
+        if task.num_classes is None or int(task.num_classes) < 2:
+            raise ValueError(f"task.num_classes must be >= 2 when kind={task.kind!r}")
+        return int(task.num_classes)
+    return 1
+
+
 def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
     """Load fitted pipeline and apply to dataframe, then fill residual NaN."""
     pipeline_path = run_dir / "preprocess" / "fitted_pipeline.pt"
@@ -180,7 +188,7 @@ def _train_tabular(
     static_all: pd.DataFrame | None,
     time_key: pd.DataFrame | None = None,
 ) -> None:
-    from oneehr.eval.metrics import binary_metrics, regression_metrics
+    from oneehr.eval.metrics import binary_metrics, multiclass_metrics, regression_metrics
     from oneehr.models.tree import predict_tabular, train_tabular_model
     from oneehr.training.persistence import save_checkpoint
 
@@ -224,6 +232,12 @@ def _train_tabular(
     y_val_pred = predict_tabular(art, X_val, cfg.task)
     if cfg.task.kind == "binary":
         metrics = binary_metrics(y_val.astype(float), y_val_pred.astype(float)).metrics
+    elif cfg.task.kind == "multiclass":
+        metrics = multiclass_metrics(
+            y_val.astype(int),
+            y_val_pred,
+            num_classes=cfg.task.num_classes or int(np.nanmax(y_val)) + 1,
+        ).metrics
     else:
         metrics = regression_metrics(y_val.astype(float), y_val_pred.astype(float)).metrics
 
@@ -276,7 +290,7 @@ def _train_dl(
     )
     model_cfg = prepared.model_cfg
 
-    model = build_dl_model(model_cfg, input_dim=input_dim, mode=cfg.task.prediction_mode)
+    model = build_dl_model(model_cfg, input_dim=input_dim, out_dim=_task_out_dim(cfg.task), mode=cfg.task.prediction_mode)
     model_supports_static = has_static_branch(model)
 
     # Build sequences and train using the trainer

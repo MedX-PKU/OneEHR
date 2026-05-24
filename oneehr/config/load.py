@@ -62,8 +62,8 @@ def _validate_config(cfg: ExperimentConfig) -> None:
     valid_kinds = ("binary", "regression", "multiclass", "survival", "multilabel")
     if cfg.task.kind not in valid_kinds:
         errors.append(f"task.kind={cfg.task.kind!r} — expected one of {valid_kinds}")
-    if cfg.task.kind == "multiclass" and (cfg.task.num_classes is None or cfg.task.num_classes < 2):
-        errors.append("task.num_classes must be >= 2 when kind='multiclass'")
+    if cfg.task.kind in ("multiclass", "multilabel") and (cfg.task.num_classes is None or cfg.task.num_classes < 2):
+        errors.append(f"task.num_classes must be >= 2 when kind={cfg.task.kind!r}")
     valid_modes = ("patient", "time")
     if cfg.task.prediction_mode not in valid_modes:
         errors.append(f"task.prediction_mode={cfg.task.prediction_mode!r} — expected one of {valid_modes}")

@@ -28,7 +28,7 @@ class PreprocessConfig:
 class TaskConfig:
     kind: str = "binary"  # binary | regression | multiclass | survival | multilabel
     prediction_mode: str = "patient"  # patient | time
-    num_classes: int | None = None  # required when kind="multiclass"
+    num_classes: int | None = None  # required when kind is multiclass or multilabel
     loss: str = "default"  # default | focal
     focal_gamma: float = 2.0  # gamma for focal loss
 
