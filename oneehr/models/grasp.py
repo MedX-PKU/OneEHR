@@ -24,7 +24,7 @@ def _generate_mask(lengths: torch.Tensor) -> torch.Tensor:
 def _random_init(data: torch.Tensor, k: int) -> torch.Tensor:
     n = data.size(0)
     k = min(k, n)
-    idx = torch.tensor(random.sample(range(n), k), dtype=torch.long)
+    idx = torch.tensor(random.sample(range(n), k), dtype=torch.long, device=data.device)
     return data[idx]
 
 

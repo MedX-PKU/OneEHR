@@ -51,12 +51,9 @@ class AgentLayer(nn.Module):
             self.fusion = nn.Linear(hidden_dim + static_dim, hidden_dim)
 
     def _choose_action(self, obs: torch.Tensor, fc1: nn.Linear, fc2: nn.Linear) -> torch.Tensor:
-        h = torch.tanh(fc1(obs.detach()))
+        h = torch.tanh(fc1(obs))
         logits = fc2(h)
-        if self.training:
-            probs = torch.softmax(logits, dim=-1)
-            return torch.multinomial(probs, 1)
-        return logits.argmax(dim=-1, keepdim=True)
+        return torch.softmax(logits, dim=-1)
 
     def forward(
         self,
@@ -87,13 +84,12 @@ class AgentLayer(nn.Module):
                 obs1 = torch.cat([obs_mean, static], dim=1) if static is not None and self.static_dim > 0 else obs_mean
                 obs2 = torch.cat([cur_input, static], dim=1) if static is not None and self.static_dim > 0 else cur_input
 
-                # Pad obs1 to match expected input dim if no static
-                idx1 = self._choose_action(obs1, self.agent1_fc1, self.agent1_fc2).long()
-                idx2 = self._choose_action(obs2, self.agent2_fc1, self.agent2_fc2).long()
+                probs1 = self._choose_action(obs1, self.agent1_fc1, self.agent1_fc2)
+                probs2 = self._choose_action(obs2, self.agent2_fc1, self.agent2_fc2)
 
-                batch_idx = torch.arange(B, device=device).unsqueeze(-1)
-                h1 = observed_h[idx1, batch_idx].squeeze(1)
-                h2 = observed_h[idx2, batch_idx].squeeze(1)
+                history_h = observed_h.permute(1, 0, 2)
+                h1 = torch.bmm(probs1.unsqueeze(1), history_h).squeeze(1)
+                h2 = torch.bmm(probs2.unsqueeze(1), history_h).squeeze(1)
                 action_h = (h1 + h2) / 2
 
             weighted_h = self.lamda * action_h + (1 - self.lamda) * cur_h
