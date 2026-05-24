@@ -26,6 +26,13 @@ from oneehr.models.adapters import (
     load_obs_mask,
     resolve_feature_groups,
 )
+from oneehr.models.artifact_policy import (
+    DEFAULT_KG_MIN_COOCCURRENCE,
+    DEFAULT_KG_ONTOLOGY,
+    DEFAULT_KG_SOURCE,
+    DEFAULT_KG_TOP_K,
+    checkpoint_artifact_meta,
+)
 from oneehr.models.kg import build_lightweight_kg
 
 
@@ -41,6 +48,22 @@ class PreparedDLArtifacts:
 
 def _updated_model_cfg(model_cfg: ModelConfig, **params: object) -> ModelConfig:
     return type(model_cfg)(name=model_cfg.name, params={**model_cfg.params, **params})
+
+
+def _prepared(
+    model_name: str,
+    *,
+    model_cfg: ModelConfig,
+    train_extra: dict[str, object] | None = None,
+    val_extra: dict[str, object] | None = None,
+    extra_meta: dict[str, object] | None = None,
+) -> PreparedDLArtifacts:
+    return PreparedDLArtifacts(
+        model_cfg=model_cfg,
+        train_extra=train_extra,
+        val_extra=val_extra,
+        extra_meta=checkpoint_artifact_meta(model_name, extra_meta=extra_meta),
+    )
 
 
 def _compute_observed_feature_means(
@@ -186,7 +209,7 @@ def prepare_dl_artifacts(
             run_dir=run_dir,
             preprocess_cfg=preprocess_cfg,
         )
-        return PreparedDLArtifacts(**spec)
+        return _prepared(model_name, **spec)
 
     if model_name == "safari":
         from oneehr.models.safari import resolve_safari_dim_list
@@ -198,7 +221,7 @@ def prepare_dl_artifacts(
                 feature_schema=feature_schema,
                 input_dim=len(feat_cols),
             )
-        return PreparedDLArtifacts(model_cfg=_updated_model_cfg(model_cfg, **params))
+        return _prepared(model_name, model_cfg=_updated_model_cfg(model_cfg, **params))
 
     if model_name == "pai":
         from oneehr.models.pai import prepare_pai_training_artifacts
@@ -213,7 +236,7 @@ def prepare_dl_artifacts(
             feat_cols=feat_cols,
             split=split,
         )
-        return PreparedDLArtifacts(**spec)
+        return _prepared(model_name, **spec)
 
     if model_name == "grud":
         obs_mask = load_obs_mask(run_dir)
@@ -241,7 +264,8 @@ def prepare_dl_artifacts(
             patient_ids=[str(pid) for pid in split.val],
             bin_size=preprocess_cfg.bin_size,
         )
-        return PreparedDLArtifacts(
+        return _prepared(
+            model_name,
             model_cfg=_updated_model_cfg(model_cfg, **params),
             train_extra=train_extra,
             val_extra=val_extra,
@@ -258,7 +282,8 @@ def prepare_dl_artifacts(
             obs_mask = load_obs_mask(run_dir)
             if obs_mask is None:
                 raise ValueError("hitanet requires preprocess/obs_mask.parquet")
-            return PreparedDLArtifacts(
+            return _prepared(
+                model_name,
                 model_cfg=_updated_model_cfg(model_cfg, **params),
                 train_extra=_sequence_extra_for_patient_ids(
                     binned=binned,
@@ -275,14 +300,15 @@ def prepare_dl_artifacts(
                     bin_size=preprocess_cfg.bin_size,
                 ),
             )
-        return PreparedDLArtifacts(model_cfg=_updated_model_cfg(model_cfg, **params))
+        return _prepared(model_name, model_cfg=_updated_model_cfg(model_cfg, **params))
 
     time_extra_models = {"mtand", "raindrop", "contiformer", "teco"}
     if model_name in time_extra_models:
         obs_mask = load_obs_mask(run_dir)
         if obs_mask is None:
             raise ValueError(f"{model_name} requires preprocess/obs_mask.parquet")
-        return PreparedDLArtifacts(
+        return _prepared(
+            model_name,
             model_cfg=model_cfg,
             train_extra=_sequence_extra_for_patient_ids(
                 binned=binned,
@@ -312,13 +338,14 @@ def prepare_dl_artifacts(
             feature_schema=feature_schema,
             split=split,
             bin_size=preprocess_cfg.bin_size,
-            kg_source=str(model_cfg.params.get("kg_source", "lightweight")),
+            kg_source=str(model_cfg.params.get("kg_source", DEFAULT_KG_SOURCE)),
             external_kg_path=model_cfg.params.get("external_kg_path"),
-            kg_top_k=int(model_cfg.params.get("kg_top_k", 6)),
-            kg_min_cooccurrence=int(model_cfg.params.get("kg_min_cooccurrence", 2)),
-            kg_ontology=str(model_cfg.params.get("kg_ontology", "auto")),
+            kg_top_k=int(model_cfg.params.get("kg_top_k", DEFAULT_KG_TOP_K)),
+            kg_min_cooccurrence=int(model_cfg.params.get("kg_min_cooccurrence", DEFAULT_KG_MIN_COOCCURRENCE)),
+            kg_ontology=str(model_cfg.params.get("kg_ontology", DEFAULT_KG_ONTOLOGY)),
         )
-        return PreparedDLArtifacts(
+        return _prepared(
+            model_name,
             model_cfg=_updated_model_cfg(
                 model_cfg,
                 group_indices=[group.indices for group in kg.groups],

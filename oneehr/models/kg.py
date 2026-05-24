@@ -18,6 +18,13 @@ from oneehr.models.adapters import (
     build_visit_time_tensor,
     resolve_feature_groups,
 )
+from oneehr.models.artifact_policy import (
+    DEFAULT_KG_MIN_COOCCURRENCE,
+    DEFAULT_KG_ONTOLOGY,
+    DEFAULT_KG_SOURCE,
+    DEFAULT_KG_TOP_K,
+    resolve_kg_preset,
+)
 from oneehr.models.graph import normalize_adjacency
 
 
@@ -178,11 +185,11 @@ def build_lightweight_kg(
     feature_schema: list[dict] | None,
     split,
     bin_size: str,
-    kg_source: str = "lightweight",
+    kg_source: str = DEFAULT_KG_SOURCE,
     external_kg_path: str | None = None,
-    kg_top_k: int = 6,
-    kg_min_cooccurrence: int = 2,
-    kg_ontology: str = "auto",
+    kg_top_k: int = DEFAULT_KG_TOP_K,
+    kg_min_cooccurrence: int = DEFAULT_KG_MIN_COOCCURRENCE,
+    kg_ontology: str = DEFAULT_KG_ONTOLOGY,
 ) -> KGArtifacts:
     groups = resolve_feature_groups(feat_cols=feat_cols, feature_schema=feature_schema)
     group_names = [group.name for group in groups]
@@ -241,6 +248,15 @@ def build_lightweight_kg(
             "visit_time": visit_time,
         }
 
+    kg_config = {
+        "kg_source": kg_source,
+        "kg_top_k": int(kg_top_k),
+        "kg_min_cooccurrence": int(kg_min_cooccurrence),
+        "kg_ontology": str(kg_ontology),
+    }
+    if external_kg_path:
+        kg_config["external_kg_path"] = str(external_kg_path)
+
     return KGArtifacts(
         groups=groups,
         group_names=group_names,
@@ -250,6 +266,13 @@ def build_lightweight_kg(
         extra_meta={
             "kg_group_names": group_names,
             "kg_source": kg_source,
+            "kg_preset": resolve_kg_preset(
+                kg_source=kg_source,
+                kg_top_k=kg_top_k,
+                kg_min_cooccurrence=kg_min_cooccurrence,
+                kg_ontology=kg_ontology,
+            ),
+            "kg_config": kg_config,
             "kg_coverage": graph.coverage.as_dict(),
         },
     )

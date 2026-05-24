@@ -7,6 +7,7 @@ from importlib import import_module
 
 from oneehr.config.schema import ModelConfig
 from oneehr.config.schema import TaskConfig as TaskConfig
+from oneehr.models.artifact_policy import DEFAULT_LIGHTWEIGHT_KG_PARAMS
 
 TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt", "lr"})
 DL_MODELS: frozenset[str] = frozenset(
@@ -98,27 +99,18 @@ _DL_DEFAULTS: dict[str, dict] = {
     "graphcare": {
         "hidden_dim": 128,
         "dropout": 0.1,
-        "kg_source": "lightweight",
-        "kg_top_k": 6,
-        "kg_min_cooccurrence": 2,
-        "kg_ontology": "auto",
+        **DEFAULT_LIGHTWEIGHT_KG_PARAMS,
     },
     "kerprint": {
         "hidden_dim": 128,
         "dropout": 0.1,
-        "kg_source": "lightweight",
-        "kg_top_k": 6,
-        "kg_min_cooccurrence": 2,
-        "kg_ontology": "auto",
+        **DEFAULT_LIGHTWEIGHT_KG_PARAMS,
     },
     "protoehr": {
         "hidden_dim": 128,
         "num_prototypes": 8,
         "dropout": 0.1,
-        "kg_source": "lightweight",
-        "kg_top_k": 6,
-        "kg_min_cooccurrence": 2,
-        "kg_ontology": "auto",
+        **DEFAULT_LIGHTWEIGHT_KG_PARAMS,
     },
     "mlp": {"hidden_dim": 128, "dropout": 0.0},
     "adacare": {"hidden_dim": 128, "kernel_size": 2, "kernel_num": 64, "dropout": 0.5},
