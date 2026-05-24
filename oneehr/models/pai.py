@@ -120,11 +120,19 @@ def prepare_pai_training_artifacts(
 
     train_obs = obs_mask[obs_mask["patient_id"].astype(str).isin(train_pids)].copy()
     val_obs = obs_mask[obs_mask["patient_id"].astype(str).isin(val_pids)].copy()
+    train_order = [str(pid) for pid in split.train]
+    val_order = [str(pid) for pid in split.val]
 
     return {
         "model_cfg": type(model_cfg)(name=model_cfg.name, params=params),
-        "train_extra": {"missing_mask": build_missing_mask_tensor(obs_mask=train_obs, feat_cols=feat_cols)},
-        "val_extra": {"missing_mask": build_missing_mask_tensor(obs_mask=val_obs, feat_cols=feat_cols)},
+        "train_extra": {
+            "_patient_ids": train_order,
+            "missing_mask": build_missing_mask_tensor(obs_mask=train_obs, feat_cols=feat_cols, patient_ids=train_order),
+        },
+        "val_extra": {
+            "_patient_ids": val_order,
+            "missing_mask": build_missing_mask_tensor(obs_mask=val_obs, feat_cols=feat_cols, patient_ids=val_order),
+        },
         "extra_meta": None,
     }
 
@@ -135,8 +143,9 @@ def build_pai_inference_extra(
     feat_cols: list[str],
     patient_ids: list[str],
     max_len: int,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, object]:
     return {
+        "_patient_ids": list(patient_ids),
         "missing_mask": build_missing_mask_tensor(
             obs_mask=obs_mask[obs_mask["patient_id"].astype(str).isin(set(str(pid) for pid in patient_ids))].copy(),
             feat_cols=feat_cols,

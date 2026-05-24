@@ -34,8 +34,8 @@ class PreparedDLArtifacts:
     """Resolved model config plus optional split-aware auxiliary inputs."""
 
     model_cfg: ModelConfig
-    train_extra: dict[str, torch.Tensor] | None = None
-    val_extra: dict[str, torch.Tensor] | None = None
+    train_extra: dict[str, object] | None = None
+    val_extra: dict[str, object] | None = None
     extra_meta: dict[str, object] | None = None
 
 
@@ -73,7 +73,7 @@ def _sequence_extra_for_patient_ids(
     feat_cols: list[str],
     patient_ids: list[str],
     bin_size: str,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, object]:
     patient_id_set = set(str(pid) for pid in patient_ids)
     subset_binned = binned[binned["patient_id"].astype(str).isin(patient_id_set)].copy()
     subset_obs = obs_mask[obs_mask["patient_id"].astype(str).isin(patient_id_set)].copy()
@@ -90,6 +90,7 @@ def _sequence_extra_for_patient_ids(
     )
     max_len = max((arr.shape[0] for arr in visit_time_map.values()), default=0)
     return {
+        "_patient_ids": list(patient_ids),
         "missing_mask": build_missing_mask_tensor(
             obs_mask=subset_obs,
             feat_cols=feat_cols,
@@ -116,7 +117,7 @@ def _build_inference_sequence_extra(
     feat_cols: list[str],
     patient_ids: list[str],
     max_len: int,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, object]:
     from oneehr.artifacts.manifest import read_manifest
 
     manifest = read_manifest(run_dir)
@@ -140,6 +141,7 @@ def _build_inference_sequence_extra(
         bin_size=bin_size,
     )
     return {
+        "_patient_ids": list(patient_ids),
         "missing_mask": build_missing_mask_tensor(
             obs_mask=subset_obs,
             feat_cols=feat_cols,
@@ -339,7 +341,7 @@ def build_inference_extra(
     feat_cols: list[str],
     patient_ids: list[str],
     max_len: int,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, object]:
     """Build model-specific auxiliary tensors for inference."""
 
     if model_name == "prism":
@@ -420,6 +422,7 @@ def build_inference_extra(
             bin_size=bin_size,
         )
         return {
+            "_patient_ids": test_ids,
             "group_values": group_values,
             "group_mask": group_mask,
             "visit_time": build_visit_time_tensor(visit_time_map, patient_ids=test_ids, max_len=max_len),

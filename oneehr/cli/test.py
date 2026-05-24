@@ -201,6 +201,7 @@ def _predict_trained_model(
                 patient_ids=list(pids),
                 max_len=int(lens.max()) if len(lens) else 0,
             )
+            extra_kw = {k: v for k, v in extra_kw.items() if not k.startswith("_")}
 
             with torch.no_grad():
                 if static_tensor is not None:
@@ -249,6 +250,7 @@ def _predict_trained_model(
                 patient_ids=list(pids),
                 max_len=int(lens.max()) if len(lens) else 0,
             )
+            time_extra_kw = {k: v for k, v in time_extra_kw.items() if not k.startswith("_")}
 
             with torch.no_grad():
                 if time_static is not None:

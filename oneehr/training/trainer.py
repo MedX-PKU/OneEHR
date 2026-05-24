@@ -242,7 +242,7 @@ def fit_model(
     binned_val = binned[binned["patient_id"].astype(str).isin(set(split.val))].copy()
 
     if mode == "patient":
-        X_train, len_train, y_train, static_train = _prep_patient(
+        X_train, len_train, y_train, static_train, train_pids = _prep_patient(
             binned_train,
             feat_cols,
             y_map or {},
@@ -250,7 +250,7 @@ def fit_model(
             static if use_static else None,
             max_seq_length=max_seq_length,
         )
-        X_val, len_val, y_val, static_val = _prep_patient(
+        X_val, len_val, y_val, static_val, val_pids = _prep_patient(
             binned_val,
             feat_cols,
             y_map or {},
@@ -265,7 +265,7 @@ def fit_model(
         labels_train = labels_df[labels_df["patient_id"].astype(str).isin(set(split.train))]
         labels_val = labels_df[labels_df["patient_id"].astype(str).isin(set(split.val))]
 
-        X_train, len_train, y_train, mask_train, static_train = _prep_time(
+        X_train, len_train, y_train, mask_train, static_train, train_pids = _prep_time(
             binned_train,
             labels_train,
             feat_cols,
@@ -273,7 +273,7 @@ def fit_model(
             static if use_static else None,
             max_seq_length=max_seq_length,
         )
-        X_val, len_val, y_val, mask_val, static_val = _prep_time(
+        X_val, len_val, y_val, mask_val, static_val, val_pids = _prep_time(
             binned_val,
             labels_val,
             feat_cols,
@@ -281,6 +281,9 @@ def fit_model(
             static if use_static else None,
             max_seq_length=max_seq_length,
         )
+
+    train_extra = _align_extra_to_patient_ids(train_extra, train_pids)
+    val_extra = _align_extra_to_patient_ids(val_extra, val_pids)
 
     # Class weights
     class_weights = None
@@ -316,7 +319,7 @@ def fit_model(
                 Sv = None if static_val is None else static_val.to(device)
                 kw = {}
                 if val_extra:
-                    kw = {k: v.to(device) if isinstance(v, torch.Tensor) and v.dim() > 0 else v for k, v in val_extra.items()}
+                    kw = _model_extra_kwargs(val_extra, torch.arange(X_val.shape[0]), device)
                 logits = model(Xv, Lv, **kw) if Sv is None else model(Xv, Lv, Sv, **kw)
                 logits = logits.squeeze(-1).detach().cpu().float().numpy()
 
@@ -478,7 +481,7 @@ def _run_epoch(
 
         kw = {}
         if extra:
-            kw = {k: v[b].to(device) if isinstance(v, torch.Tensor) and v.dim() > 1 else (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in extra.items()}
+            kw = _model_extra_kwargs(extra, b, device)
 
         ctx = torch.amp.autocast("cuda", dtype=amp_dtype) if use_amp else _nullcontext()
         with ctx:
@@ -537,6 +540,55 @@ class _nullcontext:
         pass
 
 
+def _align_extra_to_patient_ids(extra, patient_ids: list[str]):
+    """Reorder split-level auxiliary tensors to match sequence tensor rows."""
+
+    if not extra:
+        return extra
+    source_ids = extra.get("_patient_ids")
+    if not source_ids:
+        return extra
+
+    source_ids = [str(pid) for pid in source_ids]
+    target_ids = [str(pid) for pid in patient_ids]
+    source_pos = {pid: idx for idx, pid in enumerate(source_ids)}
+    missing = [pid for pid in target_ids if pid not in source_pos]
+    if missing:
+        raise ValueError(f"Auxiliary tensors missing patient IDs: {missing[:5]}")
+
+    index = torch.tensor([source_pos[pid] for pid in target_ids], dtype=torch.long)
+    aligned = {"_patient_ids": target_ids}
+    for key, value in extra.items():
+        if key.startswith("_"):
+            continue
+        if isinstance(value, torch.Tensor) and value.dim() > 0 and value.shape[0] == len(source_ids):
+            aligned[key] = value.index_select(0, index)
+        else:
+            aligned[key] = value
+    return aligned
+
+
+def _model_extra_kwargs(extra, batch_idx: torch.Tensor, device):
+    """Filter internal metadata and slice batched auxiliary tensors."""
+
+    kw = {}
+    batch_size = int(batch_idx.numel())
+    total_size = len(extra.get("_patient_ids", [])) if isinstance(extra, dict) else 0
+    for key, value in extra.items():
+        if key.startswith("_"):
+            continue
+        if isinstance(value, torch.Tensor):
+            if value.dim() > 0 and total_size and value.shape[0] == total_size:
+                kw[key] = value[batch_idx].to(device)
+            elif value.dim() > 1 and value.shape[0] >= batch_size:
+                kw[key] = value[batch_idx].to(device)
+            else:
+                kw[key] = value.to(device)
+        else:
+            kw[key] = value
+    return kw
+
+
 def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_length=None):
     from oneehr.data.sequence import build_patient_sequences, pad_sequences
 
@@ -561,7 +613,7 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_leng
         static_arr = static.reindex(index=np.array(valid_pids, dtype=str)).to_numpy(dtype=np.float32, copy=True)
         static_t = torch.from_numpy(static_arr)
 
-    return X_seq, lens_t, y, static_t
+    return X_seq, lens_t, y, static_t, valid_pids
 
 
 def _prep_time(binned, labels_df, feat_cols, patient_ids, static, *, max_seq_length=None):
@@ -586,4 +638,4 @@ def _prep_time(binned, labels_df, feat_cols, patient_ids, static, *, max_seq_len
         static_arr = static.reindex(index=np.array(pids, dtype=str)).to_numpy(dtype=np.float32, copy=True)
         static_t = torch.from_numpy(static_arr)
 
-    return X_seq, lens_t, Y_seq, M_seq, static_t
+    return X_seq, lens_t, Y_seq, M_seq, static_t, pids

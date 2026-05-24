@@ -2,6 +2,7 @@
 
 from oneehr.medcode.atc import ATCHierarchy
 from oneehr.medcode.ccs import CCSGrouper
+from oneehr.medcode.features import ParsedFeatureCode, feature_base_name, feature_code_aliases, ontology_bucket, parse_feature_code
 from oneehr.medcode.icd import ICD9, ICD10, icd9_to_icd10, icd10_to_icd9
 from oneehr.medcode.mapper import CodeMapper
 
@@ -13,4 +14,9 @@ __all__ = [
     "CCSGrouper",
     "ATCHierarchy",
     "CodeMapper",
+    "ParsedFeatureCode",
+    "feature_base_name",
+    "feature_code_aliases",
+    "ontology_bucket",
+    "parse_feature_code",
 ]

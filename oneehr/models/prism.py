@@ -612,6 +612,7 @@ def prepare_prism_training_artifacts(
         seq_pids, _, lens = build_patient_sequences(subset, feat_cols)
         max_len = int(lens.max()) if len(lens) else 0
         return {
+            "_patient_ids": list(seq_pids),
             "obs_rates": prism_data["obs_rates"],
             "time_delta": build_time_delta_tensor(
                 prism_data["time_delta_map"],
@@ -639,7 +640,7 @@ def prepare_prism_inference_extra(
     feat_cols: list[str],
     patient_ids: list[str],
     max_len: int,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, object]:
     obs_rates_list = meta.get("extra", {}).get("obs_rates")
     if obs_rates_list is None:
         return {}
@@ -658,6 +659,7 @@ def prepare_prism_inference_extra(
     )
 
     return {
+        "_patient_ids": list(patient_ids),
         "obs_rates": torch.tensor(obs_rates_list, dtype=torch.float32),
         "time_delta": build_time_delta_tensor(td_map, patient_ids, max_len, len(feat_cols)),
     }

@@ -138,3 +138,26 @@ def test_code_mapper_apply():
     result = mapper.apply(events)
     assert "CHAPTER" in result["code"].iloc[0]
     assert result["code"].iloc[1] == "LAB_50801"  # unchanged
+
+
+def test_feature_code_parser_handles_mimic4_icd_prefixes():
+    from oneehr.medcode.features import ontology_bucket, parse_feature_code
+
+    icd9 = parse_feature_code("DX_ICD9_25000")
+    assert icd9.system == "ICD9"
+    assert icd9.normalized_code == "25000"
+    assert "Endocrine" in ontology_bucket("DX_ICD9_25000", "auto")
+
+    icd10 = parse_feature_code("DX_ICD10_E119")
+    assert icd10.system == "ICD10"
+    assert icd10.normalized_code == "E119"
+    assert "Endocrine" in ontology_bucket("DX_ICD10_E119", "auto")
+
+
+def test_feature_code_parser_does_not_treat_ndc_as_atc():
+    from oneehr.medcode.features import ontology_bucket, parse_feature_code
+
+    ndc = parse_feature_code("RX_NDC_00527051210")
+    assert ndc.system == "NDC"
+    assert ndc.normalized_code == "00527051210"
+    assert ontology_bucket("RX_NDC_00527051210", "atc") is None
