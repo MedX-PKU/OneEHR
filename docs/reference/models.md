@@ -76,6 +76,49 @@ For KG-enhanced models, `kg_source = "lightweight"` builds an internal concept g
 
 External KG files can be CSV, TSV, or JSON. CSV/TSV files should provide `source` and `target` columns, with optional `weight`; `head` and `tail` are also accepted. JSON can be either a list of edge objects or an object with an `edges` list. OneEHR projects external KG nodes onto feature groups using medical-code aliases such as `DX_ICD9_25000`, `ICD9:25000`, `ICD9::25000`, and `25000`. Checkpoint metadata includes `extra.kg_coverage` so runs report how many KG edges matched model features.
 
+## KG default and reproducibility
+
+The recommended default KG is the built-in `lightweight_auto` preset. It is selected automatically for GraphCare, KerPrint, and ProtoEHR when KG params are omitted, so users can run these baselines without downloading a KG:
+
+```toml
+[[models]]
+name = "graphcare"
+[models.params]
+hidden_dim = 128
+kg_source = "lightweight"
+kg_top_k = 6
+kg_min_cooccurrence = 2
+kg_ontology = "auto"
+```
+
+`lightweight_auto` builds a graph from the training split only:
+
+| Component | Source |
+|-----------|--------|
+| Co-occurrence edges | Feature-group co-occurrence in train visits |
+| Ontology hints | `oneehr.medcode` parsing for ICD/ATC-style feature names |
+| Node projection | The same feature-group resolver used by model adapters |
+| Provenance | Saved as `extra.kg_preset`, `extra.kg_config`, and `extra.kg_coverage` in checkpoint metadata |
+
+Use `kg_source = "external"` only when you have a domain KG that should be part of the experiment contract. In that case, provide `external_kg_path`; OneEHR still projects nodes through the shared medcode alias interface and records edge coverage.
+
+## Pretraining and derived artifacts
+
+No current OneEHR baseline requires mandatory external pretrained weights or a downloaded checkpoint. Baselines train from scratch under the run config. Some models do derive split-aware tensors before fitting; these are reproducible run artifacts, not external pretraining.
+
+| Models | External pretrained weights | Optional external assets | Derived run artifacts |
+|--------|-----------------------------|--------------------------|-----------------------|
+| Most ML/DL baselines | No | None | None beyond normal fitted model state |
+| GraphCare, KerPrint, ProtoEHR | No | `external_kg_path` only when `kg_source = "external"` | `global_adj`, feature groups, group value/mask tensors, visit times |
+| GRU-D | No | None | Observed feature means, missing masks, time deltas, visit times |
+| PAI | No | None | Prompt initialization values and missing masks |
+| PRISM | No | None | Feature-group dimensions, k-means centers, observation rates, time deltas |
+| LSAN, HiTANet | No | None | Feature-group indices/names; HiTANet also uses temporal masks |
+| mTAND, Raindrop, ContiFormer, TECO | No | None | Missing masks, time deltas, visit times |
+| SAFARI | No | None | Feature-group dimensions |
+
+Relevant checkpoint metadata includes `extra.artifact_policy` for models with model-specific derived artifacts. If a future baseline truly needs pretrained weights, it should be represented as an explicit external asset path in the model params and artifact policy, never as an implicit download or hard-coded local path.
+
 ---
 
 ## Tabular models

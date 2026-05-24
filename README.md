@@ -103,6 +103,8 @@ OneEHR ships 38 model architectures:
 
 Models with static branches (ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI, TECO) automatically use patient-level static features when `static.csv` is provided.
 
+KG-enhanced baselines default to the built-in `lightweight_auto` KG, which is built from train-split co-occurrence plus medcode ontology hints. No baseline requires mandatory external pretrained weights; models that need split-derived tensors record an `artifact_policy` in checkpoint metadata.
+
 ## Task Types
 
 | Task | Config | Description |
