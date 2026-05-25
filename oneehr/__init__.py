@@ -9,6 +9,6 @@ __all__ = [
     "analyze",
 ]
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 from oneehr.api import analyze, load_config, preprocess, test, train
