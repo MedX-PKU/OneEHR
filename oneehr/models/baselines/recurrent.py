@@ -5,6 +5,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
+from oneehr.models.layers.sequence import last_by_lengths
+
 
 def _make_rnn(cell: str, **kwargs) -> nn.GRU | nn.LSTM | nn.RNN:
     if cell == "gru":
@@ -14,18 +16,6 @@ def _make_rnn(cell: str, **kwargs) -> nn.GRU | nn.LSTM | nn.RNN:
     if cell == "rnn":
         return nn.RNN(**kwargs)
     raise ValueError(f"Unsupported cell={cell!r}")
-
-
-def last_by_lengths(x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    """Select the last valid timestep for each sequence.
-
-    Args:
-        x: Tensor of shape (B, T, D)
-        lengths: Tensor of shape (B,) containing valid lengths (>=0)
-    """
-    idx = (lengths - 1).clamp_min(0)
-    return x[torch.arange(x.shape[0], device=x.device), idx]
-
 
 class RecurrentModel(nn.Module):
     """Patient-level recurrent model (GRU or LSTM)."""

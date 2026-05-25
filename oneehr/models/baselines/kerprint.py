@@ -5,9 +5,9 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from oneehr.models.kg_backbone import KGVisitEncoder, PatientGraphSummary
-from oneehr.models.recurrent import last_by_lengths
-from oneehr.models.time import ContinuousTimeEncoding
+from oneehr.models.layers.kg_backbone import KGVisitEncoder, PatientGraphSummary
+from oneehr.models.layers.sequence import last_by_lengths
+from oneehr.models.layers.time import ContinuousTimeEncoding
 
 
 class KerPrintBackbone(nn.Module):

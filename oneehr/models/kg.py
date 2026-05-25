@@ -25,7 +25,7 @@ from oneehr.models.artifact_policy import (
     DEFAULT_KG_TOP_K,
     resolve_kg_preset,
 )
-from oneehr.models.graph import normalize_adjacency
+from oneehr.models.layers.graph import normalize_adjacency
 
 
 @dataclass(frozen=True)

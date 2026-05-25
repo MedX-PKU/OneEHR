@@ -192,7 +192,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
     is_time = mode == "time"
 
     if name in ("gru", "lstm", "rnn"):
-        mod = import_module("oneehr.models.recurrent")
+        mod = import_module("oneehr.models.baselines.recurrent")
         cls_name = "RecurrentTimeModel" if is_time else "RecurrentModel"
         cls = getattr(mod, cls_name)
         return cls(
@@ -205,7 +205,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "transformer":
-        mod = import_module("oneehr.models.transformer")
+        mod = import_module("oneehr.models.baselines.transformer")
         cls_name = "TransformerTimeModel" if is_time else "TransformerModel"
         cls = getattr(mod, cls_name)
         kw = dict(
@@ -222,7 +222,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         return cls(**kw)
 
     if name == "tcn":
-        mod = import_module("oneehr.models.tcn")
+        mod = import_module("oneehr.models.baselines.tcn")
         cls_name = "TCNTimeModel" if is_time else "TCNPatientModel"
         cls = getattr(mod, cls_name)
         return cls(
@@ -235,7 +235,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "cnn":
-        mod = import_module("oneehr.models.cnn")
+        mod = import_module("oneehr.models.baselines.cnn")
         cls_name = "CNNTimeModel" if is_time else "CNNPatientModel"
         cls = getattr(mod, cls_name)
         return cls(
@@ -248,7 +248,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "mlp":
-        mod = import_module("oneehr.models.mlp")
+        mod = import_module("oneehr.models.baselines.mlp")
         cls_name = "MLPTimeModel" if is_time else "MLPModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -258,7 +258,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "grud":
-        mod = import_module("oneehr.models.grud")
+        mod = import_module("oneehr.models.baselines.grud")
         cls_name = "GRUDTimeModel" if is_time else "GRUDModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -269,7 +269,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "sand":
-        mod = import_module("oneehr.models.sand")
+        mod = import_module("oneehr.models.baselines.sand")
         cls_name = "SAnDTimeModel" if is_time else "SAnDModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -284,7 +284,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "dipole":
-        mod = import_module("oneehr.models.dipole")
+        mod = import_module("oneehr.models.baselines.dipole")
         cls_name = "DipoleTimeModel" if is_time else "DipoleModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -295,7 +295,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "hitanet":
-        mod = import_module("oneehr.models.hitanet")
+        mod = import_module("oneehr.models.baselines.hitanet")
         cls_name = "HiTANetTimeModel" if is_time else "HiTANetModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -307,7 +307,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "lsan":
-        mod = import_module("oneehr.models.lsan")
+        mod = import_module("oneehr.models.baselines.lsan")
         cls_name = "LSANTimeModel" if is_time else "LSANModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -322,7 +322,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "mtand":
-        mod = import_module("oneehr.models.mtand")
+        mod = import_module("oneehr.models.baselines.mtand")
         cls_name = "MTANDTimeModel" if is_time else "MTANDModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -334,7 +334,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "raindrop":
-        mod = import_module("oneehr.models.raindrop")
+        mod = import_module("oneehr.models.baselines.raindrop")
         cls_name = "RaindropTimeModel" if is_time else "RaindropModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -344,7 +344,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "contiformer":
-        mod = import_module("oneehr.models.contiformer")
+        mod = import_module("oneehr.models.baselines.contiformer")
         cls_name = "ContiFormerTimeModel" if is_time else "ContiFormerModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -356,7 +356,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "teco":
-        mod = import_module("oneehr.models.teco")
+        mod = import_module("oneehr.models.baselines.teco")
         cls_name = "TECOTimeModel" if is_time else "TECOModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -370,7 +370,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "graphcare":
-        mod = import_module("oneehr.models.graphcare")
+        mod = import_module("oneehr.models.baselines.graphcare")
         cls_name = "GraphCareTimeModel" if is_time else "GraphCareModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -383,7 +383,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "kerprint":
-        mod = import_module("oneehr.models.kerprint")
+        mod = import_module("oneehr.models.baselines.kerprint")
         cls_name = "KerPrintTimeModel" if is_time else "KerPrintModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -396,7 +396,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "protoehr":
-        mod = import_module("oneehr.models.protoehr")
+        mod = import_module("oneehr.models.baselines.protoehr")
         cls_name = "ProtoEHRTimeModel" if is_time else "ProtoEHRModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -410,7 +410,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "adacare":
-        mod = import_module("oneehr.models.adacare")
+        mod = import_module("oneehr.models.baselines.adacare")
         cls_name = "AdaCareTimeModel" if is_time else "AdaCareModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -422,7 +422,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "stagenet":
-        mod = import_module("oneehr.models.stagenet")
+        mod = import_module("oneehr.models.baselines.stagenet")
         cls_name = "StageNetTimeModel" if is_time else "StageNetModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -434,7 +434,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "retain":
-        mod = import_module("oneehr.models.retain")
+        mod = import_module("oneehr.models.baselines.retain")
         cls_name = "RETAINTimeModel" if is_time else "RETAINModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -444,7 +444,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "concare":
-        mod = import_module("oneehr.models.concare")
+        mod = import_module("oneehr.models.baselines.concare")
         cls_name = "ConCareTimeModel" if is_time else "ConCareModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -456,7 +456,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "grasp":
-        mod = import_module("oneehr.models.grasp")
+        mod = import_module("oneehr.models.baselines.grasp")
         cls_name = "GRASPTimeModel" if is_time else "GRASPModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -468,7 +468,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "mcgru":
-        mod = import_module("oneehr.models.mcgru")
+        mod = import_module("oneehr.models.baselines.mcgru")
         cls_name = "MCGRUTimeModel" if is_time else "MCGRUModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -480,7 +480,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "dragent":
-        mod = import_module("oneehr.models.dragent")
+        mod = import_module("oneehr.models.baselines.dragent")
         cls_name = "DrAgentTimeModel" if is_time else "DrAgentModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -494,7 +494,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "deepr":
-        mod = import_module("oneehr.models.deepr")
+        mod = import_module("oneehr.models.baselines.deepr")
         cls_name = "DeeprTimeModel" if is_time else "DeeprModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -505,7 +505,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "mamba":
-        mod = import_module("oneehr.models.mamba")
+        mod = import_module("oneehr.models.baselines.mamba")
         cls_name = "EHRMambaTimeModel" if is_time else "EHRMambaModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -518,7 +518,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "jamba":
-        mod = import_module("oneehr.models.jamba")
+        mod = import_module("oneehr.models.baselines.jamba")
         cls_name = "JambaTimeModel" if is_time else "JambaModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -533,7 +533,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "prism":
-        mod = import_module("oneehr.models.prism")
+        mod = import_module("oneehr.models.baselines.prism")
         cls_name = "PRISMTimeModel" if is_time else "PRISMModel"
         cls = getattr(mod, cls_name)
         return cls(
@@ -550,7 +550,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "m3care":
-        mod = import_module("oneehr.models.m3care")
+        mod = import_module("oneehr.models.baselines.m3care")
         cls_name = "M3CareTimeModel" if is_time else "M3CareModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -563,7 +563,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "safari":
-        mod = import_module("oneehr.models.safari")
+        mod = import_module("oneehr.models.baselines.safari")
         cls_name = "SafariTimeModel" if is_time else "SafariModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -576,7 +576,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "pai":
-        mod = import_module("oneehr.models.pai")
+        mod = import_module("oneehr.models.baselines.pai")
         cls_name = "PAITimeModel" if is_time else "PAIModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -588,7 +588,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "emerge":
-        mod = import_module("oneehr.models.emerge")
+        mod = import_module("oneehr.models.baselines.emerge")
         cls_name = "EMERGETimeModel" if is_time else "EMERGEModel"
         return getattr(mod, cls_name)(
             input_dim=input_dim,
@@ -607,7 +607,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "deepsurv":
-        mod = import_module("oneehr.models.survival")
+        mod = import_module("oneehr.models.baselines.survival")
         return mod.DeepSurv(
             input_dim=input_dim,
             hidden_dim=int(params.get("hidden_dim", 128)),
@@ -617,7 +617,7 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
         )
 
     if name == "deephit":
-        mod = import_module("oneehr.models.survival")
+        mod = import_module("oneehr.models.baselines.survival")
         return mod.DeepHit(
             input_dim=input_dim,
             hidden_dim=int(params.get("hidden_dim", 128)),

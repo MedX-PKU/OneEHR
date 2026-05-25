@@ -13,8 +13,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from oneehr.models.graph import GraphConvolution, normalize_adjacency
-from oneehr.models.recurrent import last_by_lengths
+from oneehr.models.layers.graph import GraphConvolution, normalize_adjacency
+from oneehr.models.layers.sequence import last_by_lengths
 
 
 class SinusoidalPositionalEncoding(nn.Module):

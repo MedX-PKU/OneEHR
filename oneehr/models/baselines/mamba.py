@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from oneehr.models.recurrent import last_by_lengths
+from oneehr.models.layers.sequence import last_by_lengths
 
 
 class RMSNorm(nn.Module):

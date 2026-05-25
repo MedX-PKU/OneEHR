@@ -8,8 +8,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from oneehr.models.mamba import MambaBlock
-from oneehr.models.recurrent import last_by_lengths
+from oneehr.models.baselines.mamba import MambaBlock
+from oneehr.models.layers.sequence import last_by_lengths
 
 
 def build_layer_schedule(num_transformer_layers: int, num_mamba_layers: int) -> list[str]:

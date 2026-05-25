@@ -18,7 +18,7 @@ class _FixedTimeModel(torch.nn.Module):
 
 
 def test_dragent_agent_layers_receive_gradients():
-    from oneehr.models.dragent import DrAgentModel
+    from oneehr.models.baselines.dragent import DrAgentModel
 
     model = DrAgentModel(input_dim=4, hidden_dim=8, out_dim=1, n_actions=4, n_units=6, dropout=0.0)
     x = torch.randn(3, 5, 4)
@@ -113,7 +113,7 @@ def test_run_epoch_uses_last_dim_as_time_multiclass_classes():
 def test_fit_model_time_multiclass_preserves_probability_rows():
     from oneehr.config.schema import TaskConfig, TrainerConfig
     from oneehr.data.splits import Split
-    from oneehr.models.recurrent import RecurrentTimeModel
+    from oneehr.models.baselines.recurrent import RecurrentTimeModel
     from oneehr.training.trainer import fit_model
 
     binned = pd.DataFrame(
@@ -153,7 +153,7 @@ def test_multilabel_label_codes_become_training_matrix():
     from oneehr.config.schema import TaskConfig, TrainerConfig
     from oneehr.data.labels import normalize_multilabel_patient_labels
     from oneehr.data.splits import Split
-    from oneehr.models.recurrent import RecurrentModel
+    from oneehr.models.baselines.recurrent import RecurrentModel
     from oneehr.training.trainer import fit_model
 
     raw_labels = pd.DataFrame(

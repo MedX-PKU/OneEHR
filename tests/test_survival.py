@@ -9,7 +9,7 @@ HIDDEN = 16
 
 
 def test_deepsurv_forward():
-    from oneehr.models.survival import DeepSurv
+    from oneehr.models.baselines.survival import DeepSurv
 
     m = DeepSurv(input_dim=INPUT_DIM, hidden_dim=HIDDEN, num_layers=2, out_dim=OUT_DIM)
     x = torch.randn(B, T, INPUT_DIM)
@@ -20,7 +20,7 @@ def test_deepsurv_forward():
 
 
 def test_deepsurv_2d_input():
-    from oneehr.models.survival import DeepSurv
+    from oneehr.models.baselines.survival import DeepSurv
 
     m = DeepSurv(input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM)
     x = torch.randn(B, INPUT_DIM)
@@ -30,7 +30,7 @@ def test_deepsurv_2d_input():
 
 
 def test_deephit_forward():
-    from oneehr.models.survival import DeepHit
+    from oneehr.models.baselines.survival import DeepHit
 
     num_bins = 10
     m = DeepHit(input_dim=INPUT_DIM, hidden_dim=HIDDEN, num_time_bins=num_bins)
@@ -44,7 +44,7 @@ def test_deephit_forward():
 
 
 def test_cox_ph_loss():
-    from oneehr.models.survival import CoxPHLoss
+    from oneehr.models.baselines.survival import CoxPHLoss
 
     loss_fn = CoxPHLoss()
     risk = torch.randn(10, requires_grad=True)

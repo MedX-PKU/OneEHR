@@ -17,7 +17,7 @@ HIDDEN = 16
     ],
 )
 def test_cnn(mode, expected_shape):
-    from oneehr.models.cnn import CNNPatientModel, CNNTimeModel
+    from oneehr.models.baselines.cnn import CNNPatientModel, CNNTimeModel
 
     cls = CNNTimeModel if mode == "time" else CNNPatientModel
     m = cls(input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM, num_layers=2)
@@ -36,7 +36,7 @@ def test_cnn(mode, expected_shape):
     ],
 )
 def test_grud(mode, expected_shape):
-    from oneehr.models.grud import GRUDModel, GRUDTimeModel
+    from oneehr.models.baselines.grud import GRUDModel, GRUDTimeModel
 
     cls = GRUDTimeModel if mode == "time" else GRUDModel
     m = cls(
@@ -63,7 +63,7 @@ def test_grud(mode, expected_shape):
     ],
 )
 def test_sand(mode, expected_shape):
-    from oneehr.models.sand import SAnDModel, SAnDTimeModel
+    from oneehr.models.baselines.sand import SAnDModel, SAnDTimeModel
 
     cls = SAnDTimeModel if mode == "time" else SAnDModel
     m = cls(
@@ -91,7 +91,7 @@ def test_sand(mode, expected_shape):
 )
 @pytest.mark.parametrize("attention_type", ["location", "general", "concat"])
 def test_dipole(mode, expected_shape, attention_type):
-    from oneehr.models.dipole import DipoleModel, DipoleTimeModel
+    from oneehr.models.baselines.dipole import DipoleModel, DipoleTimeModel
 
     cls = DipoleTimeModel if mode == "time" else DipoleModel
     m = cls(
@@ -115,7 +115,7 @@ def test_dipole(mode, expected_shape, attention_type):
     ],
 )
 def test_hitanet(mode, expected_shape):
-    from oneehr.models.hitanet import HiTANetModel, HiTANetTimeModel
+    from oneehr.models.baselines.hitanet import HiTANetModel, HiTANetTimeModel
 
     cls = HiTANetTimeModel if mode == "time" else HiTANetModel
     m = cls(
@@ -141,7 +141,7 @@ def test_hitanet(mode, expected_shape):
     ],
 )
 def test_lsan(mode, expected_shape):
-    from oneehr.models.lsan import LSANModel, LSANTimeModel
+    from oneehr.models.baselines.lsan import LSANModel, LSANTimeModel
 
     cls = LSANTimeModel if mode == "time" else LSANModel
     m = cls(
@@ -167,7 +167,7 @@ def test_lsan(mode, expected_shape):
     ],
 )
 def test_mtand(mode, expected_shape):
-    from oneehr.models.mtand import MTANDModel, MTANDTimeModel
+    from oneehr.models.baselines.mtand import MTANDModel, MTANDTimeModel
 
     cls = MTANDTimeModel if mode == "time" else MTANDModel
     m = cls(
@@ -196,7 +196,7 @@ def test_mtand(mode, expected_shape):
     ],
 )
 def test_raindrop(mode, expected_shape):
-    from oneehr.models.raindrop import RaindropModel, RaindropTimeModel
+    from oneehr.models.baselines.raindrop import RaindropModel, RaindropTimeModel
 
     cls = RaindropTimeModel if mode == "time" else RaindropModel
     m = cls(input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM)
@@ -218,7 +218,7 @@ def test_raindrop(mode, expected_shape):
     ],
 )
 def test_contiformer(mode, expected_shape):
-    from oneehr.models.contiformer import ContiFormerModel, ContiFormerTimeModel
+    from oneehr.models.baselines.contiformer import ContiFormerModel, ContiFormerTimeModel
 
     cls = ContiFormerTimeModel if mode == "time" else ContiFormerModel
     m = cls(
@@ -246,7 +246,7 @@ def test_contiformer(mode, expected_shape):
 )
 @pytest.mark.parametrize("use_static", [False, True])
 def test_teco(mode, expected_shape, use_static):
-    from oneehr.models.teco import TECOModel, TECOTimeModel
+    from oneehr.models.baselines.teco import TECOModel, TECOTimeModel
 
     cls = TECOTimeModel if mode == "time" else TECOModel
     kwargs = {
@@ -277,7 +277,7 @@ def test_teco(mode, expected_shape, use_static):
     ],
 )
 def test_graphcare(mode, expected_shape):
-    from oneehr.models.graphcare import GraphCareModel, GraphCareTimeModel
+    from oneehr.models.baselines.graphcare import GraphCareModel, GraphCareTimeModel
 
     cls = GraphCareTimeModel if mode == "time" else GraphCareModel
     m = cls(
@@ -305,7 +305,7 @@ def test_graphcare(mode, expected_shape):
     ],
 )
 def test_emerge(mode, expected_shape):
-    from oneehr.models.emerge import EMERGEModel, EMERGETimeModel
+    from oneehr.models.baselines.emerge import EMERGEModel, EMERGETimeModel
 
     cls = EMERGETimeModel if mode == "time" else EMERGEModel
     m = cls(
@@ -330,7 +330,7 @@ def test_emerge(mode, expected_shape):
 
 
 def test_emerge_token_transformer_variant():
-    from oneehr.models.emerge import EMERGEModel
+    from oneehr.models.baselines.emerge import EMERGEModel
 
     m = EMERGEModel(
         input_dim=INPUT_DIM,
@@ -365,7 +365,7 @@ def test_emerge_token_transformer_variant():
     ],
 )
 def test_kerprint(mode, expected_shape):
-    from oneehr.models.kerprint import KerPrintModel, KerPrintTimeModel
+    from oneehr.models.baselines.kerprint import KerPrintModel, KerPrintTimeModel
 
     cls = KerPrintTimeModel if mode == "time" else KerPrintModel
     m = cls(
@@ -393,7 +393,7 @@ def test_kerprint(mode, expected_shape):
     ],
 )
 def test_protoehr(mode, expected_shape):
-    from oneehr.models.protoehr import ProtoEHRModel, ProtoEHRTimeModel
+    from oneehr.models.baselines.protoehr import ProtoEHRModel, ProtoEHRTimeModel
 
     cls = ProtoEHRTimeModel if mode == "time" else ProtoEHRModel
     m = cls(
@@ -422,7 +422,7 @@ def test_protoehr(mode, expected_shape):
     ],
 )
 def test_deepr(mode, expected_shape):
-    from oneehr.models.deepr import DeeprModel, DeeprTimeModel
+    from oneehr.models.baselines.deepr import DeeprModel, DeeprTimeModel
 
     cls = DeeprTimeModel if mode == "time" else DeeprModel
     m = cls(input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM)
@@ -442,7 +442,7 @@ def test_deepr(mode, expected_shape):
     ],
 )
 def test_mamba(mode, expected_shape):
-    from oneehr.models.mamba import EHRMambaModel, EHRMambaTimeModel
+    from oneehr.models.baselines.mamba import EHRMambaModel, EHRMambaTimeModel
 
     cls = EHRMambaTimeModel if mode == "time" else EHRMambaModel
     m = cls(input_dim=INPUT_DIM, hidden_dim=HIDDEN, out_dim=OUT_DIM, num_layers=1, state_size=4)
@@ -462,7 +462,7 @@ def test_mamba(mode, expected_shape):
     ],
 )
 def test_jamba(mode, expected_shape):
-    from oneehr.models.jamba import JambaModel, JambaTimeModel
+    from oneehr.models.baselines.jamba import JambaModel, JambaTimeModel
 
     cls = JambaTimeModel if mode == "time" else JambaModel
     m = cls(
@@ -490,7 +490,7 @@ def test_jamba(mode, expected_shape):
     ],
 )
 def test_m3care(mode, expected_shape):
-    from oneehr.models.m3care import M3CareModel, M3CareTimeModel
+    from oneehr.models.baselines.m3care import M3CareModel, M3CareTimeModel
 
     cls = M3CareTimeModel if mode == "time" else M3CareModel
     m = cls(
@@ -517,7 +517,7 @@ def test_m3care(mode, expected_shape):
 )
 @pytest.mark.parametrize("use_static", [False, True])
 def test_safari(mode, expected_shape, use_static):
-    from oneehr.models.safari import SafariModel, SafariTimeModel
+    from oneehr.models.baselines.safari import SafariModel, SafariTimeModel
 
     cls = SafariTimeModel if mode == "time" else SafariModel
     kwargs = {
@@ -545,7 +545,7 @@ def test_safari(mode, expected_shape, use_static):
     ],
 )
 def test_pai(mode, expected_shape):
-    from oneehr.models.pai import PAIModel, PAITimeModel
+    from oneehr.models.baselines.pai import PAIModel, PAITimeModel
 
     cls = PAITimeModel if mode == "time" else PAIModel
     m = cls(
@@ -564,7 +564,7 @@ def test_pai(mode, expected_shape):
 
 
 def test_pai_prompt_only_replaces_true_missing_positions():
-    from oneehr.models.pai import PAIModel
+    from oneehr.models.baselines.pai import PAIModel
 
     m = PAIModel(
         input_dim=2,

@@ -10,7 +10,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from oneehr.models.recurrent import last_by_lengths
+from oneehr.models.layers.sequence import last_by_lengths
 
 
 class Sparsemax(nn.Module):

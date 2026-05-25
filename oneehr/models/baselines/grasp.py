@@ -13,7 +13,7 @@ import random
 import torch
 import torch.nn as nn
 
-from oneehr.models.recurrent import last_by_lengths
+from oneehr.models.layers.sequence import last_by_lengths
 
 
 def _generate_mask(lengths: torch.Tensor) -> torch.Tensor:

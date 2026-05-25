@@ -193,7 +193,7 @@ def _train_tabular(
     time_key: pd.DataFrame | None = None,
 ) -> None:
     from oneehr.eval.metrics import binary_metrics, multiclass_metrics, regression_metrics
-    from oneehr.models.tree import predict_tabular, train_tabular_model
+    from oneehr.models.baselines.tree import predict_tabular, train_tabular_model
     from oneehr.training.persistence import save_checkpoint
 
     # Split data — for time-level, use the key's patient_id column

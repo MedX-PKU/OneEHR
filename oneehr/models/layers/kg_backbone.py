@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from oneehr.models.graph import GraphConvolution, normalize_adjacency
+from oneehr.models.layers.graph import GraphConvolution, normalize_adjacency
 
 
 def masked_softmax(scores: torch.Tensor, mask: torch.Tensor, dim: int = -1) -> torch.Tensor:

@@ -17,7 +17,7 @@ from sklearn.preprocessing import normalize
 from torch import nn
 
 from oneehr.config.schema import ModelConfig
-from oneehr.models.recurrent import last_by_lengths
+from oneehr.models.layers.sequence import last_by_lengths
 
 
 class EhrEncoder(nn.Module):

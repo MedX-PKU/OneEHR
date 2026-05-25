@@ -559,7 +559,7 @@ def _module_interpretability(
     del case_limit
     from oneehr.config.schema import TaskConfig
     from oneehr.models import TABULAR_MODELS
-    from oneehr.models.tree import load_tabular_model
+    from oneehr.models.baselines.tree import load_tabular_model
 
     module_dir = ensure_dir(analysis_root / "interpretability")
     tables: dict[str, pd.DataFrame] = {}

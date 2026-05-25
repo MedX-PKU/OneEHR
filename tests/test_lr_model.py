@@ -12,7 +12,7 @@ def test_lr_in_tabular_models():
 
 def test_lr_binary_train_predict():
     from oneehr.config.schema import TaskConfig
-    from oneehr.models.tree import predict_tabular, train_tabular_model
+    from oneehr.models.baselines.tree import predict_tabular, train_tabular_model
 
     rng = np.random.default_rng(42)
     n = 100
@@ -37,7 +37,7 @@ def test_lr_binary_train_predict():
 
 def test_lr_regression_train_predict():
     from oneehr.config.schema import TaskConfig
-    from oneehr.models.tree import predict_tabular, train_tabular_model
+    from oneehr.models.baselines.tree import predict_tabular, train_tabular_model
 
     rng = np.random.default_rng(42)
     n = 100
@@ -61,7 +61,7 @@ def test_lr_regression_train_predict():
 
 def test_lr_save_load(tmp_path):
     from oneehr.config.schema import TaskConfig
-    from oneehr.models.tree import (
+    from oneehr.models.baselines.tree import (
         load_tabular_model,
         predict_tabular,
         save_tabular_model,

@@ -5,8 +5,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from oneehr.models.recurrent import last_by_lengths
-from oneehr.models.time import ContinuousTimeEncoding, RelativeTimeAttention
+from oneehr.models.layers.sequence import last_by_lengths
+from oneehr.models.layers.time import ContinuousTimeEncoding, RelativeTimeAttention
 
 
 class MTANDBlock(nn.Module):

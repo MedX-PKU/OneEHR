@@ -199,7 +199,7 @@ def prepare_dl_artifacts(
     model_name = model_cfg.name
 
     if model_name == "prism":
-        from oneehr.models.prism import prepare_prism_training_artifacts
+        from oneehr.models.baselines.prism import prepare_prism_training_artifacts
 
         spec = prepare_prism_training_artifacts(
             model_cfg=model_cfg,
@@ -212,7 +212,7 @@ def prepare_dl_artifacts(
         return _prepared(model_name, **spec)
 
     if model_name == "safari":
-        from oneehr.models.safari import resolve_safari_dim_list
+        from oneehr.models.baselines.safari import resolve_safari_dim_list
 
         params = dict(model_cfg.params)
         if "dim_list" not in params:
@@ -224,7 +224,7 @@ def prepare_dl_artifacts(
         return _prepared(model_name, model_cfg=_updated_model_cfg(model_cfg, **params))
 
     if model_name == "pai":
-        from oneehr.models.pai import prepare_pai_training_artifacts
+        from oneehr.models.baselines.pai import prepare_pai_training_artifacts
 
         obs_mask = load_obs_mask(run_dir)
         if obs_mask is None:
@@ -239,7 +239,7 @@ def prepare_dl_artifacts(
         return _prepared(model_name, **spec)
 
     if model_name == "emerge":
-        from oneehr.models.emerge import prepare_emerge_text_artifacts
+        from oneehr.models.baselines.emerge import prepare_emerge_text_artifacts
 
         spec = prepare_emerge_text_artifacts(
             model_cfg=model_cfg,
@@ -384,7 +384,7 @@ def build_inference_extra(
     """Build model-specific auxiliary tensors for inference."""
 
     if model_name == "prism":
-        from oneehr.models.prism import prepare_prism_inference_extra
+        from oneehr.models.baselines.prism import prepare_prism_inference_extra
 
         return prepare_prism_inference_extra(
             meta=meta,
@@ -395,7 +395,7 @@ def build_inference_extra(
         )
 
     if model_name == "pai":
-        from oneehr.models.pai import build_pai_inference_extra
+        from oneehr.models.baselines.pai import build_pai_inference_extra
 
         obs_mask = load_obs_mask(run_dir)
         if obs_mask is None:
@@ -408,7 +408,7 @@ def build_inference_extra(
         )
 
     if model_name == "emerge":
-        from oneehr.models.emerge import build_emerge_inference_extra
+        from oneehr.models.baselines.emerge import build_emerge_inference_extra
 
         return build_emerge_inference_extra(
             meta=meta,

@@ -10,7 +10,7 @@ from oneehr.data.features import has_static_branch
 
 
 def test_concare_patient_no_static():
-    from oneehr.models.concare import ConCareModel
+    from oneehr.models.baselines.concare import ConCareModel
 
     m = ConCareModel(input_dim=4, hidden_dim=16, num_heads=4)
     x = torch.randn(2, 5, 4)
@@ -20,7 +20,7 @@ def test_concare_patient_no_static():
 
 
 def test_concare_patient_with_static():
-    from oneehr.models.concare import ConCareModel
+    from oneehr.models.baselines.concare import ConCareModel
 
     m = ConCareModel(input_dim=4, hidden_dim=16, num_heads=4, static_dim=3)
     x = torch.randn(2, 5, 4)
@@ -31,7 +31,7 @@ def test_concare_patient_with_static():
 
 
 def test_concare_time_no_static():
-    from oneehr.models.concare import ConCareTimeModel
+    from oneehr.models.baselines.concare import ConCareTimeModel
 
     m = ConCareTimeModel(input_dim=4, hidden_dim=16, num_heads=4)
     x = torch.randn(2, 5, 4)
@@ -41,7 +41,7 @@ def test_concare_time_no_static():
 
 
 def test_concare_time_with_static():
-    from oneehr.models.concare import ConCareTimeModel
+    from oneehr.models.baselines.concare import ConCareTimeModel
 
     m = ConCareTimeModel(input_dim=4, hidden_dim=16, num_heads=4, static_dim=3)
     x = torch.randn(2, 5, 4)
@@ -55,7 +55,7 @@ def test_concare_time_with_static():
 
 
 def test_grasp_patient_no_static():
-    from oneehr.models.grasp import GRASPModel
+    from oneehr.models.baselines.grasp import GRASPModel
 
     m = GRASPModel(input_dim=4, hidden_dim=16, cluster_num=2)
     x = torch.randn(3, 5, 4)
@@ -65,7 +65,7 @@ def test_grasp_patient_no_static():
 
 
 def test_grasp_patient_with_static():
-    from oneehr.models.grasp import GRASPModel
+    from oneehr.models.baselines.grasp import GRASPModel
 
     m = GRASPModel(input_dim=4, hidden_dim=16, cluster_num=2, static_dim=3)
     x = torch.randn(3, 5, 4)
@@ -76,7 +76,7 @@ def test_grasp_patient_with_static():
 
 
 def test_grasp_time_no_static():
-    from oneehr.models.grasp import GRASPTimeModel
+    from oneehr.models.baselines.grasp import GRASPTimeModel
 
     m = GRASPTimeModel(input_dim=4, hidden_dim=16, cluster_num=2)
     x = torch.randn(2, 3, 4)
@@ -86,7 +86,7 @@ def test_grasp_time_no_static():
 
 
 def test_grasp_time_with_static():
-    from oneehr.models.grasp import GRASPTimeModel
+    from oneehr.models.baselines.grasp import GRASPTimeModel
 
     m = GRASPTimeModel(input_dim=4, hidden_dim=16, cluster_num=2, static_dim=3)
     x = torch.randn(2, 3, 4)
@@ -100,7 +100,7 @@ def test_grasp_time_with_static():
 
 
 def test_tcn_patient_forward():
-    from oneehr.models.tcn import TCNPatientModel
+    from oneehr.models.baselines.tcn import TCNPatientModel
 
     m = TCNPatientModel(input_dim=4, hidden_dim=16, out_dim=1)
     x = torch.randn(2, 5, 4)
@@ -110,7 +110,7 @@ def test_tcn_patient_forward():
 
 
 def test_tcn_patient_accepts_static_kwarg():
-    from oneehr.models.tcn import TCNPatientModel
+    from oneehr.models.baselines.tcn import TCNPatientModel
 
     m = TCNPatientModel(input_dim=4, hidden_dim=16, out_dim=1)
     x = torch.randn(2, 5, 4)
@@ -123,10 +123,10 @@ def test_tcn_patient_accepts_static_kwarg():
 
 
 def test_has_static_branch_true():
-    from oneehr.models.concare import ConCareModel
-    from oneehr.models.dragent import DrAgentModel
-    from oneehr.models.grasp import GRASPModel
-    from oneehr.models.safari import SafariModel
+    from oneehr.models.baselines.concare import ConCareModel
+    from oneehr.models.baselines.dragent import DrAgentModel
+    from oneehr.models.baselines.grasp import GRASPModel
+    from oneehr.models.baselines.safari import SafariModel
 
     assert has_static_branch(ConCareModel(input_dim=4, hidden_dim=16, num_heads=4, static_dim=3))
     assert has_static_branch(GRASPModel(input_dim=4, hidden_dim=16, cluster_num=2, static_dim=3))
@@ -135,9 +135,9 @@ def test_has_static_branch_true():
 
 
 def test_has_static_branch_false_when_no_static_dim():
-    from oneehr.models.concare import ConCareModel
-    from oneehr.models.grasp import GRASPModel
-    from oneehr.models.safari import SafariModel
+    from oneehr.models.baselines.concare import ConCareModel
+    from oneehr.models.baselines.grasp import GRASPModel
+    from oneehr.models.baselines.safari import SafariModel
 
     assert not has_static_branch(ConCareModel(input_dim=4, hidden_dim=16, num_heads=4))
     assert not has_static_branch(GRASPModel(input_dim=4, hidden_dim=16, cluster_num=2))

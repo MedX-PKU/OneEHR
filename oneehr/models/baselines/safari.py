@@ -13,8 +13,8 @@ import torch.nn.functional as F
 from sklearn.cluster import KMeans
 from torch import nn
 
-from oneehr.models.graph import normalize_adjacency
-from oneehr.models.recurrent import last_by_lengths
+from oneehr.models.layers.graph import normalize_adjacency
+from oneehr.models.layers.sequence import last_by_lengths
 
 
 def resolve_safari_dim_list(*, feature_schema: list[dict] | None, input_dim: int) -> list[int]:
