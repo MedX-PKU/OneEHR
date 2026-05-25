@@ -1,14 +1,14 @@
 # Getting Started
 
-Use this section when you want the fastest path from installation to a first reproducible OneEHR run.
+Use these pages for the shortest path from installation to a complete OneEHR run.
 
-## What You Will Do
+## Path Through This Section
 
-- Install OneEHR with Python 3.12 and `uv`
-- Run the bundled example workflow end to end
-- Understand the standard EHR table contract used by all downstream workflows
+1. Install OneEHR in a Python 3.12+ environment.
+2. Run the bundled TJH example end to end.
+3. Learn the three CSV tables that every workflow reads.
 
-## Start Here
+## Pages
 
 - [Installation](installation.md)
 - [Quickstart](quickstart.md)

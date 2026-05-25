@@ -1,40 +1,34 @@
 # Data Model
 
-OneEHR uses a three-table input specification. Users prepare plain CSV files -- there is no dataset registry or special format.
-
----
+OneEHR reads plain CSV files. The core input is a longitudinal event table; static covariates and labels are separate tables keyed by patient.
 
 ## Overview
 
-| Table | Required | Description |
-|-------|:---:|-------------|
-| `dynamic.csv` | Yes | Longitudinal event table (long format) |
-| `static.csv` | No | Patient-level static covariates |
-| `label.csv` | No | Label events (task-agnostic long format) |
+| Table | Required | Purpose |
+|-------|:--------:|---------|
+| `dynamic.csv` | Yes | Longitudinal event table in long format |
+| `static.csv` | No | Patient-level covariates such as demographics or baseline features |
+| `label.csv` | No | Label events for one or more prediction tasks |
 
 ```toml
 [dataset]
 dynamic = "data/dynamic.csv"
-static = "data/static.csv"     # optional
-label = "data/label.csv"       # optional
+static = "data/static.csv"
+label = "data/label.csv"
 ```
 
----
+## `dynamic.csv`
 
-## `dynamic.csv` (required)
-
-The core input: a unified longitudinal event table in **long format** (one row per event).
-
-### Required columns
+`dynamic.csv` is one row per observed event.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `patient_id` | string | Patient identifier |
-| `event_time` | datetime | Timestamp (parseable by `pandas.to_datetime`) |
-| `code` | string | Measurement or concept name (e.g. `"heart_rate"`, `"diagnosis_A01"`) |
-| `value` | numeric or string | Measured value |
+| `event_time` | datetime | Timestamp parseable by `pandas.to_datetime` |
+| `code` | string | Measurement, diagnosis, procedure, medication, or feature name |
+| `value` | numeric or string | Observed value |
 
-### Example
+Example:
 
 ```csv
 patient_id,event_time,code,value
@@ -46,29 +40,18 @@ P002,2023-01-01 09:30,heart_rate,68
 P002,2023-01-01 09:30,lab_glucose,5.4
 ```
 
-### Key points
+Preprocessing bins events into fixed time windows such as `1h`, `6h`, or `1d`. Numeric event values are aggregated with `preprocess.numeric_strategy`. Categorical values are encoded with `preprocess.categorical_strategy`.
 
-- Timestamps are **irregular** -- events for the same patient can occur at any time
-- OneEHR bins events into fixed time windows during preprocessing (e.g. 1-hour, 1-day)
-- `value` can be numeric or categorical; type inference happens automatically during binning (a code is considered numeric if 90%+ of its values parse as numbers)
-- Numeric values: aggregated per bin via `preprocess.numeric_strategy` (mean or last)
-- Categorical values: encoded per bin via `preprocess.categorical_strategy` (one-hot or count)
+## `static.csv`
 
----
-
-## `static.csv` (optional)
-
-One row per patient with static covariates (demographics, baseline characteristics).
-
-### Required columns
+`static.csv` has one row per patient.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `patient_id` | string | Patient identifier (must match `dynamic.csv`) |
+| `patient_id` | string | Patient identifier matching `dynamic.csv` |
+| Other columns | numeric or string | Static covariates |
 
-All other columns are treated as static features. Numeric columns become `num__*` features; categorical columns become `cat__*__*` one-hot features.
-
-### Example
+Example:
 
 ```csv
 patient_id,age,sex,insurance
@@ -77,25 +60,20 @@ P002,42,F,Private
 P003,78,M,Medicaid
 ```
 
-!!! tip
-    Static features are concatenated with dynamic features for tabular models, and joined to test predictions for all models.
+Numeric static columns become `num__*` features. Categorical static columns become `cat__*__*` one-hot features. Models with static branches receive these features as a separate tensor; tabular models receive them in the flattened feature matrix.
 
----
+## `label.csv`
 
-## `label.csv` (optional)
-
-A task-agnostic label event table in long format. This allows multiple label types to coexist in one file.
-
-### Required columns
+`label.csv` is a long-format label table. A single file can contain multiple label types through `label_code`.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `patient_id` | string | Patient identifier |
-| `label_time` | datetime | When the label was observed |
-| `label_code` | string | Label type identifier (e.g. `"outcome"`, `"los"`) |
+| `label_time` | datetime | When the label is observed |
+| `label_code` | string | Label type, for example `outcome` or `los` |
 | `label_value` | numeric | Label value |
 
-### Example
+Example:
 
 ```csv
 patient_id,label_time,label_code,label_value
@@ -105,19 +83,15 @@ P002,2023-01-03,outcome,0
 P002,2023-01-03,los,2.0
 ```
 
----
+Patient-level tasks use one label per patient. Time-level tasks align labels to binned time windows.
 
-## How tables flow through OneEHR
+## Flow Through A Run
 
+```text
+dynamic.csv --+
+              +--> preprocess --> binned features + labels --> train --> test --> analyze
+static.csv  --+
+label.csv   --+
 ```
-dynamic.csv ──┐
-              ├──→ preprocess ──→ binned.parquet ──→ train
-static.csv  ──┤                                       │
-              │                                        ▼
-label.csv ────┘                                    models + metrics
-```
 
-1. **Preprocess** bins `dynamic.csv` into fixed time windows and builds feature columns
-2. Static features from `static.csv` are encoded into patient-level features
-3. Labels come from `label.csv`
-4. All downstream commands read from the materialized run artifacts instead of reinterpreting raw files
+Downstream commands read the saved run artifacts instead of reading the raw CSV files again. This keeps training, testing, analysis, and plotting tied to the same preprocessed data and split.

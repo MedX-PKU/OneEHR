@@ -1,98 +1,112 @@
 # Quickstart
 
-This quickstart uses the bundled TJH COVID-19 ICU example. It walks through the core pipeline steps: preprocess, train, test, analyze, and plot.
+This quickstart runs the bundled TJH COVID-19 ICU example. It covers the standard command sequence: convert, preprocess, train, test, analyze, and plot.
 
-For more detailed tutorials with Jupyter notebooks, see [Tutorials](../tutorials.md).
+Run the commands from the repository root.
 
-## 0. Convert The Source Data (once)
+## 1. Convert The Example Data
 
 ```bash
 uv run python examples/tjh/convert.py
 ```
 
-This reads the raw Excel file and produces inside `examples/tjh/`:
+This writes the example CSV tables under `examples/tjh/`:
 
-- `dynamic.csv`, `static.csv` -- shared across all tasks
-- `label_mortality.csv` -- patient-level binary mortality
-- `label_los.csv` -- time-level remaining LOS (regression)
-- `label_mortality_time.csv` -- time-level binary mortality
+| File | Used For |
+|------|----------|
+| `dynamic.csv` | Longitudinal events shared by all tasks |
+| `static.csv` | Patient-level covariates shared by all tasks |
+| `label_mortality.csv` | Patient-level binary mortality |
+| `label_mortality_time.csv` | Time-level binary mortality |
+| `label_los.csv` | Time-level remaining length-of-stay regression |
 
-## Example Configs
+## 2. Choose A Config
 
-The TJH example ships three experiment configs:
+The example ships three ready-to-run configs:
 
-| Config | Task | Mode | Models |
-|--------|------|------|--------|
-| `mortality_patient.toml` | Binary mortality | Patient (N-1) | 25 DL + tabular |
-| `mortality_time.toml` | Binary mortality | Time (N-N) | xgboost + gru |
-| `los_time.toml` | Remaining LOS regression | Time (N-N) | xgboost + gru |
+| Config | Task | Prediction Mode | Models |
+|--------|------|-----------------|--------|
+| `examples/tjh/mortality_patient.toml` | Binary mortality | Patient | XGBoost, CatBoost, and DL models |
+| `examples/tjh/mortality_time.toml` | Binary mortality | Time | XGBoost and GRU |
+| `examples/tjh/los_time.toml` | Remaining LOS regression | Time | XGBoost and GRU |
 
-## 1. Preprocess
-
-```bash
-uv run oneehr preprocess --config examples/tjh/mortality_patient.toml
-```
-
-This creates `runs/tjh/preprocess/`, writes `manifest.json`, the split contract, and materializes binned feature views.
-
-## 2. Train
+Set the config path once:
 
 ```bash
-uv run oneehr train --config examples/tjh/mortality_patient.toml
+CONFIG=examples/tjh/mortality_patient.toml
 ```
 
-Trains all models configured in `[[models]]` and writes checkpoints under `runs/tjh/train/`.
-
-## 3. Test
+## 3. Preprocess
 
 ```bash
-uv run oneehr test --config examples/tjh/mortality_patient.toml
+uv run oneehr preprocess --config "$CONFIG"
 ```
 
-Evaluates all trained models on the held-out test split. Writes `runs/tjh/test/predictions.parquet` and `metrics.json`.
+This creates `runs/tjh/preprocess/` with binned features, labels, static features when available, the patient split, and the run manifest.
 
-## 4. Analyze
+## 4. Train
 
 ```bash
-uv run oneehr analyze --config examples/tjh/mortality_patient.toml
+uv run oneehr train --config "$CONFIG"
 ```
 
-Writes structured analysis outputs under `runs/tjh/analyze/`, including cross-system comparison, feature importance, fairness metrics, and statistical tests.
+This trains every model listed in `[[models]]` and writes checkpoints under `runs/tjh/train/`.
 
-## 5. Plot (Optional)
+## 5. Test
 
 ```bash
-oneehr plot --config examples/tjh/mortality_patient.toml --style nature
+uv run oneehr test --config "$CONFIG"
 ```
 
-Renders publication-quality figures (ROC, PR, calibration, forest plot, etc.) under `runs/tjh/figures/`.
+This evaluates trained models on the held-out test split and writes:
 
-## Using Standard Datasets
+- `runs/tjh/test/predictions.parquet`
+- `runs/tjh/test/metrics.json`
 
-Convert MIMIC-III, MIMIC-IV, or eICU data before running the pipeline:
+## 6. Analyze
 
 ```bash
-oneehr convert --dataset mimic3 --raw-dir ~/data/mimic-iii/ --output-dir data/mimic3/ --task mortality
+uv run oneehr analyze --config "$CONFIG"
 ```
 
-Then update your TOML config to point to the converted files. See [Dataset Converters](../reference/datasets.md) for details.
+This writes JSON outputs under `runs/tjh/analyze/` for comparison, feature importance, fairness, calibration, statistical tests, and missing-data summaries.
 
-## Try Other Tasks
-
-Run the time-level mortality task:
+## 7. Plot
 
 ```bash
-uv run oneehr preprocess --config examples/tjh/mortality_time.toml
-uv run oneehr train      --config examples/tjh/mortality_time.toml
-uv run oneehr test       --config examples/tjh/mortality_time.toml
-uv run oneehr analyze    --config examples/tjh/mortality_time.toml
+uv run oneehr plot --config "$CONFIG" --style nature
 ```
 
-Run the time-level remaining-LOS regression task:
+Figures are written to `runs/tjh/figures/`. The plot command renders the figures whose required artifacts exist for the run.
+
+## Run Another Example Task
+
+Time-level mortality:
 
 ```bash
-uv run oneehr preprocess --config examples/tjh/los_time.toml
-uv run oneehr train      --config examples/tjh/los_time.toml
-uv run oneehr test       --config examples/tjh/los_time.toml
-uv run oneehr analyze    --config examples/tjh/los_time.toml
+CONFIG=examples/tjh/mortality_time.toml
+uv run oneehr preprocess --config "$CONFIG"
+uv run oneehr train      --config "$CONFIG"
+uv run oneehr test       --config "$CONFIG"
+uv run oneehr analyze    --config "$CONFIG"
 ```
+
+Time-level remaining length-of-stay regression:
+
+```bash
+CONFIG=examples/tjh/los_time.toml
+uv run oneehr preprocess --config "$CONFIG"
+uv run oneehr train      --config "$CONFIG"
+uv run oneehr test       --config "$CONFIG"
+uv run oneehr analyze    --config "$CONFIG"
+```
+
+## Use A Standard Dataset
+
+Convert MIMIC-III, MIMIC-IV, or eICU before running the workflow:
+
+```bash
+oneehr convert --dataset mimic3 --raw-dir ~/data/mimic-iii --output-dir data/mimic3 --task mortality
+```
+
+Then point `[dataset]` in your TOML file to the converted CSVs. See [Dataset Converters](../reference/datasets.md) for dataset-specific layouts and tasks.
