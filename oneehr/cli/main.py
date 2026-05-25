@@ -19,11 +19,11 @@ def _build_parser() -> argparse.ArgumentParser:
     te.add_argument("--config", required=True, help="Path to TOML config")
     te.add_argument("--force", action="store_true", help="Overwrite existing test directory")
 
-    an = sub.add_parser("analyze", help="SHAP, fairness, cross-system comparison")
+    an = sub.add_parser("analyze", help="Run analysis modules")
     an.add_argument("--config", required=True, help="Path to TOML config")
-    an.add_argument("--module", default=None, help="Analysis module name (comparison, feature_importance)")
+    an.add_argument("--module", default=None, help="Analysis module name (default: all modules)")
 
-    pl = sub.add_parser("plot", help="Render publication-quality figures")
+    pl = sub.add_parser("plot", help="Render figures from run artifacts")
     pl.add_argument("--config", required=True, help="Path to TOML config")
     pl.add_argument("--figure", nargs="*", default=None, help="Figure name(s) to render (default: all available)")
     pl.add_argument("--style", default="default", choices=["default", "nature", "lancet", "wide"], help="Journal style preset")

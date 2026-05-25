@@ -1,4 +1,4 @@
-"""OneEHR publication-quality visualization module.
+"""OneEHR visualization module.
 
 All plot functions follow a consistent interface:
 - Return ``matplotlib.figure.Figure``

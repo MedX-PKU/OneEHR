@@ -1,14 +1,14 @@
-"""OneEHR Python API — programmatic access to the pipeline.
+"""OneEHR Python API for programmatic access to the pipeline.
 
 Usage::
 
     import oneehr
 
-    config = oneehr.load_config("experiment.toml")
-    oneehr.preprocess(config)
-    oneehr.train(config)
-    oneehr.test(config)
-    results = oneehr.analyze(config)
+    config_path = "experiment.toml"
+    oneehr.preprocess(config_path)
+    oneehr.train(config_path)
+    oneehr.test(config_path)
+    results = oneehr.analyze(config_path)
 """
 
 from __future__ import annotations
@@ -83,12 +83,13 @@ class TrainResult:
     models_trained: list[str]
 
 
-def train(config: ExperimentConfig | str | Path, *, force: bool = False) -> TrainResult:
+def train(config: str | Path, *, force: bool = False) -> TrainResult:
     """Run model training.
 
     Parameters
     ----------
-    config : ExperimentConfig, str, or Path
+    config : str or Path
+        Path to a TOML config file.
     force : overwrite existing train artifacts
     """
     cfg = _resolve_config(config)
@@ -109,12 +110,13 @@ class TestResult:
     metrics_path: Path
 
 
-def test(config: ExperimentConfig | str | Path, *, force: bool = False) -> TestResult:
+def test(config: str | Path, *, force: bool = False) -> TestResult:
     """Run model evaluation on the test set.
 
     Parameters
     ----------
-    config : ExperimentConfig, str, or Path
+    config : str or Path
+        Path to a TOML config file.
     force : overwrite existing test artifacts
     """
     cfg = _resolve_config(config)
@@ -140,7 +142,7 @@ class AnalyzeResult:
 
 
 def analyze(
-    config: ExperimentConfig | str | Path,
+    config: str | Path,
     *,
     module: str | None = None,
 ) -> AnalyzeResult:
@@ -148,7 +150,8 @@ def analyze(
 
     Parameters
     ----------
-    config : ExperimentConfig, str, or Path
+    config : str or Path
+        Path to a TOML config file.
     module : specific module to run, or None for all
     """
     cfg = _resolve_config(config)

@@ -1,6 +1,6 @@
 """oneehr plot subcommand.
 
-Renders publication-quality figures from a completed run's artifacts.
+Renders figures from a completed run's artifacts.
 """
 
 from __future__ import annotations
