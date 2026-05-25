@@ -1,13 +1,14 @@
 # Workflows
 
-Use this section when you want to understand how OneEHR operates after the initial setup.
+Use this section after installation when you want to understand how a OneEHR run moves from input CSVs to saved outputs.
 
-## What This Covers
+## Covers
 
-- The standard preprocess, train, test, and analyze pipeline
-- Split strategies and model configuration
-- Structured analysis outputs
+- Standard preprocess, train, test, analyze, and plot commands
+- Patient-level split behavior
+- Model and system evaluation flow
+- Analysis and figure outputs
 
-## Workflow Guides
+## Guides
 
 - [Core Workflows](core-workflows.md)

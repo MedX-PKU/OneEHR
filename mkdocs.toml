@@ -17,7 +17,7 @@ nav = [
     { title = "Dataset Converters", path = "reference/datasets.md" },
     { title = "Medical Codes", path = "reference/medcode.md" },
     { title = "Artifacts", path = "reference/artifacts.md" },
-    { title = "Positioning", path = "reference/positioning.md" },
+    { title = "Scope", path = "reference/scope.md" },
   ] },
 ]
 

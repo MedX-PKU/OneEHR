@@ -1,23 +1,23 @@
 # Reference
 
-Use this section when you need precise interface details rather than a walkthrough.
+Use this section when you need interface details rather than a walkthrough.
 
 ## What You Can Look Up
 
-- The CLI command tree and flag surface
-- The TOML configuration model
-- Supported model families (39 architectures)
-- Dataset converters (MIMIC-III/IV, eICU)
-- Medical code ontologies (ICD-9/10, CCS, ATC)
-- The on-disk artifact contract
-- The canonical product positioning language
+- CLI commands and flags
+- TOML configuration fields and defaults
+- Model config names, families, parameters, and artifact notes
+- Dataset converter inputs and exported label tasks
+- Medical code utilities for ICD, CCS, ATC, and feature-code resolution
+- Run directory layout and saved artifact formats
+- Project scope and integration boundaries
 
-## Reference Pages
+## Pages
 
-- [CLI](cli.md) — all 6 commands and their flags
-- [Configuration](configuration.md) — full TOML schema
-- [Models](models.md) — 39 model architectures with parameters
-- [Dataset Converters](datasets.md) — MIMIC-III, MIMIC-IV, eICU
-- [Medical Codes](medcode.md) — ICD, CCS, ATC ontologies
-- [Artifacts](artifacts.md) — on-disk directory layout
-- [Positioning](positioning.md) — canonical product language
+- [CLI](cli.md) - commands, flags, modules, and figure names
+- [Configuration](configuration.md) - TOML schema and examples
+- [Models](models.md) - 42 model architectures with config names and parameters
+- [Dataset Converters](datasets.md) - MIMIC-III, MIMIC-IV, and eICU conversion
+- [Medical Codes](medcode.md) - ICD, CCS, ATC, and code mapping helpers
+- [Artifacts](artifacts.md) - run directory layout and saved files
+- [Scope](scope.md) - package boundaries and shared terminology

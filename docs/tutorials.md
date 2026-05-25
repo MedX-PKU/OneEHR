@@ -1,61 +1,71 @@
 # Tutorials
 
-Step-by-step Jupyter notebooks covering the full OneEHR workflow.
+The tutorial notebooks walk through common OneEHR workflows with runnable examples.
 
-| # | Tutorial | Description |
-|---|----------|-------------|
-| 1 | [Quickstart](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/01_quickstart.ipynb) | End-to-end mortality prediction on the TJH COVID-19 dataset |
-| 2 | [Custom Dataset](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/02_custom_dataset.ipynb) | Bring your own data into OneEHR's three-table format + medical code mapping |
-| 3 | [Model Comparison](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/03_model_comparison.ipynb) | Compare ML vs DL models with bootstrap CI and DeLong/McNemar statistical tests |
-| 4 | [Fairness & Explainability](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/04_fairness_analysis.ipynb) | Bias detection across demographic groups + feature importance visualization |
-| 5 | [Survival Analysis](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/05_survival_analysis.ipynb) | DeepSurv, DeepHit, concordance index, and Kaplan-Meier curves |
+| # | Tutorial | Covers |
+|---|----------|--------|
+| 1 | [Quickstart](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/01_quickstart.ipynb) | End-to-end TJH mortality prediction |
+| 2 | [Custom Dataset](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/02_custom_dataset.ipynb) | Preparing dynamic, static, and label CSV files |
+| 3 | [Model Comparison](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/03_model_comparison.ipynb) | Comparing configured models with confidence intervals and statistical tests |
+| 4 | [Fairness And Explainability](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/04_fairness_analysis.ipynb) | Fairness metrics and feature importance outputs |
+| 5 | [Survival Analysis](https://github.com/MedX-PKU/OneEHR/blob/main/tutorials/05_survival_analysis.ipynb) | DeepSurv, DeepHit, concordance index, and survival curves |
 
-## Running Tutorials
-
-### Local
+## Run Locally
 
 ```bash
 pip install oneehr jupyter
 jupyter notebook tutorials/
 ```
 
-### Google Colab
+When working from a source checkout, install the package in editable mode first:
 
-Upload any notebook to [Google Colab](https://colab.research.google.com/) and add this cell at the top:
+```bash
+uv venv .venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[test]"
+jupyter notebook tutorials/
+```
+
+## Run In Colab
+
+Upload a notebook to [Google Colab](https://colab.research.google.com/) and install OneEHR at the top:
 
 ```python
 !pip install oneehr
 ```
 
-## What You'll Learn
+## What You Will Practice
 
-### Tutorial 1: Quickstart
-- Define an experiment with a TOML config file
-- Preprocess EHR events into binned features
-- Train XGBoost (ML) and GRU (DL) models
-- Evaluate on a held-out test set
-- Run cross-system comparison
+Tutorial 1:
 
-### Tutorial 2: Custom Dataset
-- Prepare dynamic, static, and label CSV files
-- Use built-in dataset converters (MIMIC-III/IV, eICU)
-- Apply medical code ontologies (ICD-9/10, CCS, ATC)
-- Aggregate codes by ontology group for dimensionality reduction
+- Define an experiment with a TOML config file.
+- Preprocess EHR events into binned features.
+- Train XGBoost and GRU models.
+- Evaluate on a held-out test split.
+- Run comparison analysis.
 
-### Tutorial 3: Model Comparison
-- Configure multiple models in one experiment
-- Bootstrap confidence intervals for AUROC, AUPRC, F1
-- Pairwise statistical tests (DeLong, McNemar)
-- Include LLM agents in the comparison
+Tutorial 2:
 
-### Tutorial 4: Fairness & Explainability
-- Detect bias across age, sex, ethnicity groups
-- Compute demographic parity, equalized odds, predictive parity
-- Feature importance: permutation, SHAP, attention weights
-- Visualize attributions with waterfall and heatmap plots
+- Prepare dynamic, static, and label CSV files.
+- Convert MIMIC-III, MIMIC-IV, or eICU data.
+- Apply ICD, CCS, and ATC code mapping helpers.
 
-### Tutorial 5: Survival Analysis
-- Build DeepSurv and DeepHit models
-- Train with Cox partial likelihood loss
-- Evaluate with concordance index
-- Plot stratified Kaplan-Meier survival curves
+Tutorial 3:
+
+- Configure multiple models in one experiment.
+- Read `predictions.parquet` and `metrics.json`.
+- Use bootstrap confidence intervals and pairwise statistical tests.
+- Include configured LLM or agent systems in the same comparison table.
+
+Tutorial 4:
+
+- Compute fairness metrics across available static attributes.
+- Review feature importance outputs.
+- Connect analysis JSON files to plots and notebooks.
+
+Tutorial 5:
+
+- Configure DeepSurv and DeepHit.
+- Train with survival task settings.
+- Evaluate with concordance index.
+- Plot survival curves from saved results.

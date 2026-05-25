@@ -36,6 +36,7 @@ Controls how irregular events are binned and features are built.
 | `categorical_strategy` | `str` | `"onehot"` | Encoding for categorical values: `onehot` or `count` |
 | `code_selection` | `str` | `"frequency"` | Code vocabulary strategy: `frequency`, `all`, or `list` |
 | `top_k_codes` | `int` | `100` | Number of top codes for `frequency` selection |
+| `code_list` | `list[str]` | `[]` | Explicit code vocabulary when `code_selection = "list"` |
 | `min_code_count` | `int` | `1` | Minimum event count for a code to be included in the vocabulary |
 | `max_seq_length` | `int` | `None` | Truncate sequences to most recent N time bins |
 | `min_events_per_patient` | `int` | `1` | Exclude patients with fewer events |
@@ -49,6 +50,14 @@ categorical_strategy = "onehot"
 code_selection = "frequency"
 top_k_codes = 100
 min_code_count = 1
+```
+
+Explicit code vocabulary:
+
+```toml
+[preprocess]
+code_selection = "list"
+code_list = ["heart_rate", "lab_glucose", "DX_ICD10_E119"]
 ```
 
 ### Preprocessing Pipeline

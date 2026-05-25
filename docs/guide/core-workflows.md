@@ -1,72 +1,81 @@
 # Core Workflows
 
-This guide covers the standard OneEHR operating path: prepare standardized tables, materialize features, train and test models, and write structured analysis.
+This guide explains the standard OneEHR path: prepare CSV tables, materialize features, train models, test systems, write analysis outputs, and render figures.
 
-Use this page for workflow decisions. Use the [Configuration Reference](../reference/configuration.md), [CLI Reference](../reference/cli.md), and [Artifacts Reference](../reference/artifacts.md) for full option tables and on-disk details.
+Use [Configuration Reference](../reference/configuration.md), [CLI Reference](../reference/cli.md), and [Artifacts Reference](../reference/artifacts.md) for complete option tables and file layouts.
 
-Each command reads and writes the same shared run directory contract, so persisted state stays aligned across preprocessing, training, testing, and analysis.
-
-## Workflow Shape
-
-For a typical experiment, the command sequence is:
+## Command Sequence
 
 ```bash
 oneehr preprocess --config experiment.toml
 oneehr train      --config experiment.toml
 oneehr test       --config experiment.toml
 oneehr analyze    --config experiment.toml
-oneehr plot       --config experiment.toml    # optional
+oneehr plot       --config experiment.toml
 ```
 
-All of these commands operate on the same run root, usually `{output.root}/{output.run_name}`.
+All commands read or write the same run directory: `{output.root}/{output.run_name}`.
 
 ## Preprocess
 
-`oneehr preprocess` is the first required step for every run. It reads the standardized dataset tables, materializes the binned feature views, saves the split contract, and writes the run manifest used by downstream commands.
+`oneehr preprocess` reads standardized dataset tables and writes the artifacts used by all later stages.
 
 ```bash
 uv run oneehr preprocess --config experiment.toml
 ```
 
-What preprocessing decides:
+Preprocessing uses:
 
-- Bin size and time alignment via `[preprocess].bin_size`
-- Numeric and categorical aggregation strategies
-- Code vocabulary selection via `[preprocess].code_selection`, `top_k_codes`, and `min_code_count`
-- Patient-level or time-level prediction mode from `[task].prediction_mode`
-- Patient-level saved split under `preprocess/split.json`
-- Preprocessing pipeline fitted on train split only (saved as `fitted_pipeline.pt`)
+- `[dataset]` paths for `dynamic.csv`, optional `static.csv`, and optional `label.csv`
+- `[preprocess].bin_size` for time-window size
+- `numeric_strategy` and `categorical_strategy` for event aggregation and encoding
+- `code_selection`, `top_k_codes`, and `min_code_count` for feature vocabulary selection
+- `[task].prediction_mode` for patient-level or time-level label alignment
+- `[split]` for patient-level train/validation/test assignment
+- `[preprocess].pipeline` for train-split-fitted preprocessing steps
 
-Inputs come from `[dataset]`. The required raw shape is:
+Key outputs:
 
-- `dynamic.csv`: `patient_id`, `event_time`, `code`, `value`
-- `static.csv` optional: patient-level columns keyed by `patient_id`
-- `label.csv` optional: `patient_id`, `label_time`, `label_code`, `label_value`
+- `preprocess/binned.parquet`
+- `preprocess/labels.parquet`
+- `preprocess/split.json`
+- `preprocess/static.parquet` when `static.csv` is provided
+- `preprocess/feature_schema.json`
+- `preprocess/obs_mask.parquet`
+- `preprocess/fitted_pipeline.pt`
 
 ## Train
 
-`oneehr train` fits one or more configured models against the saved preprocess artifacts and split contract.
+`oneehr train` fits every model listed in `[[models]]`.
 
 ```bash
 uv run oneehr train --config experiment.toml
 uv run oneehr train --config experiment.toml --force
 ```
 
-Key behaviors:
+Training reads the saved preprocess artifacts and writes one directory per model under `train/`.
 
-- `[[models]]` selects the training targets
-- Each model gets a `name` and optional `params` dict for hyperparameters
-- Tabular and deep learning models use the same shared run contract
-- The preprocessing pipeline (`fitted_pipeline.pt`) is automatically applied to feature data before training
-- Checkpoints and metadata are written under `train/{model_name}/`
-- DL models track per-epoch training history (loss, monitored metric) in `meta.json`
-- Early stopping can monitor `val_loss`, `val_auroc`, `val_auprc`, `val_rmse`, or `val_mae` via `[trainer].monitor`
+Model config pattern:
 
-In OneEHR, the TOML file is the experiment contract: if the config changes, the experiment changed.
+```toml
+[[models]]
+name = "xgboost"
+[models.params]
+n_estimators = 100
+max_depth = 4
+
+[[models]]
+name = "gru"
+[models.params]
+hidden_dim = 64
+num_layers = 1
+```
+
+Deep learning training options live under `[trainer]`, including device, seed, epoch count, batch size, optimizer settings, precision, scheduler, class weighting, and early stopping.
 
 ## Test
 
-`oneehr test` evaluates all trained models and configured `[[systems]]` on the held-out test split.
+`oneehr test` evaluates trained models and configured `[[systems]]` on the held-out test split.
 
 ```bash
 uv run oneehr test --config experiment.toml
@@ -75,14 +84,14 @@ uv run oneehr test --config experiment.toml --force
 
 Outputs:
 
-- `test/predictions.parquet` -- unified predictions with a `system` column for all models and systems
-- `test/metrics.json` -- aggregated test metrics per system
+- `test/predictions.parquet` - one prediction table with a `system` column
+- `test/metrics.json` - aggregated metrics per model or system
 
-Use `--force` to overwrite existing test outputs.
+The shared `predictions.parquet` format is what enables model and system outputs to be analyzed together.
 
 ## Analyze
 
-`oneehr analyze` reads `test/predictions.parquet` and writes structured analysis outputs under `analyze/`.
+`oneehr analyze` reads `test/predictions.parquet` and writes JSON outputs under `analyze/`.
 
 ```bash
 uv run oneehr analyze --config experiment.toml
@@ -91,33 +100,46 @@ uv run oneehr analyze --config experiment.toml --module comparison
 
 Available modules:
 
-- `comparison` — cross-system metrics comparison with bootstrap CI
-- `feature_importance` — native importance for tree models, SHAP, permutation importance
-- `fairness` — demographic parity, equalized odds, predictive parity, SMD
-- `calibration` — temperature scaling, isotonic regression, ECE
-- `statistical_tests` — DeLong, McNemar, BH FDR correction
-- `missing_data` — missingness analysis per feature
+- `comparison` - metrics by system with bootstrap confidence intervals where supported
+- `feature_importance` - native importance, SHAP, permutation importance, or integrated gradients depending on model type
+- `fairness` - demographic parity, equalized odds, predictive parity, and SMD summaries for binary tasks
+- `calibration` - calibration metrics and calibrated predictions for binary tasks
+- `statistical_tests` - pairwise statistical tests and multiple-testing correction
+- `missing_data` - missingness summaries from preprocessed features
 
-When `--module` is not specified, all available modules are run.
+When `--module` is omitted, all modules run.
 
 ## Plot
 
+`oneehr plot` renders figures whose required artifacts exist in the run directory.
+
 ```bash
-oneehr plot --config experiment.toml --style nature
+uv run oneehr plot --config experiment.toml --style nature
+uv run oneehr plot --config experiment.toml --figure roc pr calibration
 ```
 
-Renders publication-quality figures from test and analyze results. Supported figures: ROC curves, PR curves, confusion matrices, calibration plots, decision curve analysis, forest plots, fairness plots, training curves, significance plots, missing data heatmaps, cohort flow diagrams, Kaplan-Meier curves, and attribution heatmaps.
+Registered figure names:
+
+- `roc`
+- `pr`
+- `forest`
+- `calibration`
+- `feature_importance`
+- `confusion`
+- `training_curves`
+- `fairness`
+- `missing_data`
+- `decision_curve`
+- `significance`
+- `cohort_flow`
 
 Style presets: `default`, `nature`, `lancet`, `wide`.
 
 ## Split Strategies
 
-All supported split strategies are patient-level group splits. A patient never appears in more than one of train, validation, or test.
+All supported split strategies are patient-level group splits. A patient appears in only one of train, validation, or test.
 
-Supported strategies:
-
-- `random` for a single random train/val/test partition
-- `time` for a prospective patient-level split using `time_boundary`
+Random split:
 
 ```toml
 [split]
@@ -126,6 +148,8 @@ seed = 42
 val_size = 0.1
 test_size = 0.2
 ```
+
+Time split:
 
 ```toml
 [split]

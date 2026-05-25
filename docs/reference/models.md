@@ -1,6 +1,6 @@
 # Models Reference
 
-OneEHR ships 39 model architectures across tabular ML, deep learning, irregular-time modeling, multimodal EHR/text fusion, KG-enhanced EHR modeling, and survival analysis. All models are configured via `[[models]]` entries with a `name` and `params` dict.
+OneEHR registers 42 model config names across tabular ML, deep learning, irregular-time modeling, multimodal EHR/text fusion, KG-enhanced EHR modeling, and survival analysis. Configure models with `[[models]]` entries containing a `name` and optional `params` table.
 
 ---
 
@@ -53,9 +53,9 @@ OneEHR ships 39 model architectures across tabular ML, deep learning, irregular-
 
 Models with a **static branch** automatically receive patient-level static features as a separate input tensor when `static.csv` is provided. The `static_dim` parameter is auto-detected from the static feature count.
 
-## Recent Additions
+## Model Groups With Extra Artifacts
 
-The latest model family additions concentrate on four gaps in longitudinal EHR benchmarking: missing-aware recurrent baselines, irregular-time encoders, multimodal EHR/text fusion, and lightweight KG-enhanced architectures.
+Some model families derive additional tensors from preprocessing artifacts or accept optional external inputs. These settings are part of the run contract and are recorded in checkpoint metadata when relevant.
 
 | Model | Config | Summary | Key params |
 |-------|--------|---------|------------|
@@ -78,9 +78,9 @@ For KG-enhanced models, `kg_source = "lightweight"` builds an internal concept g
 
 External KG files can be CSV, TSV, or JSON. CSV/TSV files should provide `source` and `target` columns, with optional `weight`; `head` and `tail` are also accepted. JSON can be either a list of edge objects or an object with an `edges` list. OneEHR projects external KG nodes onto feature groups using medical-code aliases such as `DX_ICD9_25000`, `ICD9:25000`, `ICD9::25000`, and `25000`. Checkpoint metadata includes `extra.kg_coverage` so runs report how many KG edges matched model features.
 
-## KG default and reproducibility
+## KG Defaults And Run Metadata
 
-The recommended default KG is the built-in `lightweight_auto` preset. It is selected automatically for GraphCare, KerPrint, and ProtoEHR when KG params are omitted, so users can run these baselines without downloading a KG:
+GraphCare, KerPrint, and ProtoEHR use the built-in `lightweight_auto` KG preset when KG params are omitted. This lets the models run without downloading a KG:
 
 ```toml
 [[models]]
@@ -102,11 +102,11 @@ kg_ontology = "auto"
 | Node projection | The same feature-group resolver used by model adapters |
 | Provenance | Saved as `extra.kg_preset`, `extra.kg_config`, and `extra.kg_coverage` in checkpoint metadata |
 
-Use `kg_source = "external"` only when you have a domain KG that should be part of the experiment contract. In that case, provide `external_kg_path`; OneEHR still projects nodes through the shared medcode alias interface and records edge coverage.
+Use `kg_source = "external"` when a domain KG should be part of the experiment contract. In that case, provide `external_kg_path`; OneEHR projects nodes through the shared medcode alias interface and records edge coverage.
 
 ## Pretraining and derived artifacts
 
-No current OneEHR baseline requires mandatory external pretrained weights or a downloaded checkpoint. Baselines train from scratch under the run config. Some models do derive split-aware tensors before fitting; these are reproducible run artifacts, not external pretraining.
+No built-in OneEHR baseline requires mandatory external pretrained weights or a downloaded checkpoint. Baselines train from scratch under the run config. Some models derive split-aware tensors before fitting; these are saved run artifacts, not external pretraining.
 
 | Models | External pretrained weights | Optional external assets | Derived run artifacts |
 |--------|-----------------------------|--------------------------|-----------------------|
@@ -120,7 +120,7 @@ No current OneEHR baseline requires mandatory external pretrained weights or a d
 | mTAND, Raindrop, ContiFormer, TECO | No | None | Missing masks, time deltas, visit times |
 | SAFARI | No | None | Feature-group dimensions |
 
-Relevant checkpoint metadata includes `extra.artifact_policy` for models with model-specific derived artifacts. If a future baseline truly needs pretrained weights, it should be represented as an explicit external asset path in the model params and artifact policy, never as an implicit download or hard-coded local path.
+Relevant checkpoint metadata includes `extra.artifact_policy` for models with model-specific derived artifacts. A model that depends on external assets should represent them as explicit model params and artifact-policy metadata.
 
 ---
 
@@ -425,7 +425,7 @@ dropout = 0.3
 
 ---
 
-## EHR-specialised models
+## EHR-specialized models
 
 ### AdaCare
 
