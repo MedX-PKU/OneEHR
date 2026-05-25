@@ -8,14 +8,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="oneehr", description="OneEHR CLI")
     sub = parser.add_subparsers(dest="command")
 
-    pp = sub.add_parser("preprocess", help="Bin features, generate labels, split patients")
+    pp = sub.add_parser("preprocess", help="Bin event data, build features, split patients")
     pp.add_argument("--config", required=True, help="Path to TOML config")
 
     tr = sub.add_parser("train", help="Train ML/DL models")
     tr.add_argument("--config", required=True, help="Path to TOML config")
     tr.add_argument("--force", action="store_true", help="Overwrite existing train directory")
 
-    te = sub.add_parser("test", help="Run all systems on test set")
+    te = sub.add_parser("test", help="Evaluate models and systems on the test split")
     te.add_argument("--config", required=True, help="Path to TOML config")
     te.add_argument("--force", action="store_true", help="Overwrite existing test directory")
 
@@ -26,7 +26,7 @@ def _build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("plot", help="Render figures from run artifacts")
     pl.add_argument("--config", required=True, help="Path to TOML config")
     pl.add_argument("--figure", nargs="*", default=None, help="Figure name(s) to render (default: all available)")
-    pl.add_argument("--style", default="default", choices=["default", "nature", "lancet", "wide"], help="Journal style preset")
+    pl.add_argument("--style", default="default", choices=["default", "nature", "lancet", "wide"], help="Figure style preset")
     pl.add_argument("--output", default=None, help="Output directory for figures")
 
     cv = sub.add_parser("convert", help="Convert a raw dataset into OneEHR three-table format")
