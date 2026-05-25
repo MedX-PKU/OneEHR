@@ -113,6 +113,13 @@ _MODEL_ARTIFACT_POLICIES: dict[str, ModelArtifactPolicy] = {
         derived_train_artifacts=("prompt_init_values", "missing_mask"),
         note="PAI trains from scratch; prompt initialization values are derived from the training split unless supplied explicitly.",
     ),
+    "emerge": ModelArtifactPolicy(
+        model_name="emerge",
+        optional_external_assets=("note_text_path", "summary_text_path", "note_embedding_path", "summary_embedding_path"),
+        required_preprocess_artifacts=("preprocess/binned.parquet",),
+        derived_train_artifacts=("note_embedding", "summary_embedding", "preprocess/emerge_text_embeddings.pt"),
+        note="EMERGE trains from scratch; note and summary embeddings are supplied as explicit artifacts or deterministically derived from run data through the shared text artifact interface.",
+    ),
     "prism": ModelArtifactPolicy(
         model_name="prism",
         required_preprocess_artifacts=("preprocess/feature_schema.json", "preprocess/obs_mask.parquet"),

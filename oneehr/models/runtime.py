@@ -238,6 +238,18 @@ def prepare_dl_artifacts(
         )
         return _prepared(model_name, **spec)
 
+    if model_name == "emerge":
+        from oneehr.models.text import prepare_emerge_text_artifacts
+
+        spec = prepare_emerge_text_artifacts(
+            model_cfg=model_cfg,
+            binned=binned,
+            feat_cols=feat_cols,
+            split=split,
+            run_dir=run_dir,
+        )
+        return _prepared(model_name, **spec)
+
     if model_name == "grud":
         obs_mask = load_obs_mask(run_dir)
         if obs_mask is None:
@@ -393,6 +405,15 @@ def build_inference_extra(
             feat_cols=feat_cols,
             patient_ids=patient_ids,
             max_len=max_len,
+        )
+
+    if model_name == "emerge":
+        from oneehr.models.text import build_emerge_inference_extra
+
+        return build_emerge_inference_extra(
+            meta=meta,
+            run_dir=run_dir,
+            patient_ids=patient_ids,
         )
 
     if model_name == "grud":

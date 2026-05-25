@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 import torch
 
@@ -94,6 +96,90 @@ def test_lightweight_kg_records_recommended_default_preset():
         "kg_min_cooccurrence": 2,
         "kg_ontology": "auto",
     }
+
+
+def test_emerge_text_artifacts_are_split_aligned(tmp_path):
+    from oneehr.config.schema import ModelConfig
+    from oneehr.models.text import build_emerge_inference_extra, prepare_emerge_text_artifacts
+
+    run_dir = tmp_path / "run"
+    binned = pd.DataFrame(
+        {
+            "patient_id": ["p2", "p1", "p1", "p3"],
+            "bin_time": pd.to_datetime(["2020-01-01", "2020-01-01", "2020-01-02", "2020-01-01"]),
+            "num__heart_rate": [80.0, 90.0, 95.0, 0.0],
+            "num__creatinine": [1.1, 0.0, 1.3, 0.0],
+        }
+    )
+
+    spec = prepare_emerge_text_artifacts(
+        model_cfg=ModelConfig(name="emerge", params={"text_embedding_dim": 8}),
+        binned=binned,
+        feat_cols=["num__heart_rate", "num__creatinine"],
+        split=SimpleNamespace(train=["p1", "p2"], val=["p3"], test=["p2"]),
+        run_dir=run_dir,
+    )
+
+    assert spec["model_cfg"].params["input_note_dim"] == 8
+    assert spec["model_cfg"].params["input_summary_dim"] == 8
+    assert spec["train_extra"]["_patient_ids"] == ["p1", "p2"]
+    assert spec["train_extra"]["note_embedding"].shape == (2, 8)
+    assert (run_dir / "preprocess" / "emerge_text_embeddings.pt").exists()
+
+    infer = build_emerge_inference_extra(
+        meta={"extra": spec["extra_meta"]},
+        run_dir=run_dir,
+        patient_ids=["p2", "p3"],
+    )
+    assert infer["_patient_ids"] == ["p2", "p3"]
+    assert infer["note_embedding"].shape == (2, 8)
+
+
+def test_emerge_text_artifacts_accept_precomputed_embeddings(tmp_path):
+    from oneehr.config.schema import ModelConfig
+    from oneehr.models.text import prepare_emerge_text_artifacts
+
+    note_path = tmp_path / "note.csv"
+    summary_path = tmp_path / "summary.csv"
+    pd.DataFrame(
+        {
+            "patient_id": ["p1", "p2"],
+            "e0": [1.0, 2.0],
+            "e1": [3.0, 4.0],
+        }
+    ).to_csv(note_path, index=False)
+    pd.DataFrame(
+        {
+            "patient_id": ["p1", "p2"],
+            "embedding": [json.dumps([0.1, 0.2, 0.3]), json.dumps([0.4, 0.5, 0.6])],
+        }
+    ).to_csv(summary_path, index=False)
+    binned = pd.DataFrame(
+        {
+            "patient_id": ["p1", "p2"],
+            "bin_time": pd.to_datetime(["2020-01-01", "2020-01-01"]),
+            "num__x": [0.0, 1.0],
+        }
+    )
+
+    spec = prepare_emerge_text_artifacts(
+        model_cfg=ModelConfig(
+            name="emerge",
+            params={
+                "note_embedding_path": str(note_path),
+                "summary_embedding_path": str(summary_path),
+            },
+        ),
+        binned=binned,
+        feat_cols=["num__x"],
+        split=SimpleNamespace(train=["p2"], val=["p1"], test=[]),
+        run_dir=tmp_path / "run",
+    )
+
+    assert spec["model_cfg"].params["input_note_dim"] == 2
+    assert spec["model_cfg"].params["input_summary_dim"] == 3
+    np.testing.assert_allclose(spec["train_extra"]["note_embedding"].numpy(), [[2.0, 4.0]])
+    np.testing.assert_allclose(spec["val_extra"]["summary_embedding"].numpy(), [[0.1, 0.2, 0.3]])
 
 
 def test_model_artifact_policy_exposes_no_external_pretraining():
