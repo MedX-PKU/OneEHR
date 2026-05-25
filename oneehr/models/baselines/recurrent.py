@@ -17,6 +17,7 @@ def _make_rnn(cell: str, **kwargs) -> nn.GRU | nn.LSTM | nn.RNN:
         return nn.RNN(**kwargs)
     raise ValueError(f"Unsupported cell={cell!r}")
 
+
 class RecurrentModel(nn.Module):
     """Patient-level recurrent model (GRU or LSTM)."""
 
