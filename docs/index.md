@@ -45,8 +45,8 @@
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">Models</span>
-        <strong>38 built-in</strong>
-        <span class="landing-stat-meta">Tabular ML, recurrent, transformer, Mamba, EHR-specialised, survival</span>
+        <strong>39 built-in</strong>
+        <span class="landing-stat-meta">Tabular ML, recurrent, transformer, Mamba, multimodal, survival</span>
       </article>
       <article class="landing-stat-card">
         <span class="landing-stat-label">System layer</span>
@@ -209,5 +209,5 @@ Most EHR projects do not fail because a model cannot be trained. They fail becau
 - Use [Tutorials](tutorials.md) for step-by-step Jupyter notebooks covering all features.
 - Use [Dataset Converters](reference/datasets.md) to convert MIMIC-III/IV or eICU data.
 - Use [Configuration Reference](reference/configuration.md) if you are authoring experiment TOML files.
-- Use [Models Reference](reference/models.md) for all 38 model architectures and their hyperparameters.
+- Use [Models Reference](reference/models.md) for all 39 model architectures and their hyperparameters.
 - Use [Artifacts Reference](reference/artifacts.md) if you need the precise on-disk contract for tooling.

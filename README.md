@@ -9,7 +9,7 @@ OneEHR is a unified Python platform for longitudinal EHR experiments across ML, 
 
 ## Key Features
 
-- **38 model architectures** — tabular ML, recurrent/non-recurrent DL, irregular-time, KG-enhanced, and survival models
+- **39 model architectures** — tabular ML, recurrent/non-recurrent DL, irregular-time, multimodal, KG-enhanced, and survival models
 - **Unified ML/DL/LLM comparison** — all predictions in one `predictions.parquet` with bootstrap CI and statistical tests
 - **Dataset converters** — built-in support for MIMIC-III, MIMIC-IV, and eICU
 - **Medical code ontologies** — ICD-9/10 mapping, CCS grouping, ATC drug hierarchy
@@ -89,7 +89,7 @@ Each converter produces labels for mortality, readmission, and length-of-stay ta
 
 ## Models
 
-OneEHR ships 38 model architectures:
+OneEHR ships 39 model architectures:
 
 | Category | Models |
 |----------|--------|
@@ -98,12 +98,13 @@ OneEHR ships 38 model architectures:
 | **Non-recurrent** | CNN, TCN, Transformer, SAnD, MLP, Deepr, EHR-Mamba, Jamba, LSAN |
 | **Irregular-time** | mTAND, Raindrop, ContiFormer, TECO |
 | **EHR-specialised** | AdaCare, StageNet, RETAIN, ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI |
+| **Multimodal** | EMERGE |
 | **KG-enhanced** | GraphCare, KerPrint, ProtoEHR |
 | **Survival** | DeepSurv, DeepHit |
 
 Models with static branches (ConCare, GRASP, MCGRU, DrAgent, PRISM, SAFARI, TECO) automatically use patient-level static features when `static.csv` is provided.
 
-KG-enhanced baselines default to the built-in `lightweight_auto` KG, which is built from train-split co-occurrence plus medcode ontology hints. No baseline requires mandatory external pretrained weights; models that need split-derived tensors record an `artifact_policy` in checkpoint metadata.
+KG-enhanced baselines default to the built-in `lightweight_auto` KG, which is built from train-split co-occurrence plus medcode ontology hints. EMERGE consumes note and summary embeddings through the same model `extra` artifact interface; users can provide explicit text/embedding paths or use deterministic embeddings derived from the run data. No baseline requires mandatory external pretrained weights; models that need split-derived tensors record an `artifact_policy` in checkpoint metadata.
 
 ## Task Types
 

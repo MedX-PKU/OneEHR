@@ -1,6 +1,6 @@
 # Models Reference
 
-OneEHR ships 38 model architectures across tabular ML, deep learning, irregular-time modeling, KG-enhanced EHR modeling, and survival analysis. All models are configured via `[[models]]` entries with a `name` and `params` dict.
+OneEHR ships 39 model architectures across tabular ML, deep learning, irregular-time modeling, multimodal EHR/text fusion, KG-enhanced EHR modeling, and survival analysis. All models are configured via `[[models]]` entries with a `name` and `params` dict.
 
 ---
 
@@ -44,6 +44,7 @@ OneEHR ships 38 model architectures across tabular ML, deep learning, irregular-
 | M3Care | `m3care` | DL | Yes | Yes | No |
 | SAFARI | `safari` | DL | Yes | Yes | Yes |
 | PAI (GRU) | `pai` | DL | Yes | Yes | No |
+| EMERGE | `emerge` | DL / Multimodal | Yes | Yes | No |
 | GraphCare | `graphcare` | DL / KG | Yes | Yes | No |
 | KerPrint | `kerprint` | DL / KG | Yes | Yes | No |
 | ProtoEHR | `protoehr` | DL / KG | Yes | Yes | No |
@@ -54,7 +55,7 @@ Models with a **static branch** automatically receive patient-level static featu
 
 ## Recent Additions
 
-The latest model family additions concentrate on three gaps in longitudinal EHR benchmarking: missing-aware recurrent baselines, irregular-time encoders, and lightweight KG-enhanced architectures.
+The latest model family additions concentrate on four gaps in longitudinal EHR benchmarking: missing-aware recurrent baselines, irregular-time encoders, multimodal EHR/text fusion, and lightweight KG-enhanced architectures.
 
 | Model | Config | Summary | Key params |
 |-------|--------|---------|------------|
@@ -71,6 +72,7 @@ The latest model family additions concentrate on three gaps in longitudinal EHR 
 | GraphCare | `graphcare` | Lightweight patient-specific KG summarization with temporal fusion | `hidden_dim`, `kg_source`, `kg_top_k`, `kg_ontology` |
 | KerPrint | `kerprint` | Local/global KG summaries with time-aware knowledge gating | `hidden_dim`, `kg_source`, `kg_top_k`, `kg_ontology` |
 | ProtoEHR | `protoehr` | KG-enhanced patient modeling with concept/visit/patient prototypes | `hidden_dim`, `num_prototypes`, `kg_source`, `kg_top_k`, `kg_ontology` |
+| EMERGE | `emerge` | EHR sequence encoder fused with note and KG-summary text embeddings | `hidden_dim`, `text_embedding_dim`, `ehr_net`, `text_fusion`, `modality_fusion` |
 
 For KG-enhanced models, `kg_source = "lightweight"` builds an internal concept graph from train-split co-occurrence plus available ontology hints. `kg_source = "external"` reads a user-supplied graph from `external_kg_path`.
 
@@ -112,6 +114,7 @@ No current OneEHR baseline requires mandatory external pretrained weights or a d
 | GraphCare, KerPrint, ProtoEHR | No | `external_kg_path` only when `kg_source = "external"` | `global_adj`, feature groups, group value/mask tensors, visit times |
 | GRU-D | No | None | Observed feature means, missing masks, time deltas, visit times |
 | PAI | No | None | Prompt initialization values and missing masks |
+| EMERGE | No | `note_text_path`, `summary_text_path`, `note_embedding_path`, `summary_embedding_path` | `note_embedding`, `summary_embedding`, `preprocess/emerge_text_embeddings.pt` |
 | PRISM | No | None | Feature-group dimensions, k-means centers, observation rates, time deltas |
 | LSAN, HiTANet | No | None | Feature-group indices/names; HiTANet also uses temporal masks |
 | mTAND, Raindrop, ContiFormer, TECO | No | None | Missing masks, time deltas, visit times |
@@ -649,6 +652,36 @@ prompt_init = "median"
 | `num_layers` | `int` | `1` | Number of stacked GRU layers |
 | `dropout` | `float` | `0.0` | Dropout between GRU layers |
 | `prompt_init` | `str` | `"median"` | Prompt initialisation: `median`, `zero`, or `random` |
+
+### EMERGE
+
+Multimodal EHR/text fusion baseline with a sequence encoder, note embedding projection, summary embedding projection, and configurable fusion modules.
+
+```toml
+[[models]]
+name = "emerge"
+[models.params]
+hidden_dim = 128
+text_embedding_dim = 768
+ehr_net = "gru"
+text_fusion = "concat"
+modality_fusion = "ours"
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hidden_dim` | `int` | `128` | Shared EHR/text hidden size |
+| `text_embedding_dim` | `int` | `768` | Convenience default for note and summary embedding dimensions |
+| `input_note_dim` | `int` | `768` | Note embedding width, auto-updated when precomputed note embeddings are supplied |
+| `input_summary_dim` | `int` | `768` | Summary embedding width, auto-updated when precomputed summary embeddings are supplied |
+| `ehr_net` | `str` | `"gru"` | `gru`, `lstm`, `rnn`, `transformer`, or `modern_transformer` |
+| `text_fusion` | `str` | `"concat"` | `note_only`, `summary_only`, `add`, `concat`, `gated`, `adaptive`, or `mag` |
+| `modality_fusion` | `str` | `"ours"` | `ours`, `token_transformer`, `mag`, `concat`, or `tf` |
+| `use_modality` | `str` | `"ehr_note_summary"` | `ehr_note_summary`, `ehr_only`, `note_only`, `summary_only`, `ehr_note`, `ehr_summary`, or `note_summary` |
+| `note_text_path` / `summary_text_path` | `str` | `None` | Optional CSV/Parquet/JSON with `patient_id` and text column |
+| `note_embedding_path` / `summary_embedding_path` | `str` | `None` | Optional CSV/Parquet/NPZ/PT precomputed embeddings keyed by `patient_id` |
+
+When no text or embedding paths are supplied, OneEHR builds deterministic TF-IDF/SVD note and summary embeddings from the preprocessed binned EHR table. The fitted train-split-derived embeddings are stored as `preprocess/emerge_text_embeddings.pt` and passed through the same split-aware `extra` tensor interface used by other artifact-backed models.
 
 ---
 
