@@ -174,10 +174,7 @@ def test_multilabel_label_codes_become_training_matrix():
             "num__x": [0.0, 0.1, 1.0, 1.1, 2.0, 2.1, 3.0, 3.1],
         }
     )
-    y_map = {
-        str(row["patient_id"]): row[["label_0_dx_a", "label_1_dx_b"]].to_numpy(dtype=np.float32)
-        for _, row in labels.iterrows()
-    }
+    y_map = {str(row["patient_id"]): row[["label_0_dx_a", "label_1_dx_b"]].to_numpy(dtype=np.float32) for _, row in labels.iterrows()}
     split = Split(train=np.array(["p1", "p2"], dtype=str), val=np.array(["p3", "p4"], dtype=str), test=np.array([], dtype=str))
     model = RecurrentModel(input_dim=1, hidden_dim=4, out_dim=2, cell="gru")
 

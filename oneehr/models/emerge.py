@@ -102,10 +102,7 @@ class SinusoidalPositionEncoding(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         seq_len = x.size(1)
         position = torch.arange(seq_len, device=x.device, dtype=x.dtype).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, self.hidden_dim, 2, device=x.device, dtype=x.dtype)
-            * (-math.log(10000.0) / self.hidden_dim)
-        )
+        div_term = torch.exp(torch.arange(0, self.hidden_dim, 2, device=x.device, dtype=x.dtype) * (-math.log(10000.0) / self.hidden_dim))
         pe = torch.zeros(seq_len, self.hidden_dim, device=x.device, dtype=x.dtype)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term[: pe[:, 1::2].shape[1]])
@@ -149,9 +146,7 @@ class MAGGate(nn.Module):
     def forward(self, base: torch.Tensor, aux: torch.Tensor) -> torch.Tensor:
         weight = torch.sigmoid(self.gate(torch.cat([base, aux], dim=-1)))
         adjust = self.adjust(weight * aux)
-        scale = torch.norm(base, dim=-1, keepdim=True) / torch.clamp(
-            torch.norm(adjust, dim=-1, keepdim=True), min=1e-6
-        )
+        scale = torch.norm(base, dim=-1, keepdim=True) / torch.clamp(torch.norm(adjust, dim=-1, keepdim=True), min=1e-6)
         alpha = torch.clamp(scale * self.beta, max=1.0)
         return self.dropout(self.norm(base + alpha * adjust))
 

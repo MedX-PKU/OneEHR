@@ -38,14 +38,7 @@ class ModelArtifactPolicy:
 
     @property
     def has_reproducibility_metadata(self) -> bool:
-        return bool(
-            self.requires_external_pretraining
-            or self.required_external_assets
-            or self.optional_external_assets
-            or self.required_preprocess_artifacts
-            or self.derived_train_artifacts
-            or self.default_kg_preset
-        )
+        return bool(self.requires_external_pretraining or self.required_external_assets or self.optional_external_assets or self.required_preprocess_artifacts or self.derived_train_artifacts or self.default_kg_preset)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -71,12 +64,7 @@ def resolve_kg_preset(
 
     if kg_source == "external":
         return "external"
-    if (
-        kg_source == DEFAULT_KG_SOURCE
-        and int(kg_top_k) == DEFAULT_KG_TOP_K
-        and int(kg_min_cooccurrence) == DEFAULT_KG_MIN_COOCCURRENCE
-        and str(kg_ontology) == DEFAULT_KG_ONTOLOGY
-    ):
+    if kg_source == DEFAULT_KG_SOURCE and int(kg_top_k) == DEFAULT_KG_TOP_K and int(kg_min_cooccurrence) == DEFAULT_KG_MIN_COOCCURRENCE and str(kg_ontology) == DEFAULT_KG_ONTOLOGY:
         return DEFAULT_KG_PRESET
     return "lightweight_custom"
 

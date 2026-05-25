@@ -196,9 +196,12 @@ def test_model_artifact_policy_exposes_no_external_pretraining():
     assert grud_meta["artifact_policy"]["requires_external_pretraining"] is False
     assert "feature_means" in grud_meta["artifact_policy"]["derived_train_artifacts"]
 
-    assert resolve_kg_preset(
-        kg_source="lightweight",
-        kg_top_k=4,
-        kg_min_cooccurrence=2,
-        kg_ontology="auto",
-    ) == "lightweight_custom"
+    assert (
+        resolve_kg_preset(
+            kg_source="lightweight",
+            kg_top_k=4,
+            kg_min_cooccurrence=2,
+            kg_ontology="auto",
+        )
+        == "lightweight_custom"
+    )
