@@ -59,6 +59,8 @@ dynamic = "/tmp/dynamic.csv"
 [preprocess]
 bin_size = "6h"
 top_k_codes = 50
+code_selection = "list"
+code_list = ["heart_rate", "lab_glucose"]
 
 [task]
 kind = "binary"
@@ -85,6 +87,8 @@ run_name = "test01"
     cfg = load_config(str(toml_path))
     assert cfg.preprocess.bin_size == "6h"
     assert cfg.preprocess.top_k_codes == 50
+    assert cfg.preprocess.code_selection == "list"
+    assert cfg.preprocess.code_list == ["heart_rate", "lab_glucose"]
     assert cfg.task.kind == "binary"
     assert len(cfg.models) == 1
     assert cfg.models[0].name == "xgboost"

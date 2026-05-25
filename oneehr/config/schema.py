@@ -18,6 +18,7 @@ class PreprocessConfig:
     categorical_strategy: str = "onehot"  # onehot | count
     code_selection: str = "frequency"  # frequency | all | list
     top_k_codes: int = 100
+    code_list: list[str] = field(default_factory=list)
     min_code_count: int = 1
     max_seq_length: int | None = None  # truncate to most recent N bins
     min_events_per_patient: int = 1  # exclude patients with fewer events

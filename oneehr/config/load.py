@@ -106,6 +106,11 @@ def _validate_config(cfg: ExperimentConfig) -> None:
     valid_cat = ("onehot", "count")
     if p.categorical_strategy not in valid_cat:
         errors.append(f"preprocess.categorical_strategy={p.categorical_strategy!r} — expected one of {valid_cat}")
+    valid_code_selection = ("frequency", "all", "list")
+    if p.code_selection not in valid_code_selection:
+        errors.append(f"preprocess.code_selection={p.code_selection!r} — expected one of {valid_code_selection}")
+    if p.code_selection == "list" and not p.code_list:
+        errors.append("preprocess.code_list must be non-empty when code_selection='list'")
     if p.top_k_codes is not None and p.top_k_codes <= 0:
         errors.append(f"preprocess.top_k_codes={p.top_k_codes} — must be > 0")
     if p.max_seq_length is not None and p.max_seq_length <= 0:
