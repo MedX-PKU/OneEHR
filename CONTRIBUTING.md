@@ -35,6 +35,18 @@ ruff check oneehr/ tests/
 ruff format oneehr/ tests/
 ```
 
+Before pushing, run the same local checks used by CI:
+
+```bash
+scripts/check-ci.sh
+```
+
+To block pushes when linting or tests fail, install the local pre-push hook:
+
+```bash
+scripts/install-git-hooks.sh
+```
+
 ## Commit Messages
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/):
