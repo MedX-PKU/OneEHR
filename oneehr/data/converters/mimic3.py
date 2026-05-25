@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from oneehr.datasets._base import BaseConverter, ConvertedDataset
+from oneehr.data.converters.base import BaseConverter, ConvertedDataset
 
 
 class MIMIC3Converter(BaseConverter):

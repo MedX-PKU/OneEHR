@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from oneehr.data.features import has_static_branch
+from oneehr.data.preprocessing.tabular import has_static_branch
 
 # -- ConCare -----------------------------------------------------------------
 

@@ -6,8 +6,8 @@ Each converter reads source tables and produces:
   - label.csv:   (patient_id, label_time, label_code, label_value)
 """
 
-from oneehr.datasets.eicu import EICUConverter
-from oneehr.datasets.mimic3 import MIMIC3Converter
-from oneehr.datasets.mimic4 import MIMIC4Converter
+from oneehr.data.converters.eicu import EICUConverter
+from oneehr.data.converters.mimic3 import MIMIC3Converter
+from oneehr.data.converters.mimic4 import MIMIC4Converter
 
 __all__ = ["MIMIC3Converter", "MIMIC4Converter", "EICUConverter"]

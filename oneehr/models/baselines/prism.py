@@ -588,7 +588,7 @@ def prepare_prism_training_artifacts(
     run_dir,
     preprocess_cfg,
 ) -> dict[str, object]:
-    from oneehr.data.sequence import build_patient_sequences
+    from oneehr.data.preprocessing.sequence import build_patient_sequences
 
     feature_schema_path = run_dir / "preprocess" / "feature_schema.json"
     obs_mask_path = run_dir / "preprocess" / "obs_mask.parquet"

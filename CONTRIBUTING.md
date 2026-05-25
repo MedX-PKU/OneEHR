@@ -72,9 +72,9 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Adding a New Dataset Converter
 
-1. Create `oneehr/datasets/<dataset>.py` inheriting from `BaseConverter`
+1. Create `oneehr/data/converters/<dataset>.py` inheriting from `BaseConverter`
 2. Implement the `convert()` method returning `ConvertedDataset`
-3. Register in `oneehr/datasets/__init__.py`
+3. Register in `oneehr/data/converters/__init__.py`
 4. Add CLI support in `oneehr/cli/main.py` and `oneehr/cli/convert.py`
 5. Add tests with synthetic data in `tests/test_datasets.py`
 

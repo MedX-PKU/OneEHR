@@ -112,7 +112,7 @@ def test_run_epoch_uses_last_dim_as_time_multiclass_classes():
 
 def test_fit_model_time_multiclass_preserves_probability_rows():
     from oneehr.config.schema import TaskConfig, TrainerConfig
-    from oneehr.data.splits import Split
+    from oneehr.data.preprocessing.splits import Split
     from oneehr.models.baselines.recurrent import RecurrentTimeModel
     from oneehr.training.trainer import fit_model
 
@@ -151,8 +151,8 @@ def test_fit_model_time_multiclass_preserves_probability_rows():
 
 def test_multilabel_label_codes_become_training_matrix():
     from oneehr.config.schema import TaskConfig, TrainerConfig
-    from oneehr.data.labels import normalize_multilabel_patient_labels
-    from oneehr.data.splits import Split
+    from oneehr.data.preprocessing.labels import normalize_multilabel_patient_labels
+    from oneehr.data.preprocessing.splits import Split
     from oneehr.models.baselines.recurrent import RecurrentModel
     from oneehr.training.trainer import fit_model
 

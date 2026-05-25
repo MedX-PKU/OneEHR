@@ -19,7 +19,7 @@ def _make_df(n=100, seed=0):
 
 
 def test_knn_impute():
-    from oneehr.data.tabular import fit_pipeline, transform_pipeline
+    from oneehr.data.preprocessing.tabular import fit_pipeline, transform_pipeline
 
     df = _make_df()
     pipeline = [{"op": "knn_impute", "cols": "num__*", "n_neighbors": 3}]
@@ -29,7 +29,7 @@ def test_knn_impute():
 
 
 def test_iterative_impute():
-    from oneehr.data.tabular import fit_pipeline, transform_pipeline
+    from oneehr.data.preprocessing.tabular import fit_pipeline, transform_pipeline
 
     df = _make_df()
     pipeline = [{"op": "iterative_impute", "cols": "num__*", "max_iter": 5}]
@@ -39,7 +39,7 @@ def test_iterative_impute():
 
 
 def test_robust_scale():
-    from oneehr.data.tabular import fit_pipeline, transform_pipeline
+    from oneehr.data.preprocessing.tabular import fit_pipeline, transform_pipeline
 
     df = _make_df().fillna(0)
     pipeline = [{"op": "robust_scale", "cols": "num__*"}]
@@ -51,7 +51,7 @@ def test_robust_scale():
 
 
 def test_quantile_norm():
-    from oneehr.data.tabular import fit_pipeline, transform_pipeline
+    from oneehr.data.preprocessing.tabular import fit_pipeline, transform_pipeline
 
     df = _make_df().fillna(0)
     pipeline = [{"op": "quantile_norm", "cols": "num__*", "output_distribution": "normal"}]
@@ -63,7 +63,7 @@ def test_quantile_norm():
 
 
 def test_fit_on_train_transform_test():
-    from oneehr.data.tabular import fit_pipeline, transform_pipeline
+    from oneehr.data.preprocessing.tabular import fit_pipeline, transform_pipeline
 
     train = _make_df(n=80, seed=0)
     test = _make_df(n=20, seed=1)

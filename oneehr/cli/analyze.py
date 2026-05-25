@@ -175,7 +175,7 @@ def _run_feature_importance(*, preds: pd.DataFrame, cfg, run_dir: Path) -> dict:
                 # Use Integrated Gradients for DL models
                 try:
                     from oneehr.analysis.feature_importance import integrated_gradients_importance
-                    from oneehr.data.sequence import build_patient_sequences, pad_sequences
+                    from oneehr.data.preprocessing.sequence import build_patient_sequences, pad_sequences
 
                     patient_ids, seqs, lengths = build_patient_sequences(binned, stored_feat_cols)
                     X_padded = pad_sequences(seqs, lengths)

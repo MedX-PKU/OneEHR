@@ -80,7 +80,7 @@ def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = df[col].fillna(0.0)
         return df
 
-    from oneehr.data.tabular import transform_pipeline
+    from oneehr.data.preprocessing.tabular import transform_pipeline
 
     fitted = torch.load(pipeline_path, weights_only=False)
     df = transform_pipeline(df, fitted)
@@ -104,7 +104,7 @@ def run_test(cfg_path: str, force: bool) -> None:
     ensure_dir(test_dir)
 
     from oneehr.artifacts.manifest import read_manifest
-    from oneehr.data.splits import load_split
+    from oneehr.data.preprocessing.splits import load_split
 
     manifest = read_manifest(run_dir)
     feat_cols = manifest["feature_columns"]
@@ -225,8 +225,8 @@ def _predict_trained_model(
         # DL model
         model.eval()
         from oneehr.artifacts.model_runtime import build_inference_extra
-        from oneehr.data.sequence import build_patient_sequences, pad_sequences
-        from oneehr.data.tabular import has_static_branch
+        from oneehr.data.preprocessing.sequence import build_patient_sequences, pad_sequences
+        from oneehr.data.preprocessing.tabular import has_static_branch
 
         # Load static features for models with a static branch
         run_dir = model_dir.parent.parent
@@ -273,7 +273,7 @@ def _predict_trained_model(
                 rows.append(row)
         else:
             # Time mode DL
-            from oneehr.data.sequence import build_time_sequences, pad_sequences
+            from oneehr.data.preprocessing.sequence import build_time_sequences, pad_sequences
 
             if labels_df is None:
                 return rows

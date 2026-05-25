@@ -1,1 +1,1 @@
-"""Data loading, binning, and sequence construction."""
+"""Data loading, conversion, and preprocessing."""

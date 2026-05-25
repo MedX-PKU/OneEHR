@@ -13,7 +13,7 @@ oneehr convert --dataset mimic3 --raw-dir /path/to/mimic3 --output-dir data/mimi
 ### Python API
 
 ```python
-from oneehr.datasets import MIMIC3Converter
+from oneehr.data.converters import MIMIC3Converter
 
 converter = MIMIC3Converter("/path/to/mimic3")
 result = converter.convert()
@@ -31,7 +31,7 @@ converter.save("data/mimic3/", task="mortality")
 
 ## MIMIC-III
 
-**Class:** `oneehr.datasets.MIMIC3Converter`
+**Class:** `oneehr.data.converters.MIMIC3Converter`
 
 **Expected files:** `ADMISSIONS.csv`, `PATIENTS.csv`, `ICUSTAYS.csv`, `LABEVENTS.csv`, `CHARTEVENTS.csv`, `DIAGNOSES_ICD.csv`, `PROCEDURES_ICD.csv`, `PRESCRIPTIONS.csv`
 
@@ -68,7 +68,7 @@ converter.save("data/mimic3/", task="mortality")
 
 ## MIMIC-IV
 
-**Class:** `oneehr.datasets.MIMIC4Converter`
+**Class:** `oneehr.data.converters.MIMIC4Converter`
 
 **Expected layout:** `hosp/` and `icu/` subdirectories (or flat directory fallback).
 
@@ -85,7 +85,7 @@ converter.save("data/mimic3/", task="mortality")
 
 ## eICU
 
-**Class:** `oneehr.datasets.EICUConverter`
+**Class:** `oneehr.data.converters.EICUConverter`
 
 **Expected files:** `patient.csv`, `lab.csv`, `vitalPeriodic.csv`, `vitalAperiodic.csv`, `diagnosis.csv`, `medication.csv`
 
@@ -125,7 +125,7 @@ See the [Data Model](../getting-started/data-model.md) reference for column spec
 You can also extend `BaseConverter`:
 
 ```python
-from oneehr.datasets._base import BaseConverter, ConvertedDataset
+from oneehr.data.converters.base import BaseConverter, ConvertedDataset
 
 class MyConverter(BaseConverter):
     def convert(self) -> ConvertedDataset:

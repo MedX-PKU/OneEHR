@@ -81,7 +81,7 @@ def _make_mimic3_dir(tmp_path: Path) -> Path:
 
 
 def test_mimic3_converter(tmp_path):
-    from oneehr.datasets.mimic3 import MIMIC3Converter
+    from oneehr.data.converters.mimic3 import MIMIC3Converter
 
     raw = _make_mimic3_dir(tmp_path)
     converter = MIMIC3Converter(raw, use_chartevents=False, use_prescriptions=False)
@@ -103,7 +103,7 @@ def test_mimic3_converter(tmp_path):
 
 
 def test_mimic3_converter_save(tmp_path):
-    from oneehr.datasets.mimic3 import MIMIC3Converter
+    from oneehr.data.converters.mimic3 import MIMIC3Converter
 
     raw = _make_mimic3_dir(tmp_path)
     out = tmp_path / "output"
@@ -153,7 +153,7 @@ def _make_eicu_dir(tmp_path: Path) -> Path:
 
 
 def test_eicu_converter(tmp_path):
-    from oneehr.datasets.eicu import EICUConverter
+    from oneehr.data.converters.eicu import EICUConverter
 
     raw = _make_eicu_dir(tmp_path)
     converter = EICUConverter(raw, use_vitals=False, use_medication=False)
@@ -166,7 +166,7 @@ def test_eicu_converter(tmp_path):
 
 
 def test_converter_missing_dir(tmp_path):
-    from oneehr.datasets.mimic3 import MIMIC3Converter
+    from oneehr.data.converters.mimic3 import MIMIC3Converter
 
     with pytest.raises(FileNotFoundError):
         MIMIC3Converter(tmp_path / "nonexistent")

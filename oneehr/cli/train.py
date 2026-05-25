@@ -35,7 +35,7 @@ def _apply_pipeline(run_dir: Path, df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = df[col].fillna(0.0)
         return df
 
-    from oneehr.data.tabular import transform_pipeline
+    from oneehr.data.preprocessing.tabular import transform_pipeline
 
     fitted = torch.load(pipeline_path, weights_only=False)
     df = transform_pipeline(df, fitted)
@@ -66,7 +66,7 @@ def run_train(cfg_path: str, force: bool) -> None:
 
     # Load preprocessed data
     from oneehr.artifacts.manifest import read_manifest
-    from oneehr.data.splits import load_split
+    from oneehr.data.preprocessing.splits import load_split
 
     manifest = read_manifest(run_dir)
     feat_cols = manifest["feature_columns"]
@@ -270,7 +270,7 @@ def _train_dl(
     static_all: pd.DataFrame | None,
 ) -> None:
     from oneehr.artifacts.model_runtime import prepare_dl_artifacts
-    from oneehr.data.tabular import has_static_branch
+    from oneehr.data.preprocessing.tabular import has_static_branch
     from oneehr.models import build_dl_model
     from oneehr.training.persistence import save_checkpoint
     from oneehr.training.trainer import fit_model

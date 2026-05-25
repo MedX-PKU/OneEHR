@@ -18,10 +18,10 @@ import torch
 
 from oneehr.artifacts.manifest import write_manifest
 from oneehr.config.schema import ExperimentConfig
-from oneehr.data.binning import bin_events
-from oneehr.data.labels import normalize_multilabel_patient_labels, normalize_multilabel_time_labels, normalize_patient_labels, normalize_time_labels
-from oneehr.data.splits import load_split, make_patient_index, make_split, save_split
-from oneehr.data.tabular import fit_pipeline, fit_transform_static_features
+from oneehr.data.preprocessing.binning import bin_events
+from oneehr.data.preprocessing.labels import normalize_multilabel_patient_labels, normalize_multilabel_time_labels, normalize_patient_labels, normalize_time_labels
+from oneehr.data.preprocessing.splits import load_split, make_patient_index, make_split, save_split
+from oneehr.data.preprocessing.tabular import fit_pipeline, fit_transform_static_features
 from oneehr.utils import ensure_dir
 
 

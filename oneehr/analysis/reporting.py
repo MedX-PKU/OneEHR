@@ -16,7 +16,7 @@ from oneehr.analysis.feature_importance import (
 )
 from oneehr.artifacts.store import RunIO
 from oneehr.data.overview_light import build_dataset_overview, build_feature_overview
-from oneehr.data.splits import load_splits
+from oneehr.data.preprocessing.splits import load_splits
 from oneehr.eval.metrics import binary_metrics, regression_metrics
 from oneehr.eval.tables import summarize_metrics
 from oneehr.utils import ensure_dir, write_json

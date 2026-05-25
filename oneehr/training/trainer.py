@@ -273,7 +273,7 @@ def fit_model(
 
     Handles both patient-level and time-level training.
     """
-    from oneehr.data.tabular import has_static_branch
+    from oneehr.data.preprocessing.tabular import has_static_branch
     from oneehr.eval.metrics import binary_metrics, multiclass_metrics, multilabel_metrics, regression_metrics
     from oneehr.utils import set_seed
 
@@ -647,7 +647,7 @@ def _model_extra_kwargs(extra, batch_idx: torch.Tensor, device):
 
 
 def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_length=None):
-    from oneehr.data.sequence import build_patient_sequences, pad_sequences
+    from oneehr.data.preprocessing.sequence import build_patient_sequences, pad_sequences
 
     pids, seqs, lens = build_patient_sequences(binned, feat_cols, max_seq_length=max_seq_length)
     X_seq = pad_sequences(seqs, lens)
@@ -689,7 +689,7 @@ def _prep_patient(binned, feat_cols, y_map, patient_ids, static, *, max_seq_leng
 
 
 def _prep_time(binned, labels_df, feat_cols, patient_ids, static, *, max_seq_length=None):
-    from oneehr.data.sequence import build_time_sequences, pad_sequences
+    from oneehr.data.preprocessing.sequence import build_time_sequences, pad_sequences
 
     pids, time_seqs, seqs, y_seqs, mask_seqs, lens = build_time_sequences(
         binned,

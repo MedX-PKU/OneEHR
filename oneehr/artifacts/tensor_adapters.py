@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from oneehr.data.sequence import build_patient_sequences
+from oneehr.data.preprocessing.sequence import build_patient_sequences
 from oneehr.utils import parse_bin_size
 
 

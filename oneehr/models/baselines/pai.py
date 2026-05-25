@@ -32,7 +32,7 @@ def build_missing_mask_tensor(
     patient_ids: list[str] | None = None,
     max_len: int | None = None,
 ) -> torch.Tensor:
-    from oneehr.data.sequence import build_patient_sequences
+    from oneehr.data.preprocessing.sequence import build_patient_sequences
 
     obs = _sorted_feature_frame(obs_mask, feat_cols)
     seq_pids, seqs, _ = build_patient_sequences(obs, feat_cols)
