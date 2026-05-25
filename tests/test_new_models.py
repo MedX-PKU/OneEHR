@@ -304,6 +304,66 @@ def test_graphcare(mode, expected_shape):
         ("time", (B, T, OUT_DIM)),
     ],
 )
+def test_emerge(mode, expected_shape):
+    from oneehr.models.emerge import EMERGEModel, EMERGETimeModel
+
+    cls = EMERGETimeModel if mode == "time" else EMERGEModel
+    m = cls(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        input_note_dim=6,
+        input_summary_dim=7,
+        ehr_net="gru",
+        text_fusion="concat",
+        modality_fusion="ours",
+        num_heads=4,
+        dropout=0.0,
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    note_embedding = torch.randn(B, 6)
+    summary_embedding = torch.randn(B, 7)
+    out = m(x, lengths, note_embedding=note_embedding, summary_embedding=summary_embedding)
+    assert out.shape == expected_shape
+    out.sum().backward()
+
+
+def test_emerge_token_transformer_variant():
+    from oneehr.models.emerge import EMERGEModel
+
+    m = EMERGEModel(
+        input_dim=INPUT_DIM,
+        hidden_dim=HIDDEN,
+        out_dim=OUT_DIM,
+        input_note_dim=6,
+        input_summary_dim=7,
+        ehr_net="modern_transformer",
+        text_fusion="gated",
+        modality_fusion="token_transformer",
+        num_heads=4,
+        num_layers=2,
+        dropout=0.0,
+    )
+    x = torch.randn(B, T, INPUT_DIM)
+    lengths = torch.tensor([T, T - 2])
+    out = m(
+        x,
+        lengths,
+        note_embedding=torch.randn(B, 6),
+        summary_embedding=torch.randn(B, 7),
+    )
+    assert out.shape == (B, OUT_DIM)
+    out.sum().backward()
+
+
+@pytest.mark.parametrize(
+    "mode,expected_shape",
+    [
+        ("patient", (B, OUT_DIM)),
+        ("time", (B, T, OUT_DIM)),
+    ],
+)
 def test_kerprint(mode, expected_shape):
     from oneehr.models.kerprint import KerPrintModel, KerPrintTimeModel
 

@@ -45,6 +45,7 @@ DL_MODELS: frozenset[str] = frozenset(
         "m3care",
         "safari",
         "pai",
+        "emerge",
         "deepsurv",
         "deephit",
     }
@@ -155,6 +156,19 @@ _DL_DEFAULTS: dict[str, dict] = {
         "num_layers": 1,
         "dropout": 0.0,
         "prompt_init": "median",
+    },
+    "emerge": {
+        "hidden_dim": 128,
+        "input_note_dim": 768,
+        "input_summary_dim": 768,
+        "ehr_net": "gru",
+        "text_fusion": "concat",
+        "modality_fusion": "ours",
+        "use_modality": "ehr_note_summary",
+        "num_heads": 4,
+        "num_layers": 1,
+        "ffn_multiplier": 4,
+        "dropout": 0.25,
     },
     "deepsurv": {
         "hidden_dim": 128,
@@ -571,6 +585,25 @@ def build_dl_model(model_cfg: ModelConfig, *, input_dim: int, out_dim: int = 1, 
             num_layers=int(params.get("num_layers", 1)),
             dropout=float(params.get("dropout", 0.0)),
             prompt_init_values=params.get("prompt_init_values"),
+        )
+
+    if name == "emerge":
+        mod = import_module("oneehr.models.emerge")
+        cls_name = "EMERGETimeModel" if is_time else "EMERGEModel"
+        return getattr(mod, cls_name)(
+            input_dim=input_dim,
+            hidden_dim=int(params.get("hidden_dim", 128)),
+            out_dim=out_dim,
+            input_note_dim=int(params.get("input_note_dim", 768)),
+            input_summary_dim=int(params.get("input_summary_dim", 768)),
+            ehr_net=str(params.get("ehr_net", "gru")),
+            text_fusion=str(params.get("text_fusion", "concat")),
+            modality_fusion=str(params.get("modality_fusion", "ours")),
+            use_modality=str(params.get("use_modality", "ehr_note_summary")),
+            num_heads=int(params.get("num_heads", 4)),
+            num_layers=int(params.get("num_layers", 1)),
+            ffn_multiplier=int(params.get("ffn_multiplier", 4)),
+            dropout=float(params.get("dropout", 0.25)),
         )
 
     if name == "deepsurv":
