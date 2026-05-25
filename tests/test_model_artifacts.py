@@ -26,7 +26,7 @@ def test_align_extra_to_patient_ids_reorders_batched_tensors():
 
 
 def test_external_kg_matches_medical_code_aliases(tmp_path):
-    from oneehr.models.kg import build_lightweight_kg
+    from oneehr.artifacts.kg_artifacts import build_lightweight_kg
 
     binned = pd.DataFrame(
         {
@@ -67,7 +67,7 @@ def test_external_kg_matches_medical_code_aliases(tmp_path):
 
 
 def test_lightweight_kg_records_recommended_default_preset():
-    from oneehr.models.kg import build_lightweight_kg
+    from oneehr.artifacts.kg_artifacts import build_lightweight_kg
 
     binned = pd.DataFrame(
         {
@@ -183,7 +183,7 @@ def test_emerge_text_artifacts_accept_precomputed_embeddings(tmp_path):
 
 
 def test_model_artifact_policy_exposes_no_external_pretraining():
-    from oneehr.models.artifact_policy import checkpoint_artifact_meta, model_artifact_policy, resolve_kg_preset
+    from oneehr.artifacts.model_policy import checkpoint_artifact_meta, model_artifact_policy, resolve_kg_preset
 
     graphcare = model_artifact_policy("graphcare")
     assert graphcare.requires_external_pretraining is False

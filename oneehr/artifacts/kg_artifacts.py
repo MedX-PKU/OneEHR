@@ -9,8 +9,14 @@ import numpy as np
 import pandas as pd
 import torch
 
-from oneehr.medcode.features import feature_code_aliases, ontology_bucket
-from oneehr.models.adapters import (
+from oneehr.artifacts.model_policy import (
+    DEFAULT_KG_MIN_COOCCURRENCE,
+    DEFAULT_KG_ONTOLOGY,
+    DEFAULT_KG_SOURCE,
+    DEFAULT_KG_TOP_K,
+    resolve_kg_preset,
+)
+from oneehr.artifacts.tensor_adapters import (
     FeatureGroup,
     build_group_mask_tensor,
     build_group_sequence_tensor,
@@ -18,13 +24,7 @@ from oneehr.models.adapters import (
     build_visit_time_tensor,
     resolve_feature_groups,
 )
-from oneehr.models.artifact_policy import (
-    DEFAULT_KG_MIN_COOCCURRENCE,
-    DEFAULT_KG_ONTOLOGY,
-    DEFAULT_KG_SOURCE,
-    DEFAULT_KG_TOP_K,
-    resolve_kg_preset,
-)
+from oneehr.medcode.features import feature_code_aliases, ontology_bucket
 from oneehr.models.layers.graph import normalize_adjacency
 
 

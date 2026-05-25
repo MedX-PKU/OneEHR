@@ -13,8 +13,15 @@ from pathlib import Path
 import pandas as pd
 import torch
 
-from oneehr.config.schema import ModelConfig, PreprocessConfig
-from oneehr.models.adapters import (
+from oneehr.artifacts.kg_artifacts import build_lightweight_kg
+from oneehr.artifacts.model_policy import (
+    DEFAULT_KG_MIN_COOCCURRENCE,
+    DEFAULT_KG_ONTOLOGY,
+    DEFAULT_KG_SOURCE,
+    DEFAULT_KG_TOP_K,
+    checkpoint_artifact_meta,
+)
+from oneehr.artifacts.tensor_adapters import (
     build_group_mask_tensor,
     build_group_sequence_tensor,
     build_missing_mask_tensor,
@@ -26,14 +33,7 @@ from oneehr.models.adapters import (
     load_obs_mask,
     resolve_feature_groups,
 )
-from oneehr.models.artifact_policy import (
-    DEFAULT_KG_MIN_COOCCURRENCE,
-    DEFAULT_KG_ONTOLOGY,
-    DEFAULT_KG_SOURCE,
-    DEFAULT_KG_TOP_K,
-    checkpoint_artifact_meta,
-)
-from oneehr.models.kg import build_lightweight_kg
+from oneehr.config.schema import ModelConfig, PreprocessConfig
 
 
 @dataclass(frozen=True)

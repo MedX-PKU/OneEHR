@@ -269,9 +269,9 @@ def _train_dl(
     feat_cols: list[str],
     static_all: pd.DataFrame | None,
 ) -> None:
+    from oneehr.artifacts.model_runtime import prepare_dl_artifacts
     from oneehr.data.tabular import has_static_branch
     from oneehr.models import build_dl_model
-    from oneehr.models.runtime import prepare_dl_artifacts
     from oneehr.training.persistence import save_checkpoint
     from oneehr.training.trainer import fit_model
 

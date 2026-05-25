@@ -224,9 +224,9 @@ def _predict_trained_model(
     if isinstance(model, torch.nn.Module):
         # DL model
         model.eval()
+        from oneehr.artifacts.model_runtime import build_inference_extra
         from oneehr.data.sequence import build_patient_sequences, pad_sequences
         from oneehr.data.tabular import has_static_branch
-        from oneehr.models.runtime import build_inference_extra
 
         # Load static features for models with a static branch
         run_dir = model_dir.parent.parent

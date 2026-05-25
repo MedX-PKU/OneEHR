@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import import_module
 
+from oneehr.artifacts.model_policy import DEFAULT_LIGHTWEIGHT_KG_PARAMS
 from oneehr.config.schema import ModelConfig
 from oneehr.config.schema import TaskConfig as TaskConfig
-from oneehr.models.artifact_policy import DEFAULT_LIGHTWEIGHT_KG_PARAMS
 
 TABULAR_MODELS: frozenset[str] = frozenset({"xgboost", "catboost", "rf", "dt", "gbdt", "lr"})
 DL_MODELS: frozenset[str] = frozenset(
