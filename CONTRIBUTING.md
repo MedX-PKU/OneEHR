@@ -61,7 +61,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Adding a New Model
 
-1. Create `oneehr/models/<model_name>.py` with patient-level and time-level variants
+1. Create `oneehr/models/baselines/<model_name>.py` with patient-level and time-level variants
 2. Both classes must accept `(x: Tensor, lengths: Tensor, **kwargs) -> Tensor`
 3. Register the model name in `oneehr/models/__init__.py`:
    - Add to `DL_MODELS` frozenset
