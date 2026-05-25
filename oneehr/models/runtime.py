@@ -239,7 +239,7 @@ def prepare_dl_artifacts(
         return _prepared(model_name, **spec)
 
     if model_name == "emerge":
-        from oneehr.models.text import prepare_emerge_text_artifacts
+        from oneehr.models.emerge import prepare_emerge_text_artifacts
 
         spec = prepare_emerge_text_artifacts(
             model_cfg=model_cfg,
@@ -408,7 +408,7 @@ def build_inference_extra(
         )
 
     if model_name == "emerge":
-        from oneehr.models.text import build_emerge_inference_extra
+        from oneehr.models.emerge import build_emerge_inference_extra
 
         return build_emerge_inference_extra(
             meta=meta,

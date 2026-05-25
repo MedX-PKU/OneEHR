@@ -100,7 +100,7 @@ def test_lightweight_kg_records_recommended_default_preset():
 
 def test_emerge_text_artifacts_are_split_aligned(tmp_path):
     from oneehr.config.schema import ModelConfig
-    from oneehr.models.text import build_emerge_inference_extra, prepare_emerge_text_artifacts
+    from oneehr.models.emerge import build_emerge_inference_extra, prepare_emerge_text_artifacts
 
     run_dir = tmp_path / "run"
     binned = pd.DataFrame(
@@ -137,7 +137,7 @@ def test_emerge_text_artifacts_are_split_aligned(tmp_path):
 
 def test_emerge_text_artifacts_accept_precomputed_embeddings(tmp_path):
     from oneehr.config.schema import ModelConfig
-    from oneehr.models.text import prepare_emerge_text_artifacts
+    from oneehr.models.emerge import prepare_emerge_text_artifacts
 
     note_path = tmp_path / "note.csv"
     summary_path = tmp_path / "summary.csv"
