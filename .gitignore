@@ -11,6 +11,10 @@ runs/
 logs/
 webui/node_modules/
 webui/dist/
+tutorial_config.toml
+my_dynamic.csv
+my_static.csv
+my_label.csv
 
 # Distribution / packaging
 .Python

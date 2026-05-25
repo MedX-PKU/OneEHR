@@ -68,7 +68,7 @@ JOURNAL_STYLES: dict[str, dict[str, Any]] = {
         "figsize": (3.50, 3.0),
         "dpi": 300,
         "font.family": "sans-serif",
-        "font.sans-serif": ["Arial", "Helvetica"],
+        "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
         "font.size": 7,
         "axes.labelsize": 8,
         "axes.titlesize": 8,
@@ -84,7 +84,7 @@ JOURNAL_STYLES: dict[str, dict[str, Any]] = {
         "figsize": (3.35, 3.0),
         "dpi": 300,
         "font.family": "sans-serif",
-        "font.sans-serif": ["Arial", "Helvetica"],
+        "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
         "font.size": 8,
         "axes.labelsize": 9,
         "axes.titlesize": 9,
@@ -116,7 +116,7 @@ JOURNAL_STYLES: dict[str, dict[str, Any]] = {
 }
 
 # Keys that are NOT rcParams (handled separately).
-_NON_RC_KEYS = {"figsize", "palette"}
+_NON_RC_KEYS = {"figsize", "palette", "dpi"}
 
 
 def apply_style(style: str = "default") -> dict[str, Any]:
@@ -161,7 +161,7 @@ def new_figure(
     if ax is not None:
         return ax.figure, ax
     sz = figsize or preset["figsize"]
-    fig, ax = plt.subplots(figsize=sz)
+    fig, ax = plt.subplots(figsize=sz, dpi=preset.get("dpi"))
     return fig, ax
 
 

@@ -118,7 +118,7 @@ def plot_kaplan_meier(
                 zorder=5,
             )
 
-        at_risk_data[label] = (time_points, surv, len(t[mask] if isinstance(mask, np.ndarray) else t))
+        at_risk_data[label] = (time_points, surv, len(t))
 
     main_ax.set_xlabel(xlabel)
     main_ax.set_ylabel(ylabel)
